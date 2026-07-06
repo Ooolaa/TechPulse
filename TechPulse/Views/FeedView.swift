@@ -48,6 +48,8 @@ struct FeedView: View {
             // Sync on launch when cache is empty or stale (>30 min); never blocks reading.
             let stale = lastSynced.map { Date.now.timeIntervalSince($0) > 1800 } ?? true
             if stale { await sync() }
+            // Catch up on any articles still awaiting on-device analysis.
+            await IntelligenceService.analyzePending(context: modelContext)
         }
     }
 
@@ -56,6 +58,7 @@ struct FeedView: View {
         isSyncing = true
         await FeedSyncService.syncAll(context: modelContext)
         isSyncing = false
+        await IntelligenceService.analyzePending(context: modelContext)
     }
 
     private var header: some View {
@@ -162,7 +165,9 @@ struct ArticleCard: View {
     let article: Article
 
     private var preview: String {
-        if let summary = article.summary { return "On-device summary — \(summary)" }
+        if let summary = article.summary, !summary.isEmpty {
+            return "On-device summary — \(summary)"
+        }
         return article.content.strippingHTML
     }
 

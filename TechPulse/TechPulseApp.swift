@@ -26,6 +26,8 @@ struct TechPulseApp: App {
             Self.scheduleAppRefresh()
             let syncTask = Task { @MainActor in
                 await FeedSyncService.syncAll(context: container.mainContext)
+                // Spec §5: batch analysis in BackgroundTasks windows to save battery.
+                await IntelligenceService.analyzePending(context: container.mainContext)
                 refresh.setTaskCompleted(success: true)
             }
             refresh.expirationHandler = { syncTask.cancel() }

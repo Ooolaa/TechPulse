@@ -16,6 +16,7 @@
 		54270DCF1E686461F4D799E8 /* FeedSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F913F99EDEF0C8346A46BF8 /* FeedSource.swift */; };
 		55AEB1106174B5C14FB36FA2 /* TechPulseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCD8E2B92F580179B914CAB /* TechPulseApp.swift */; };
 		55C48AE6CB76FD8C4B1ADA6A /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21E4491DBD576D7C3A194CF7 /* FeedView.swift */; };
+		76300C799239920856F4869D /* IntelligenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB39432F3B7A188E92A963D0 /* IntelligenceService.swift */; };
 		787B5A057456E5A8138E7E57 /* ProgressTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B5DEA33C7F76331B8669A39 /* ProgressTabView.swift */; };
 		86998CFB655967C45D6C4841 /* ConceptLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9C5ED2D37A3357AEFA26968 /* ConceptLink.swift */; };
 		888D419A0635DFE249F4C436 /* KnowledgeMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F518937E357D9640AB20F567 /* KnowledgeMapView.swift */; };
@@ -43,6 +44,7 @@
 		DC4B49A1EFCB17ECF852B046 /* LearningEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningEvent.swift; sourceTree = "<group>"; };
 		DFCD8E2B92F580179B914CAB /* TechPulseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TechPulseApp.swift; sourceTree = "<group>"; };
 		E4185C93CEBFBE8C369F380C /* Article.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Article.swift; sourceTree = "<group>"; };
+		EB39432F3B7A188E92A963D0 /* IntelligenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceService.swift; sourceTree = "<group>"; };
 		ED47D39B166251E56D6F8BF5 /* Concept.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Concept.swift; sourceTree = "<group>"; };
 		F3A91E232A4865C54B96A6F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F518937E357D9640AB20F567 /* KnowledgeMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapView.swift; sourceTree = "<group>"; };
@@ -99,6 +101,7 @@
 			isa = PBXGroup;
 			children = (
 				626B44DBD4047ED09444071D /* FeedSyncService.swift */,
+				EB39432F3B7A188E92A963D0 /* IntelligenceService.swift */,
 				C026D81A3625A7A0FFB671BA /* PreviewData.swift */,
 				913AB0648317CE52447B34D6 /* RSSParser.swift */,
 				D54D627FAD26DF0C72127B94 /* SeedData.swift */,
@@ -179,6 +182,7 @@
 				54270DCF1E686461F4D799E8 /* FeedSource.swift in Sources */,
 				053F38244CD10DA6ED77B640 /* FeedSyncService.swift in Sources */,
 				55C48AE6CB76FD8C4B1ADA6A /* FeedView.swift in Sources */,
+				76300C799239920856F4869D /* IntelligenceService.swift in Sources */,
 				888D419A0635DFE249F4C436 /* KnowledgeMapView.swift in Sources */,
 				F4DF1AAEFC78C1B0B1F1193A /* LearningEvent.swift in Sources */,
 				2033BEA874209872876F143A /* PreviewData.swift in Sources */,

@@ -20,7 +20,7 @@ struct ArticleView: View {
                     .lineSpacing(3)
                     .padding(.top, 8)
 
-                if let summary = article.summary {
+                if let summary = article.summary, !summary.isEmpty {
                     summaryCard(summary)
                         .padding(.top, 16)
                 }
