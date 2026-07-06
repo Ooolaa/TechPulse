@@ -26,3 +26,19 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.johnchen.TechPulse
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
+  TechPulseUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Tests/UITests]
+    dependencies:
+      - target: TechPulse
+schemes:
+  TechPulse:
+    build:
+      targets:
+        TechPulse: all
+        TechPulseUITests: [test]
+    run:
+      config: Debug
+    test:
+      targets: [TechPulseUITests]

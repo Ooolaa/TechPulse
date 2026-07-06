@@ -125,6 +125,7 @@ struct FeedView: View {
                         ArticleCard(article: article)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("articleCard")
                 }
             }
             .padding(.horizontal, 16)

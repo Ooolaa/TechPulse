@@ -45,19 +45,8 @@ struct KnowledgeMapView: View {
                                 .multilineTextAlignment(.center)
                         }
                     } else {
-                        // Interim tappable concept cloud; the force-directed
-                        // graph replaces this in Milestone 5.
-                        ScrollView {
-                            FlowLayout(spacing: 8) {
-                                ForEach(concepts) { concept in
-                                    Button { selectedConcept = concept } label: {
-                                        ConceptChip(concept: concept)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(16)
-                            .padding(.bottom, 60)
+                        ForceGraphView(concepts: concepts, links: links) { name in
+                            selectedConcept = concepts.first { $0.name == name }
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 22))
                     }

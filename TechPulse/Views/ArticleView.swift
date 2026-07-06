@@ -96,6 +96,7 @@ struct ArticleView: View {
                         ConceptChip(concept: concept)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("conceptChip")
                 }
             }
         }

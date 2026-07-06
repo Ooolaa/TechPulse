@@ -123,6 +123,7 @@ struct ConceptSheetView: View {
             }
             .buttonStyle(.plain)
             .disabled(concept.isMarkedKnown)
+            .accessibilityIdentifier("knowButton")
 
             Button {} label: {
                 Text("Quiz me")
