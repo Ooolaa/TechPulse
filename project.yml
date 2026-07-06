@@ -12,11 +12,17 @@ targets:
     type: application
     platform: iOS
     sources: [TechPulse]
+    info:
+      path: TechPulse/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.johnchen.TechPulse.refresh
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.johnchen.TechPulse
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic

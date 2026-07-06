@@ -2,17 +2,36 @@ import SwiftUI
 import SwiftData
 
 struct FeedView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Article.publishedAt, order: .reverse) private var articles: [Article]
+    @Query private var sources: [FeedSource]
     @State private var selectedCategory: String?
+    @State private var isSyncing = false
 
-    private let categories = ["LLMs", "Agents", "Vision", "Chips"]
+    private var categories: [String] {
+        Array(Set(sources.map(\.category))).sorted()
+    }
+
+    /// source name → category, for chip filtering
+    private var sourceCategory: [String: String] {
+        Dictionary(sources.map { ($0.name, $0.category) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private var filteredArticles: [Article] {
+        guard let selectedCategory else { return articles }
+        return articles.filter { sourceCategory[$0.sourceName] == selectedCategory }
+    }
+
+    private var lastSynced: Date? {
+        sources.compactMap(\.lastFetched).max()
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
                 header
                 categoryChips
-                if articles.isEmpty {
+                if filteredArticles.isEmpty {
                     emptyState
                 } else {
                     articleList
@@ -21,7 +40,22 @@ struct FeedView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Theme.background)
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Article.self) { article in
+                ArticleView(article: article)
+            }
         }
+        .task {
+            // Sync on launch when cache is empty or stale (>30 min); never blocks reading.
+            let stale = lastSynced.map { Date.now.timeIntervalSince($0) > 1800 } ?? true
+            if stale { await sync() }
+        }
+    }
+
+    private func sync() async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        await FeedSyncService.syncAll(context: modelContext)
+        isSyncing = false
     }
 
     private var header: some View {
@@ -30,13 +64,20 @@ struct FeedView: View {
                 .font(.system(size: 30, weight: .heavy))
                 .foregroundStyle(Theme.textPrimary)
             Spacer()
-            // Offline-first: no spinners, just a "last synced" pill.
             HStack(spacing: 6) {
-                Circle().fill(Theme.stateKnown).frame(width: 6, height: 6)
-                Text("Not synced yet")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Theme.textSecondary)
+                Circle()
+                    .fill(isSyncing ? Theme.stateLearning : (lastSynced == nil ? Theme.stateNew : Theme.stateKnown))
+                    .frame(width: 6, height: 6)
+                if isSyncing {
+                    Text("Syncing…")
+                } else if let lastSynced {
+                    Text("Synced \(lastSynced.formatted(.relative(presentation: .named)))")
+                } else {
+                    Text("Not synced yet")
+                }
             }
+            .font(.system(size: 11.5))
+            .foregroundStyle(Theme.textSecondary)
             .padding(.horizontal, 11)
             .padding(.vertical, 5)
             .background(Theme.card, in: Capsule())
@@ -76,27 +117,42 @@ struct FeedView: View {
     private var articleList: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
-                ForEach(articles) { article in
-                    ArticleCard(article: article)
+                ForEach(filteredArticles) { article in
+                    NavigationLink(value: article) {
+                        ArticleCard(article: article)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 16)
+            .padding(.bottom, 8)
         }
+        .refreshable { await sync() }
     }
 
     private var emptyState: some View {
         VStack(spacing: 8) {
             Spacer()
-            Image(systemName: "antenna.radiowaves.left.and.right")
-                .font(.system(size: 34))
-                .foregroundStyle(Theme.stateNew)
-            Text("No articles yet")
-                .font(.system(size: 16.5, weight: .bold))
-                .foregroundStyle(Theme.textPrimary)
-            Text("Feed sync arrives in Milestone 2.\nYour reading list will cache here for offline use.")
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
+            if isSyncing {
+                Text("Fetching your feeds…")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .font(.system(size: 34))
+                    .foregroundStyle(Theme.stateNew)
+                Text("No articles yet")
+                    .font(.system(size: 16.5, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("Connect to the internet and pull to refresh.\nEverything fetched stays readable offline.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                Button("Sync now") { Task { await sync() } }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.stateLearning)
+                    .padding(.top, 4)
+            }
             Spacer()
         }
     }
@@ -105,6 +161,11 @@ struct FeedView: View {
 struct ArticleCard: View {
     let article: Article
 
+    private var preview: String {
+        if let summary = article.summary { return "On-device summary — \(summary)" }
+        return article.content.strippingHTML
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -112,36 +173,41 @@ struct ArticleCard: View {
                     .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
-                Text(article.publishedAt, format: .relative(presentation: .named))
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Theme.textTertiary)
+                if article.isRead {
+                    Text("Read ✓")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.textTertiary)
+                } else {
+                    Text(article.publishedAt, format: .relative(presentation: .named))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.textTertiary)
+                }
             }
             Text(article.title)
                 .font(.system(size: 16.5, weight: .bold))
                 .foregroundStyle(Theme.textPrimary)
                 .lineSpacing(2)
-            if let summary = article.summary {
-                Text("On-device summary — \(summary)")
+                .multilineTextAlignment(.leading)
+            if !preview.isEmpty {
+                Text(preview)
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.textSecondary)
+                    .lineSpacing(3)
                     .lineLimit(3)
+                    .multilineTextAlignment(.leading)
             }
             if !article.concepts.isEmpty {
-                conceptTags
+                HStack(spacing: 6) {
+                    ForEach(article.concepts.prefix(3)) { concept in
+                        ConceptChip(concept: concept)
+                    }
+                }
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .techPulseCard()
         .opacity(article.isRead ? 0.65 : 1)
-    }
-
-    private var conceptTags: some View {
-        HStack(spacing: 6) {
-            ForEach(article.concepts.prefix(3)) { concept in
-                ConceptChip(concept: concept)
-            }
-        }
     }
 }
 

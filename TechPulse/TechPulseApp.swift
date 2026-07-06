@@ -1,8 +1,12 @@
 import SwiftUI
 import SwiftData
+import BackgroundTasks
 
 @main
 struct TechPulseApp: App {
+    static let refreshTaskID = "com.johnchen.TechPulse.refresh"
+
+    @Environment(\.scenePhase) private var scenePhase
     let container: ModelContainer
 
     init() {
@@ -15,6 +19,17 @@ struct TechPulseApp: App {
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
+
+        let container = self.container
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.refreshTaskID, using: nil) { task in
+            guard let refresh = task as? BGAppRefreshTask else { return }
+            Self.scheduleAppRefresh()
+            let syncTask = Task { @MainActor in
+                await FeedSyncService.syncAll(context: container.mainContext)
+                refresh.setTaskCompleted(success: true)
+            }
+            refresh.expirationHandler = { syncTask.cancel() }
+        }
     }
 
     var body: some Scene {
@@ -22,5 +37,14 @@ struct TechPulseApp: App {
             RootTabView()
         }
         .modelContainer(container)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { Self.scheduleAppRefresh() }
+        }
+    }
+
+    static func scheduleAppRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: refreshTaskID)
+        request.earliestBeginDate = .now.addingTimeInterval(3600)   // ≥1 h; iOS decides exact timing
+        try? BGTaskScheduler.shared.submit(request)
     }
 }

@@ -5,7 +5,7 @@ import SwiftData
 /// reading streak) arrive in Milestone 5.
 struct ProgressTabView: View {
     @Query private var concepts: [Concept]
-    @Query private var events: [LearningEvent]
+    @Query private var articles: [Article]
 
     private var masteredCount: Int {
         concepts.filter { $0.masteryState == .known }.count
@@ -42,11 +42,11 @@ struct ProgressTabView: View {
         }
     }
 
-    /// Consecutive days (ending today) with at least one "read" event.
+    /// Consecutive days (ending today) with at least one article read.
     private var readingStreakDays: Int {
         let calendar = Calendar.current
-        let readDays = Set(events.filter { $0.kind == "read" }
-            .map { calendar.startOfDay(for: $0.date) })
+        let readDays = Set(articles.compactMap(\.readAt)
+            .map { calendar.startOfDay(for: $0) })
         var streak = 0
         var day = calendar.startOfDay(for: .now)
         while readDays.contains(day) {
