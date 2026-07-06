@@ -5,6 +5,8 @@ import SwiftData
 /// on-device summary card (M3), concept chips (M3), body text.
 struct ArticleView: View {
     @Bindable var article: Article
+    @Environment(\.modelContext) private var modelContext
+    @State private var selectedConcept: Concept?
 
     var body: some View {
         ScrollView {
@@ -42,10 +44,10 @@ struct ArticleView: View {
         .background(Theme.card)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            if !article.isRead {
-                article.isRead = true
-                article.readAt = .now
-            }
+            KnowledgeEngine.recordRead(article, context: modelContext)
+        }
+        .sheet(item: $selectedConcept) { concept in
+            ConceptSheetView(concept: concept)
         }
     }
 
@@ -90,7 +92,10 @@ struct ArticleView: View {
             }
             FlowLayout(spacing: 7) {
                 ForEach(article.concepts) { concept in
-                    ConceptChip(concept: concept)
+                    Button { selectedConcept = concept } label: {
+                        ConceptChip(concept: concept)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }

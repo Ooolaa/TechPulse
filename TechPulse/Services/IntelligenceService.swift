@@ -74,22 +74,15 @@ enum IntelligenceService {
         article.summary = analysis.summary
 
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var byLowerName = Dictionary(allConcepts.map { ($0.name.lowercased(), $0) },
-                                     uniquingKeysWith: { first, _ in first })
+        var cache = Dictionary(allConcepts.map { ($0.name.lowercased(), $0) },
+                               uniquingKeysWith: { first, _ in first })
 
         var attached: [Concept] = []
-        for extracted in analysis.concepts {
-            let name = extracted.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard name.count > 1, attached.count < 8 else { continue }
-            let concept: Concept
-            if let existing = byLowerName[name.lowercased()] {
-                concept = existing
-            } else {
-                concept = Concept(name: name, category: extracted.category,
-                                  definition: extracted.definition)
-                context.insert(concept)
-                byLowerName[name.lowercased()] = concept
-            }
+        for extracted in analysis.concepts where attached.count < 8 {
+            guard let concept = KnowledgeEngine.findOrCreateConcept(
+                named: extracted.name, category: extracted.category,
+                definition: extracted.definition, context: context, cache: &cache
+            ) else { continue }
             if !attached.contains(where: { $0.name == concept.name }) {
                 attached.append(concept)
             }

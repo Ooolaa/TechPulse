@@ -4,8 +4,9 @@ import SwiftData
 /// Milestone 5 delivers the force-directed graph (TimelineView + Canvas).
 /// M1 shows the live concept/link counts over the same layout skeleton.
 struct KnowledgeMapView: View {
-    @Query private var concepts: [Concept]
+    @Query(sort: \Concept.masteryLevel, order: .reverse) private var concepts: [Concept]
     @Query private var links: [ConceptLink]
+    @State private var selectedConcept: Concept?
 
     var body: some View {
         NavigationStack {
@@ -30,22 +31,43 @@ struct KnowledgeMapView: View {
                     RoundedRectangle(cornerRadius: 22)
                         .fill(Theme.card)
                         .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.cardBorder, lineWidth: 1))
-                    VStack(spacing: 10) {
-                        Image(systemName: "point.3.connected.trianglepath.dotted")
-                            .font(.system(size: 40))
-                            .foregroundStyle(Theme.stateNew)
-                        Text("Your map starts as a few lonely dots")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(Theme.textPrimary)
-                        Text("Concepts appear here as you read.\nForce-directed graph lands in Milestone 5.")
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(Theme.textSecondary)
-                            .multilineTextAlignment(.center)
+                    if concepts.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "point.3.connected.trianglepath.dotted")
+                                .font(.system(size: 40))
+                                .foregroundStyle(Theme.stateNew)
+                            Text("Your map starts as a few lonely dots")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(Theme.textPrimary)
+                            Text("Concepts appear here as you read.\nForce-directed graph lands in Milestone 5.")
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(Theme.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                    } else {
+                        // Interim tappable concept cloud; the force-directed
+                        // graph replaces this in Milestone 5.
+                        ScrollView {
+                            FlowLayout(spacing: 8) {
+                                ForEach(concepts) { concept in
+                                    Button { selectedConcept = concept } label: {
+                                        ConceptChip(concept: concept)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(16)
+                            .padding(.bottom, 60)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 22))
                     }
                     legend
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
+                .sheet(item: $selectedConcept) { concept in
+                    ConceptSheetView(concept: concept)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Theme.background)

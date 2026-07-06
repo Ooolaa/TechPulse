@@ -9,10 +9,12 @@
 /* Begin PBXBuildFile section */
 		053F38244CD10DA6ED77B640 /* FeedSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626B44DBD4047ED09444071D /* FeedSyncService.swift */; };
 		113632B5A6A20C4EDE618116 /* ArticleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA7BA225FFE6F945A9104EE /* ArticleView.swift */; };
+		11952B7F3953AE8B946E7181 /* ConceptSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E99D5A4574651A0F930761 /* ConceptSheetView.swift */; };
 		2033BEA874209872876F143A /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = C026D81A3625A7A0FFB671BA /* PreviewData.swift */; };
 		223A361D7999C367F1CF2752 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D54D627FAD26DF0C72127B94 /* SeedData.swift */; };
 		2D8B0F0767C9B416C80DDB30 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B07EE9C61977870716F7F9E /* Theme.swift */; };
 		3E3CF15088A284E0EB84871C /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B90CCA674EAE8D32108CD3 /* RootTabView.swift */; };
+		4C714C5DB37A3929083FB727 /* KnowledgeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AD1BC18D4319A7AA8A7A80A /* KnowledgeEngine.swift */; };
 		54270DCF1E686461F4D799E8 /* FeedSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F913F99EDEF0C8346A46BF8 /* FeedSource.swift */; };
 		55AEB1106174B5C14FB36FA2 /* TechPulseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCD8E2B92F580179B914CAB /* TechPulseApp.swift */; };
 		55C48AE6CB76FD8C4B1ADA6A /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21E4491DBD576D7C3A194CF7 /* FeedView.swift */; };
@@ -33,6 +35,7 @@
 		21B90CCA674EAE8D32108CD3 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
 		21E4491DBD576D7C3A194CF7 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		2B07EE9C61977870716F7F9E /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		4AD1BC18D4319A7AA8A7A80A /* KnowledgeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeEngine.swift; sourceTree = "<group>"; };
 		617B35B67651116A05F5ADB6 /* TechPulse.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TechPulse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		626B44DBD4047ED09444071D /* FeedSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedSyncService.swift; sourceTree = "<group>"; };
 		8BA7BA225FFE6F945A9104EE /* ArticleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleView.swift; sourceTree = "<group>"; };
@@ -47,6 +50,7 @@
 		EB39432F3B7A188E92A963D0 /* IntelligenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntelligenceService.swift; sourceTree = "<group>"; };
 		ED47D39B166251E56D6F8BF5 /* Concept.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Concept.swift; sourceTree = "<group>"; };
 		F3A91E232A4865C54B96A6F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F3E99D5A4574651A0F930761 /* ConceptSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConceptSheetView.swift; sourceTree = "<group>"; };
 		F518937E357D9640AB20F567 /* KnowledgeMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -79,6 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				8BA7BA225FFE6F945A9104EE /* ArticleView.swift */,
+				F3E99D5A4574651A0F930761 /* ConceptSheetView.swift */,
 				21E4491DBD576D7C3A194CF7 /* FeedView.swift */,
 				F518937E357D9640AB20F567 /* KnowledgeMapView.swift */,
 				0B5DEA33C7F76331B8669A39 /* ProgressTabView.swift */,
@@ -102,6 +107,7 @@
 			children = (
 				626B44DBD4047ED09444071D /* FeedSyncService.swift */,
 				EB39432F3B7A188E92A963D0 /* IntelligenceService.swift */,
+				4AD1BC18D4319A7AA8A7A80A /* KnowledgeEngine.swift */,
 				C026D81A3625A7A0FFB671BA /* PreviewData.swift */,
 				913AB0648317CE52447B34D6 /* RSSParser.swift */,
 				D54D627FAD26DF0C72127B94 /* SeedData.swift */,
@@ -179,10 +185,12 @@
 				113632B5A6A20C4EDE618116 /* ArticleView.swift in Sources */,
 				C1F65670F6E83E3C7C1D4C31 /* Concept.swift in Sources */,
 				86998CFB655967C45D6C4841 /* ConceptLink.swift in Sources */,
+				11952B7F3953AE8B946E7181 /* ConceptSheetView.swift in Sources */,
 				54270DCF1E686461F4D799E8 /* FeedSource.swift in Sources */,
 				053F38244CD10DA6ED77B640 /* FeedSyncService.swift in Sources */,
 				55C48AE6CB76FD8C4B1ADA6A /* FeedView.swift in Sources */,
 				76300C799239920856F4869D /* IntelligenceService.swift in Sources */,
+				4C714C5DB37A3929083FB727 /* KnowledgeEngine.swift in Sources */,
 				888D419A0635DFE249F4C436 /* KnowledgeMapView.swift in Sources */,
 				F4DF1AAEFC78C1B0B1F1193A /* LearningEvent.swift in Sources */,
 				2033BEA874209872876F143A /* PreviewData.swift in Sources */,

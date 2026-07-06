@@ -16,6 +16,7 @@ struct TechPulseApp: App {
                 LearningEvent.self, ConceptLink.self
             )
             SeedData.seedIfNeeded(context: container.mainContext)
+            KnowledgeEngine.applyTimeDecay(context: container.mainContext)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
