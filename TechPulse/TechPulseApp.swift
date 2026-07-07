@@ -13,7 +13,7 @@ struct TechPulseApp: App {
         do {
             container = try ModelContainer(
                 for: FeedSource.self, Article.self, Concept.self,
-                LearningEvent.self, ConceptLink.self
+                LearningEvent.self, ConceptLink.self, ConceptDependency.self
             )
             SeedData.seedIfNeeded(context: container.mainContext)
             KnowledgeEngine.applyTimeDecay(context: container.mainContext)

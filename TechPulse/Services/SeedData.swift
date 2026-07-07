@@ -26,6 +26,9 @@ enum SeedData {
             try? context.save()
         }
         seedResumeKnowledgeIfNeeded(context: context)
+        // After the resume: pack concepts merge with anything already known
+        // (Fine-Tuning, PyTorch stay green) and everything joins its cluster.
+        KnowledgePack.seedIfNeeded(context: context)
     }
 
     // MARK: Resume-based knowledge base

@@ -43,8 +43,17 @@ final class TechPulseUITests: XCTestCase {
         }
 
         app.buttons["Knowledge"].tap()
+        sleep(1)
+        snap(app, "5-cluster-overview")
+
+        // Drill into the first cluster's dependency graph (design 4b).
+        let clusterCard = app.buttons["clusterCard"].firstMatch
+        XCTAssertTrue(clusterCard.waitForExistence(timeout: 5), "no cluster cards")
+        clusterCard.tap()
         sleep(3)                              // let the force layout settle
-        snap(app, "5-knowledge-graph")
+        snap(app, "5b-cluster-detail")
+        app.navigationBars.buttons.firstMatch.tap()   // back
+        sleep(1)
 
         app.buttons["Progress"].tap()
         sleep(1)

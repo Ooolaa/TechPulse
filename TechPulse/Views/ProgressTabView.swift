@@ -38,6 +38,8 @@ struct ProgressTabView: View {
                         statTile("\(readingStreakDays)d", "reading streak", Theme.stateLearning)
                     }
 
+                    learningPathCard
+                    sideQuestCard
                     growthCard
                     readingCard
                     quizBanner
@@ -85,6 +87,113 @@ struct ProgressTabView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.cardBorder, lineWidth: 1))
+    }
+
+    // MARK: AI engineer path (design 4d)
+
+    private var learningPathCard: some View {
+        let stages = KnowledgePathEngine.stageProgress(concepts: concepts)
+        let currentIndex = stages.firstIndex { !$0.isComplete } ?? stages.count - 1
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("AI engineer path")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+            Text("Dependency-ordered · from the knowledge pack")
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.textTertiary)
+
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(stages.indices, id: \.self) { index in
+                    stageRow(stages[index], number: index + 1,
+                             isCurrent: index == currentIndex,
+                             isLast: index == stages.count - 1)
+                }
+            }
+            .padding(.top, 14)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .techPulseCard()
+        .accessibilityIdentifier("learningPath")
+    }
+
+    private func stageRow(_ stage: KnowledgePathEngine.StageProgress, number: Int,
+                          isCurrent: Bool, isLast: Bool) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(spacing: 0) {
+                ZStack {
+                    if stage.isComplete {
+                        Circle().fill(Theme.stateKnown)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .heavy))
+                            .foregroundStyle(.white)
+                    } else {
+                        Circle().fill(isCurrent ? Theme.card : Theme.newTint)
+                            .overlay(Circle().strokeBorder(
+                                isCurrent ? Theme.stateLearning : Theme.cardBorder,
+                                lineWidth: isCurrent ? 2.5 : 1.5))
+                        Text("\(number)")
+                            .font(.system(size: 11, weight: .heavy))
+                            .foregroundStyle(isCurrent ? Theme.stateLearning : Theme.textTertiary)
+                    }
+                }
+                .frame(width: 26, height: 26)
+                if !isLast {
+                    Rectangle()
+                        .fill(stage.isComplete ? Theme.stateKnown : Theme.cardBorder)
+                        .frame(width: 2.5)
+                        .frame(minHeight: 18)
+                }
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(stage.title)
+                    .font(.system(size: 13.5, weight: .bold))
+                    .foregroundStyle(stage.isComplete ? Theme.textPrimary
+                                     : (isCurrent ? Theme.stateLearning : Theme.textSecondary))
+                Text(isCurrent ? "You are here — \(stage.subtitle)" : stage.subtitle)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.textTertiary)
+                if isCurrent {
+                    HStack(spacing: 8) {
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color(hex: 0xEDF0F3)).frame(width: 110, height: 6)
+                            Capsule().fill(Theme.stateLearning)
+                                .frame(width: max(5, 110 * Double(stage.lit) / Double(max(1, stage.total))),
+                                       height: 6)
+                        }
+                        Text("\(stage.lit) of \(stage.total) dots")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Theme.stateLearning)
+                    }
+                    .padding(.top, 5)
+                }
+            }
+            .padding(.bottom, isLast ? 0 : 16)
+        }
+    }
+
+    private var sideQuestCard: some View {
+        let progress = KnowledgePathEngine.sideQuestProgress(concepts: concepts)
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Side quest: On-Device AI")
+                    .font(.system(size: 13.5, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("\(progress.lit) of \(progress.total) lit · your specialty lane runs in parallel")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            LinearGradient(colors: [Color(hex: 0xF3F7FE), .white],
+                           startPoint: .top, endPoint: .bottom),
+            in: RoundedRectangle(cornerRadius: Theme.cardRadius)
+        )
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
+            .strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
     }
 
     // MARK: Concepts learned (cumulative)

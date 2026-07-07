@@ -5,6 +5,8 @@ struct FeedView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Article.publishedAt, order: .reverse) private var articles: [Article]
     @Query private var sources: [FeedSource]
+    @Query private var allConcepts: [Concept]
+    @Query private var dependencies: [ConceptDependency]
     @State private var selectedCategory: String?
     @State private var isSyncing = false
     @State private var searchText = ""
@@ -140,9 +142,88 @@ struct FeedView: View {
         .buttonStyle(.plain)
     }
 
+    private var nextDot: KnowledgePathEngine.Recommendation? {
+        KnowledgePathEngine.nextDot(concepts: allConcepts, dependencies: dependencies,
+                                    articles: articles)
+    }
+
+    private var frontierNames: Set<String> {
+        KnowledgePathEngine.frontier(concepts: allConcepts, dependencies: dependencies)
+    }
+
+    private var gapClusterName: String? {
+        KnowledgePathEngine.gapCluster(concepts: allConcepts)
+    }
+
+    /// "YOUR NEXT DOT" gap-detector banner (design 4c).
+    private func nextDotBanner(_ rec: KnowledgePathEngine.Recommendation) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "smallcircle.filled.circle")
+                    .font(.system(size: 12))
+                Text("Your next dot")
+                    .kerning(0.5)
+                    .textCase(.uppercase)
+            }
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(Theme.stateLearning)
+
+            Text(rec.litPrerequisites.isEmpty
+                 ? "\(rec.concept.name) is ready to learn"
+                 : "\(rec.concept.name) is ready to learn — prerequisites are lit")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+
+            Text(bannerSubtitle(rec))
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textSecondary)
+                .lineSpacing(3)
+
+            if let first = rec.articles.first {
+                NavigationLink(value: first) {
+                    Text("Start with an article")
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(Theme.stateLearning, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 3)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(colors: [Color(hex: 0xF3F7FE), .white],
+                           startPoint: .top, endPoint: .bottom),
+            in: RoundedRectangle(cornerRadius: Theme.cardRadius)
+        )
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
+            .strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
+        .accessibilityIdentifier("nextDotBanner")
+    }
+
+    private func bannerSubtitle(_ rec: KnowledgePathEngine.Recommendation) -> String {
+        var parts: [String] = []
+        if !rec.articles.isEmpty {
+            parts.append("\(rec.articles.count) cached article\(rec.articles.count == 1 ? "" : "s") mention it.")
+        } else {
+            parts.append("New articles about it will be tagged below.")
+        }
+        if let gap = rec.followUpGap, gap != rec.concept.category {
+            parts.append("\(gap) is your biggest gap after that.")
+        }
+        return parts.joined(separator: " ")
+    }
+
     private var articleList: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
+                if let nextDot {
+                    nextDotBanner(nextDot)
+                }
                 ForEach(dayGroups, id: \.label) { group in
                     Text(group.label)
                         .font(.system(size: 11, weight: .bold))
@@ -154,7 +235,11 @@ struct FeedView: View {
                         .padding(.top, 2)
                     ForEach(group.articles) { article in
                         NavigationLink(value: article) {
-                            ArticleCard(article: article)
+                            ArticleCard(article: article,
+                                        gapTag: KnowledgePathEngine.gapTag(
+                                            for: article,
+                                            frontierNames: frontierNames,
+                                            gapClusterName: gapClusterName))
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("articleCard")
@@ -197,6 +282,7 @@ struct FeedView: View {
 
 struct ArticleCard: View {
     let article: Article
+    var gapTag: String?
 
     private var preview: String {
         if let summary = article.summary, !summary.isEmpty {
@@ -250,6 +336,19 @@ struct ArticleCard: View {
                         ConceptChip(concept: concept)
                     }
                 }
+            }
+            if let gapTag {
+                HStack(spacing: 6) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .font(.system(size: 10))
+                    Text(gapTag)
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.stateLearning)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(hex: 0xF3F7FE), in: RoundedRectangle(cornerRadius: 10))
             }
         }
         .padding(16)

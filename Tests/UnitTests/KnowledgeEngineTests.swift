@@ -13,7 +13,7 @@ struct KnowledgeEngineTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try! ModelContainer(
             for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self,
+            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
             configurations: config
         )
     }()

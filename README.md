@@ -11,6 +11,8 @@ Offline-first iOS app that aggregates AI/tech news, summarizes articles **on-dev
 - Force-directed knowledge graph (Canvas + TimelineView) and Swift Charts progress views
 - UI test (`Tests/UITests`) drives feed → article → concept sheet → graph and saves screenshots to `/tmp/techpulse_uitest`
 
+Knowledge Pack (skill tree): ~50 pre-seeded AI-engineer concepts in 7 clusters with dependency arrows, cluster overview + detail screens, frontier detection ("ready to learn"), gap detector with feed recommendations, and the staged learning path on Progress.
+
 M6 added: on-device quiz mode (+0.3 mastery rule), resume-seeded knowledge base, Siri App Intent ("What did I learn this week?"), cache pruning (read articles >60 days), UX pass (day groups, unread dots, chip states, related concepts, cluster filters, recenter), and a test suite: 11 Swift Testing unit tests + 2 XCUITest journeys with screenshot capture.
 
 ## Toolchain

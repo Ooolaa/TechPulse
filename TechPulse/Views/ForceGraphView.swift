@@ -15,6 +15,7 @@ final class GraphSimulation {
         let a: Int
         let b: Int
         let width: CGFloat
+        var directed = false      // prerequisite arrows (a → b)
     }
 
     private(set) var nodes: [Node] = []
@@ -22,7 +23,8 @@ final class GraphSimulation {
     private var settledFrames = 0
     private var lastSize: CGSize = .zero
 
-    func configure(concepts: [Concept], links: [ConceptLink], in size: CGSize) {
+    func configure(concepts: [Concept], links: [ConceptLink],
+                   dependencies: [ConceptDependency] = [], in size: CGSize) {
         // Keep positions of existing nodes so re-configuration doesn't scatter the net.
         let existing = Dictionary(nodes.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -32,14 +34,22 @@ final class GraphSimulation {
                 position: CGPoint(x: center.x + .random(in: -90...90),
                                   y: center.y + .random(in: -130...130))
             )
-            node.radius = 5 + concept.masteryLevel * 11
+            node.radius = 6 + concept.masteryLevel * 10
             node.state = concept.masteryState
             return node
         }
         let index = Dictionary(uniqueKeysWithValues: nodes.enumerated().map { ($0.element.name, $0.offset) })
-        edges = links.compactMap { link in
-            guard let a = index[link.conceptA], let b = index[link.conceptB], a != b else { return nil }
-            return Edge(a: a, b: b, width: min(3, 0.8 + CGFloat(link.weight) * 0.5))
+        if dependencies.isEmpty {
+            edges = links.compactMap { link in
+                guard let a = index[link.conceptA], let b = index[link.conceptB], a != b else { return nil }
+                return Edge(a: a, b: b, width: min(3, 0.8 + CGFloat(link.weight) * 0.5))
+            }
+        } else {
+            // Dependency mode (cluster detail): arrows only, prerequisite → dependent.
+            edges = dependencies.compactMap { dep in
+                guard let a = index[dep.prerequisite], let b = index[dep.dependent], a != b else { return nil }
+                return Edge(a: a, b: b, width: 1.4, directed: true)
+            }
         }
         settledFrames = 0
     }
@@ -121,6 +131,8 @@ final class GraphSimulation {
 struct ForceGraphView: View {
     let concepts: [Concept]
     let links: [ConceptLink]
+    var dependencies: [ConceptDependency] = []
+    var frontier: Set<String> = []        // dashed "ready to learn" rings
     var onSelect: (String) -> Void
 
     @State private var sim = GraphSimulation()
@@ -148,17 +160,40 @@ struct ForceGraphView: View {
                     ctx.scaleBy(x: scale, y: scale)
 
                     for edge in sim.edges {
+                        let from = sim.nodes[edge.a].position
+                        let to = sim.nodes[edge.b].position
                         var path = Path()
-                        path.move(to: sim.nodes[edge.a].position)
-                        path.addLine(to: sim.nodes[edge.b].position)
-                        ctx.stroke(path, with: .color(Color(hex: 0xDDE3EA)), lineWidth: edge.width)
+                        path.move(to: from)
+                        path.addLine(to: to)
+                        ctx.stroke(path, with: .color(Color(hex: edge.directed ? 0xD5DBE3 : 0xDDE3EA)),
+                                   lineWidth: edge.width)
+                        if edge.directed {
+                            // Arrowhead just outside the target node's radius.
+                            let angle = atan2(to.y - from.y, to.x - from.x)
+                            let tip = CGPoint(x: to.x - cos(angle) * (sim.nodes[edge.b].radius + 3),
+                                              y: to.y - sin(angle) * (sim.nodes[edge.b].radius + 3))
+                            var arrow = Path()
+                            arrow.move(to: tip)
+                            arrow.addLine(to: CGPoint(x: tip.x - cos(angle - 0.45) * 7,
+                                                      y: tip.y - sin(angle - 0.45) * 7))
+                            arrow.addLine(to: CGPoint(x: tip.x - cos(angle + 0.45) * 7,
+                                                      y: tip.y - sin(angle + 0.45) * 7))
+                            arrow.closeSubpath()
+                            ctx.fill(arrow, with: .color(Color(hex: 0xC9D0D9)))
+                        }
                     }
                     for node in sim.nodes {
                         let rect = CGRect(x: node.position.x - node.radius,
                                           y: node.position.y - node.radius,
                                           width: node.radius * 2, height: node.radius * 2)
                         ctx.fill(Path(ellipseIn: rect), with: .color(nodeColor(node.state)))
-                        if node.radius > 9 {
+                        if frontier.contains(node.name) {
+                            let ring = rect.insetBy(dx: -5, dy: -5)
+                            ctx.stroke(Path(ellipseIn: ring),
+                                       with: .color(Theme.stateLearning),
+                                       style: StrokeStyle(lineWidth: 2.5, dash: [4, 3]))
+                        }
+                        if node.radius > 9 || frontier.contains(node.name) {
                             ctx.draw(
                                 Text(node.name)
                                     .font(.system(size: 11, weight: .semibold))
@@ -191,12 +226,17 @@ struct ForceGraphView: View {
                     .onChanged { value in scale = min(3, max(0.5, baseScale * value)) }
                     .onEnded { _ in baseScale = scale }
             )
-            .onAppear { sim.configure(concepts: concepts, links: links, in: geo.size) }
+            .onAppear {
+                sim.configure(concepts: concepts, links: links,
+                              dependencies: dependencies, in: geo.size)
+            }
             .onChange(of: concepts.count) {
-                sim.configure(concepts: concepts, links: links, in: geo.size)
+                sim.configure(concepts: concepts, links: links,
+                              dependencies: dependencies, in: geo.size)
             }
             .onChange(of: links.count) {
-                sim.configure(concepts: concepts, links: links, in: geo.size)
+                sim.configure(concepts: concepts, links: links,
+                              dependencies: dependencies, in: geo.size)
             }
         }
         .accessibilityIdentifier("knowledgeGraph")
