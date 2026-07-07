@@ -13,12 +13,30 @@ enum FeedSyncService {
         let enabled = FetchDescriptor<FeedSource>(predicate: #Predicate { $0.isEnabled })
         guard let sources = try? context.fetch(enabled), !sources.isEmpty else { return 0 }
 
+        // Fetch all feeds concurrently (network-bound), then parse/insert on
+        // the main actor. Cuts a cold sync from ~sum to ~max of feed latencies.
+        let requests = sources.enumerated().map { (index: $0.offset, url: $0.element.url) }
+        let payloads = await withTaskGroup(of: (Int, Data?).self) { group in
+            for request in requests {
+                group.addTask {
+                    guard let (data, response) = try? await URLSession.shared.data(from: request.url),
+                          (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true
+                    else { return (request.index, nil) }
+                    return (request.index, data)
+                }
+            }
+            var results = [Int: Data]()
+            for await (index, data) in group {
+                if let data { results[index] = data }
+            }
+            return results
+        }
+
         var knownGuids = Set(((try? context.fetch(FetchDescriptor<Article>())) ?? []).map(\.guid))
         var added = 0
 
-        for source in sources {
-            guard let (data, response) = try? await URLSession.shared.data(from: source.url) else { continue }
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { continue }
+        for (index, source) in sources.enumerated() {
+            guard let data = payloads[index] else { continue }
 
             for item in RSSParser.parse(data).prefix(perFeedLimit) {
                 guard !item.guid.isEmpty, !knownGuids.contains(item.guid) else { continue }
