@@ -226,3 +226,43 @@ fix is **personalization, not segregation**:
    (hallucination guard, big trust win in regulated fields).
 10. **Team/classroom mode** — aggregate cluster heatmap for a cohort (opt-in,
     anonymized; see §6).
+
+## 10. Universal App Mode — one app, any career, customized on the phone
+
+Instead of shipping one app per career, ship ONE app where the pack is created
+at runtime. Everything career-specific is already data, so this is an
+onboarding flow, not a rewrite:
+
+**Onboarding becomes a 4-step wizard:**
+1. **Career** — free-text field ("What do you want to master?"). The on-device
+   model generates the pack in validated steps, each using @Generable typed
+   output:
+   a. 5–8 cluster names for the career (+ one specialty lane)
+   b. per cluster: 6–10 concepts with one-line quiz-usable definitions
+   c. prerequisite arrows — then validate ON-DEVICE with plain code:
+      DAG acyclicity, no dangling names, ≤8 prereqs per concept
+   d. user reviews the generated map (rename/delete/add) before seeding
+2. **Already know** — chips per cluster seed the first green dots.
+3. **Theme** — palette picker (Ocean/Plum/Forest/Sunset/Mono) stored in
+   AppStorage; `Theme` reads accent colors dynamically. Mastery semantics
+   (dim → mid → known) constant across palettes; all palettes color-blind safe.
+4. **Sources** — AI-suggested source names for the career + "paste any RSS/site
+   URL" (validate by fetching one item; discover feeds via
+   `<link rel="alternate" type="application/rss+xml">`).
+
+**Fallbacks (no Apple Intelligence):** bundle 3–5 starter packs as JSON;
+"Import pack" accepts the same JSON — users can generate one with any AI on
+the web using §4 of this template and AirDrop it in. That JSON format doubles
+as the marketplace pack format.
+
+**Add to the data model:** `packSource` on Concept (`generated | imported |
+expert`) so generated packs can show a "community/AI-generated — not
+professional advice" banner (mandatory for medical/legal/financial careers),
+and expert marketplace packs can replace generated ones cleanly.
+
+**Privacy note:** the typed career + generated pack stay on-device like
+everything else — a person's career ambitions are sensitive data too.
+
+**Business note:** free tier = AI-generated pack; paid tier = expert-verified
+packs + quiz/exam mode. Generation quality is the funnel, expert packs are
+the product.
