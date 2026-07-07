@@ -37,7 +37,20 @@ enum FeedSyncService {
             }
             source.lastFetched = .now
         }
+        prune(context: context)
         try? context.save()
         return added
+    }
+
+    /// Cap the offline cache: read articles older than 60 days are deleted.
+    /// Concepts and learning history are never pruned — the map only grows.
+    private static func prune(context: ModelContext) {
+        let cutoff = Date.now.addingTimeInterval(-60 * 86_400)
+        let descriptor = FetchDescriptor<Article>(
+            predicate: #Predicate { $0.isRead && $0.publishedAt < cutoff }
+        )
+        for article in (try? context.fetch(descriptor)) ?? [] {
+            context.delete(article)
+        }
     }
 }

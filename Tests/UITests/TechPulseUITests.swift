@@ -49,5 +49,49 @@ final class TechPulseUITests: XCTestCase {
         app.buttons["Progress"].tap()
         sleep(1)
         snap(app, "6-progress-charts")
+
+        // Weekly quiz: answer every question (any option), reach the result.
+        let start = app.buttons["startQuiz"].firstMatch
+        if start.waitForExistence(timeout: 3), start.isEnabled {
+            start.tap()
+            let action = app.buttons["quizAction"].firstMatch
+            XCTAssertTrue(action.waitForExistence(timeout: 30), "quiz never generated")
+            snap(app, "7-quiz-question")
+            var safety = 0
+            while action.exists, safety < 20 {
+                let option = app.buttons["quizOption"].firstMatch
+                if option.exists { option.tap() }
+                action.tap()      // check answer
+                if action.exists { action.tap() }   // next / see results
+                safety += 1
+            }
+            let done = app.buttons["quizDone"].firstMatch
+            XCTAssertTrue(done.waitForExistence(timeout: 5), "quiz result never shown")
+            snap(app, "8-quiz-result")
+            done.tap()
+        }
+    }
+
+    /// Usability guards: every tab reachable, primary controls hittable.
+    func testTabsAndTargets() throws {
+        let app = XCUIApplication()
+        app.launch()
+        for tab in ["Feed", "Knowledge", "Progress", "Settings"] {
+            let button = app.buttons[tab].firstMatch
+            XCTAssertTrue(button.waitForExistence(timeout: 10), "\(tab) tab missing")
+            XCTAssertTrue(button.isHittable, "\(tab) tab not hittable")
+            button.tap()
+        }
+        // Settings must expose at least one source toggle, and the sync row
+        // after scrolling past the sources list.
+        XCTAssertTrue(app.switches.firstMatch.waitForExistence(timeout: 5), "no feed source toggles")
+        let syncRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS 'Sync now'")).firstMatch
+        var scrolls = 0
+        while !syncRow.exists, scrolls < 4 {
+            app.swipeUp()
+            scrolls += 1
+        }
+        XCTAssertTrue(syncRow.waitForExistence(timeout: 3), "Sync now row missing")
     }
 }

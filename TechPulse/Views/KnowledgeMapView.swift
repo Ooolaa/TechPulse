@@ -7,6 +7,23 @@ struct KnowledgeMapView: View {
     @Query(sort: \Concept.masteryLevel, order: .reverse) private var concepts: [Concept]
     @Query private var links: [ConceptLink]
     @State private var selectedConcept: Concept?
+    @State private var selectedCluster: String?
+    @State private var graphReset = UUID()
+
+    private var clusters: [String] {
+        Array(Set(concepts.map(\.category))).sorted()
+    }
+
+    private var visibleConcepts: [Concept] {
+        guard let selectedCluster else { return concepts }
+        return concepts.filter { $0.category == selectedCluster }
+    }
+
+    private var visibleLinks: [ConceptLink] {
+        guard selectedCluster != nil else { return links }
+        let names = Set(visibleConcepts.map(\.name))
+        return links.filter { names.contains($0.conceptA) && names.contains($0.conceptB) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -45,10 +62,13 @@ struct KnowledgeMapView: View {
                                 .multilineTextAlignment(.center)
                         }
                     } else {
-                        ForceGraphView(concepts: concepts, links: links) { name in
+                        ForceGraphView(concepts: visibleConcepts, links: visibleLinks) { name in
                             selectedConcept = concepts.first { $0.name == name }
                         }
+                        .id(graphReset)
                         .clipShape(RoundedRectangle(cornerRadius: 22))
+                        clusterChips
+                        recenterButton
                     }
                     legend
                 }
@@ -61,6 +81,63 @@ struct KnowledgeMapView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Theme.background)
             .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
+    /// Cluster filter pills (design 2c).
+    private var clusterChips: some View {
+        VStack {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    clusterChip("All clusters", isSelected: selectedCluster == nil) {
+                        selectedCluster = nil
+                    }
+                    ForEach(clusters, id: \.self) { cluster in
+                        clusterChip(cluster, isSelected: selectedCluster == cluster) {
+                            selectedCluster = cluster
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+            }
+            .padding(.top, 12)
+            Spacer()
+        }
+    }
+
+    private func clusterChip(_ label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isSelected ? .white : Theme.textSecondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(isSelected ? Color(hex: 0x17181A).opacity(0.9) : Theme.card.opacity(0.85),
+                            in: Capsule())
+                .overlay(Capsule().strokeBorder(isSelected ? .clear : Theme.cardBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Recenter control (design 2c): resets pan/zoom and re-runs the layout.
+    private var recenterButton: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                Button { graphReset = UUID() } label: {
+                    Image(systemName: "scope")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0x4B5563))
+                        .frame(width: 42, height: 42)
+                        .background(Theme.card.opacity(0.94), in: Circle())
+                        .overlay(Circle().strokeBorder(Theme.cardBorder, lineWidth: 1))
+                        .shadow(color: Color(hex: 0x17181A).opacity(0.1), radius: 7, y: 4)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 14)
+                .padding(.bottom, 64)
+            }
         }
     }
 

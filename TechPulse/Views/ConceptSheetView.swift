@@ -6,6 +6,21 @@ import SwiftData
 struct ConceptSheetView: View {
     @Bindable var concept: Concept
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Query private var allLinks: [ConceptLink]
+    @Query private var allConcepts: [Concept]
+    @State private var quizzing = false
+
+    /// Concepts linked to this one, heaviest edges first (design 2d).
+    private var relatedConcepts: [Concept] {
+        let neighborWeights = allLinks.reduce(into: [String: Int]()) { acc, link in
+            if link.conceptA == concept.name { acc[link.conceptB, default: 0] += link.weight }
+            if link.conceptB == concept.name { acc[link.conceptA, default: 0] += link.weight }
+        }
+        return allConcepts
+            .filter { neighborWeights[$0.name] != nil }
+            .sorted { neighborWeights[$0.name, default: 0] > neighborWeights[$1.name, default: 0] }
+    }
 
     private var stateColor: Color {
         switch concept.masteryState {
@@ -21,6 +36,20 @@ struct ConceptSheetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Spacer()
+                Button { dismiss() } label: {
+                    Text("✕")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(Theme.newTint, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("closeSheet")
+            }
+            .padding(.top, 12)
+
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(concept.name)
@@ -33,7 +62,7 @@ struct ConceptSheetView: View {
                 Spacer()
                 masteryRing
             }
-            .padding(.top, 16)
+            .padding(.top, 2)
 
             if !concept.conceptDefinition.isEmpty {
                 Text(concept.conceptDefinition)
@@ -47,12 +76,27 @@ struct ConceptSheetView: View {
                     .padding(.top, 14)
             }
 
+            if !relatedConcepts.isEmpty {
+                Text("Related concepts")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Theme.textTertiary)
+                    .textCase(.uppercase)
+                    .kerning(0.6)
+                    .padding(.top, 16)
+                FlowLayout(spacing: 7) {
+                    ForEach(relatedConcepts.prefix(6)) { related in
+                        ConceptChip(concept: related, detailed: true)
+                    }
+                }
+                .padding(.top, 8)
+            }
+
             Text("Appears in \(concept.articles.count) article\(concept.articles.count == 1 ? "" : "s")")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(Theme.textTertiary)
                 .textCase(.uppercase)
                 .kerning(0.6)
-                .padding(.top, 18)
+                .padding(.top, 16)
 
             ScrollView {
                 VStack(spacing: 8) {
@@ -125,16 +169,19 @@ struct ConceptSheetView: View {
             .disabled(concept.isMarkedKnown)
             .accessibilityIdentifier("knowButton")
 
-            Button {} label: {
+            Button { quizzing = true } label: {
                 Text("Quiz me")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.textTertiary)
+                    .foregroundStyle(concept.conceptDefinition.isEmpty ? Theme.textTertiary : Color(hex: 0x4B5563))
                     .padding(.vertical, 15)
                     .padding(.horizontal, 18)
                     .background(Theme.newTint, in: RoundedRectangle(cornerRadius: 14))
             }
             .buttonStyle(.plain)
-            .disabled(true)      // quiz mode ships in M6
+            .disabled(concept.conceptDefinition.isEmpty)   // template questions need a definition
+            .fullScreenCover(isPresented: $quizzing) {
+                QuizView(concepts: [concept])
+            }
         }
     }
 }

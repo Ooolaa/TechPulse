@@ -7,6 +7,13 @@ import Charts
 struct ProgressTabView: View {
     @Query private var concepts: [Concept]
     @Query private var articles: [Article]
+    @Environment(\.modelContext) private var modelContext
+    @State private var quizRequest: QuizRequest?
+
+    struct QuizRequest: Identifiable {
+        let id = UUID()
+        let concepts: [Concept]
+    }
 
     private var masteredCount: Int {
         concepts.filter { $0.masteryState == .known }.count
@@ -41,6 +48,9 @@ struct ProgressTabView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Theme.background)
             .toolbar(.hidden, for: .navigationBar)
+            .fullScreenCover(item: $quizRequest) { request in
+                QuizView(concepts: request.concepts)
+            }
         }
     }
 
@@ -155,22 +165,32 @@ struct ProgressTabView: View {
     }
 
     private var quizBanner: some View {
-        HStack {
+        let candidates = QuizEngine.quizCandidates(context: modelContext)
+        return HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Weekly quiz")
+                Text("Weekly quiz \(candidates.isEmpty ? "" : "ready")")
                     .font(.system(size: 13.5, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
-                Text("Quiz mode arrives in Milestone 6 · generated on-device")
+                Text(candidates.isEmpty
+                     ? "Read a few articles first — questions come from your reading"
+                     : "\(candidates.count) concepts from your reading · generated on-device")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
-            Text("Soon")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Theme.stateNew, in: Capsule())
+            Button {
+                quizRequest = QuizRequest(concepts: candidates)
+            } label: {
+                Text("Start")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 11)
+                    .background(candidates.isEmpty ? Theme.stateNew : Theme.stateLearning, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(candidates.isEmpty)
+            .accessibilityIdentifier("startQuiz")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)

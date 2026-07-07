@@ -3,6 +3,19 @@ import SwiftData
 
 struct SettingsView: View {
     @Query(sort: \FeedSource.name) private var sources: [FeedSource]
+    @Environment(\.modelContext) private var modelContext
+    @State private var isSyncing = false
+
+    private var lastSynced: Date? {
+        sources.compactMap(\.lastFetched).max()
+    }
+
+    /// SwiftData store size on disk (design 2f "Storage used").
+    private var storageUsed: String {
+        let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
+        let size = (try? FileManager.default.attributesOfItem(atPath: storeURL.path)[.size] as? Int64) ?? 0
+        return ByteCountFormatter.string(fromByteCount: size ?? 0, countStyle: .file)
+    }
 
     private var grouped: [(category: String, sources: [FeedSource])] {
         Dictionary(grouping: sources, by: \.category)
@@ -29,13 +42,34 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Section("Sync & Storage") {
+                    Button {
+                        Task {
+                            isSyncing = true
+                            await FeedSyncService.syncAll(context: modelContext)
+                            await IntelligenceService.analyzePending(context: modelContext)
+                            isSyncing = false
+                        }
+                    } label: {
+                        LabeledContent {
+                            Text(isSyncing ? "Syncing…"
+                                 : lastSynced?.formatted(.relative(presentation: .named)) ?? "never")
+                        } label: {
+                            Text("Sync now")
+                                .foregroundStyle(Theme.stateLearning)
+                        }
+                    }
+                    .disabled(isSyncing)
+                    LabeledContent("Storage used", value: storageUsed)
+                }
                 Section {
-                    LabeledContent("Version", value: "0.1 (M1)")
-                    LabeledContent("Intelligence", value: "On-device only")
+                    LabeledContent("Version", value: "1.0 (M6)")
+                    LabeledContent("Intelligence", value: IntelligenceService.isModelAvailable
+                                   ? "Apple Intelligence" : "On-device fallback")
                 } header: {
                     Text("About")
                 } footer: {
-                    Text("All analysis happens on-device. No analytics; nothing leaves your iPhone.")
+                    Text("All analysis happens on-device. No analytics; nothing leaves your iPhone. Read articles older than 60 days are pruned automatically.")
                 }
             }
             .navigationTitle("Settings")

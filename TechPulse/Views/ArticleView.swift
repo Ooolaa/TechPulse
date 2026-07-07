@@ -86,14 +86,14 @@ struct ArticleView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
-                Text("tap ✓ if you know it")
+                Text("tap to mark what you know")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textTertiary)
             }
             FlowLayout(spacing: 7) {
                 ForEach(article.concepts) { concept in
                     Button { selectedConcept = concept } label: {
-                        ConceptChip(concept: concept)
+                        ConceptChip(concept: concept, detailed: true)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("conceptChip")

@@ -29,6 +29,20 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "92A8764FF7FBD80FF290D59D"
+               BuildableName = "TechPulseTests.xctest"
+               BlueprintName = "TechPulseTests"
+               ReferencedContainer = "container:TechPulse.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "679C77D1ADE08B6AF4882EAC"
                BuildableName = "TechPulseUITests.xctest"
                BlueprintName = "TechPulseUITests"
@@ -53,6 +67,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "92A8764FF7FBD80FF290D59D"
+               BuildableName = "TechPulseTests.xctest"
+               BlueprintName = "TechPulseTests"
+               ReferencedContainer = "container:TechPulse.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
          <TestableReference
             skipped = "NO"
             parallelizable = "NO">

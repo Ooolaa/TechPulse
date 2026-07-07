@@ -32,13 +32,24 @@ targets:
     sources: [Tests/UITests]
     dependencies:
       - target: TechPulse
+  TechPulseTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests/UnitTests]
+    dependencies:
+      - target: TechPulse
+    settings:
+      base:
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/TechPulse.app/TechPulse
+        BUNDLE_LOADER: $(TEST_HOST)
 schemes:
   TechPulse:
     build:
       targets:
         TechPulse: all
         TechPulseUITests: [test]
+        TechPulseTests: [test]
     run:
       config: Debug
     test:
-      targets: [TechPulseUITests]
+      targets: [TechPulseTests, TechPulseUITests]

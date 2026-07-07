@@ -7,6 +7,7 @@ struct FeedView: View {
     @Query private var sources: [FeedSource]
     @State private var selectedCategory: String?
     @State private var isSyncing = false
+    @State private var searchText = ""
 
     private var categories: [String] {
         Array(Set(sources.map(\.category))).sorted()
@@ -18,8 +19,29 @@ struct FeedView: View {
     }
 
     private var filteredArticles: [Article] {
-        guard let selectedCategory else { return articles }
-        return articles.filter { sourceCategory[$0.sourceName] == selectedCategory }
+        var result = articles
+        if let selectedCategory {
+            result = result.filter { sourceCategory[$0.sourceName] == selectedCategory }
+        }
+        if !searchText.isEmpty {
+            result = result.filter {
+                $0.title.localizedCaseInsensitiveContains(searchText)
+                    || ($0.summary ?? "").localizedCaseInsensitiveContains(searchText)
+            }
+        }
+        return result
+    }
+
+    /// Day sections (design 2a): TODAY / YESTERDAY / explicit date.
+    private var dayGroups: [(label: String, articles: [Article])] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: filteredArticles) { calendar.startOfDay(for: $0.publishedAt) }
+        return grouped.keys.sorted(by: >).map { day in
+            let label = calendar.isDateInToday(day) ? "Today"
+                : calendar.isDateInYesterday(day) ? "Yesterday"
+                : day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+            return (label, grouped[day]!.sorted { $0.publishedAt > $1.publishedAt })
+        }
     }
 
     private var lastSynced: Date? {
@@ -43,6 +65,7 @@ struct FeedView: View {
             .navigationDestination(for: Article.self) { article in
                 ArticleView(article: article)
             }
+            .searchable(text: $searchText, prompt: "Search articles")
         }
         .task {
             // Sync on launch when cache is empty or stale (>30 min); never blocks reading.
@@ -120,12 +143,22 @@ struct FeedView: View {
     private var articleList: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
-                ForEach(filteredArticles) { article in
-                    NavigationLink(value: article) {
-                        ArticleCard(article: article)
+                ForEach(dayGroups, id: \.label) { group in
+                    Text(group.label)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Theme.textTertiary)
+                        .textCase(.uppercase)
+                        .kerning(0.8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 2)
+                    ForEach(group.articles) { article in
+                        NavigationLink(value: article) {
+                            ArticleCard(article: article)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("articleCard")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("articleCard")
                 }
             }
             .padding(.horizontal, 16)
@@ -175,14 +208,23 @@ struct ArticleCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(article.sourceName)
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(Theme.textSecondary)
+                HStack(spacing: 7) {
+                    if !article.isRead {
+                        Circle().fill(Theme.stateLearning).frame(width: 7, height: 7)
+                    }
+                    Text(article.sourceName)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(article.isRead ? Theme.textTertiary : Theme.textSecondary)
+                }
                 Spacer()
                 if article.isRead {
-                    Text("Read ✓")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(Theme.textTertiary)
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Read")
+                    }
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(Theme.stateKnown)
                 } else {
                     Text(article.publishedAt, format: .relative(presentation: .named))
                         .font(.system(size: 11.5))
@@ -191,7 +233,7 @@ struct ArticleCard: View {
             }
             Text(article.title)
                 .font(.system(size: 16.5, weight: .bold))
-                .foregroundStyle(Theme.textPrimary)
+                .foregroundStyle(article.isRead ? Theme.textSecondary : Theme.textPrimary)
                 .lineSpacing(2)
                 .multilineTextAlignment(.leading)
             if !preview.isEmpty {
@@ -213,19 +255,29 @@ struct ArticleCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .techPulseCard()
-        .opacity(article.isRead ? 0.65 : 1)
     }
 }
 
 struct ConceptChip: View {
     let concept: Concept
+    /// Design 2b unified chip states: "+ Name" new · "Name 62%" learning · "✓ Name" known.
+    var detailed = false
+
+    private var label: String {
+        guard detailed else { return concept.name }
+        switch concept.masteryState {
+        case .new: return "+ \(concept.name)"
+        case .learning: return "\(concept.name) \(Int(concept.masteryLevel * 100))%"
+        case .known: return "✓ \(concept.name)"
+        }
+    }
 
     var body: some View {
-        Text(concept.name)
-            .font(.system(size: 11, weight: .semibold))
+        Text(label)
+            .font(.system(size: detailed ? 13 : 11, weight: .semibold))
             .foregroundStyle(foreground)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 4)
+            .padding(.horizontal, detailed ? 14 : 9)
+            .padding(.vertical, detailed ? 9 : 4)
             .background(background, in: Capsule())
     }
 

@@ -89,28 +89,7 @@ enum IntelligenceService {
         }
         article.concepts = attached
 
-        linkCooccurrences(attached, context: context)
-    }
-
-    /// Two concepts in the same article get an edge; weight counts co-occurrences.
-    private static func linkCooccurrences(_ concepts: [Concept], context: ModelContext) {
-        guard concepts.count > 1 else { return }
-        let links = (try? context.fetch(FetchDescriptor<ConceptLink>())) ?? []
-        var byPair = Dictionary(links.map { ([$0.conceptA, $0.conceptB].sorted().joined(separator: "|"), $0) },
-                                uniquingKeysWith: { first, _ in first })
-        let names = concepts.map(\.name).sorted()
-        for i in names.indices {
-            for j in names.indices where j > i {
-                let key = "\(names[i])|\(names[j])"
-                if let link = byPair[key] {
-                    link.weight += 1
-                } else {
-                    let link = ConceptLink(conceptA: names[i], conceptB: names[j])
-                    context.insert(link)
-                    byPair[key] = link
-                }
-            }
-        }
+        KnowledgeEngine.linkCooccurring(attached, context: context)
     }
 
     // MARK: Fallback (no Apple Intelligence): NaturalLanguage keyword extraction

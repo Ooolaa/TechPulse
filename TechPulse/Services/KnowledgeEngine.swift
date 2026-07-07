@@ -62,6 +62,44 @@ enum KnowledgeEngine {
         try? context.save()
     }
 
+    /// Quiz result (spec §6): passed = +0.3 mastery; a miss only logs the event
+    /// so the concept resurfaces next week.
+    static func recordQuizResult(_ concept: Concept, passed: Bool, context: ModelContext) {
+        if passed {
+            let delta = min(1.0, concept.masteryLevel + 0.3) - concept.masteryLevel
+            concept.masteryLevel += delta
+            concept.lastReviewed = .now
+            context.insert(LearningEvent(kind: "quizPassed", conceptName: concept.name,
+                                         masteryDelta: delta))
+        } else {
+            context.insert(LearningEvent(kind: "quizMissed", conceptName: concept.name,
+                                         masteryDelta: 0))
+        }
+        try? context.save()
+    }
+
+    /// Pairwise co-occurrence links between concepts that appeared together
+    /// (same article, or same project when seeding from the resume).
+    static func linkCooccurring(_ concepts: [Concept], context: ModelContext) {
+        guard concepts.count > 1 else { return }
+        let links = (try? context.fetch(FetchDescriptor<ConceptLink>())) ?? []
+        var byPair = Dictionary(links.map { ([$0.conceptA, $0.conceptB].sorted().joined(separator: "|"), $0) },
+                                uniquingKeysWith: { first, _ in first })
+        let names = concepts.map(\.name).sorted()
+        for i in names.indices {
+            for j in names.indices where j > i {
+                let key = "\(names[i])|\(names[j])"
+                if let link = byPair[key] {
+                    link.weight += 1
+                } else {
+                    let link = ConceptLink(conceptA: names[i], conceptB: names[j])
+                    context.insert(link)
+                    byPair[key] = link
+                }
+            }
+        }
+    }
+
     static func markKnown(_ concept: Concept, context: ModelContext) {
         guard !concept.isMarkedKnown else { return }
         let delta = 1.0 - concept.masteryLevel
