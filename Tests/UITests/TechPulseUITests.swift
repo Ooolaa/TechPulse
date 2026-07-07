@@ -16,6 +16,15 @@ final class TechPulseUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
+        // First run shows onboarding (design 3a): topics preselected, continue.
+        let continueButton = app.buttons["onboardingContinue"].firstMatch
+        if continueButton.waitForExistence(timeout: 5) {
+            snap(app, "0-onboarding")
+            XCTAssertTrue(continueButton.isEnabled, "Continue disabled despite preselected topics")
+            continueButton.tap()
+            sleep(1)
+        }
+
         // Allow first sync + on-device analysis to finish.
         let firstCard = app.buttons["articleCard"].firstMatch
         XCTAssertTrue(firstCard.waitForExistence(timeout: 60), "feed never loaded articles")
@@ -84,6 +93,7 @@ final class TechPulseUITests: XCTestCase {
     /// Usability guards: every tab reachable, primary controls hittable.
     func testTabsAndTargets() throws {
         let app = XCUIApplication()
+        app.launchArguments += ["-hasOnboarded", "YES"]   // onboarding covered by core journey
         app.launch()
         for tab in ["Feed", "Knowledge", "Progress", "Settings"] {
             let button = app.buttons[tab].firstMatch

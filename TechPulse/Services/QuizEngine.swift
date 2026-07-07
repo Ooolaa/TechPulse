@@ -37,13 +37,13 @@ enum QuizEngine {
     }
 
     static func makeQuiz(for concepts: [Concept], context: ModelContext) async -> [QuizQuestion] {
-        let allNames = ((try? context.fetch(FetchDescriptor<Concept>())) ?? []).map(\.name)
+        let all = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
         var questions: [QuizQuestion] = []
         for concept in concepts {
             if IntelligenceService.isModelAvailable,
                let generated = await generateQuestion(for: concept) {
                 questions.append(generated)
-            } else if let templated = templateQuestion(for: concept, allNames: allNames) {
+            } else if let templated = templateQuestion(for: concept, all: all) {
                 questions.append(templated)
             }
         }
@@ -68,13 +68,26 @@ enum QuizEngine {
                             correctIndex: response.content.correctIndex)
     }
 
-    /// Offline fallback: "which concept matches this definition" with three
-    /// other concept names as distractors.
-    private static func templateQuestion(for concept: Concept, allNames: [String]) -> QuizQuestion? {
-        let distractors = allNames.filter { $0 != concept.name }.shuffled().prefix(3)
+    /// Offline fallback: "which concept matches this definition". Distractors
+    /// come from the same cluster first (plausible), then other pack concepts —
+    /// never from stray article extractions.
+    private static func templateQuestion(for concept: Concept, all: [Concept]) -> QuizQuestion? {
+        let packNames = Set(KnowledgePack.concepts.map(\.name))
+        let pool = all.filter { $0.name != concept.name && !$0.conceptDefinition.isEmpty }
+        let sameCluster = pool.filter { $0.category == concept.category }.map(\.name).shuffled()
+        let otherPack = pool.filter { $0.category != concept.category && packNames.contains($0.name) }
+            .map(\.name).shuffled()
+        let anyOther = pool.map(\.name).shuffled()
+
+        var distractors: [String] = []
+        for candidate in sameCluster + otherPack + anyOther where distractors.count < 3 {
+            if candidate != concept.name, !distractors.contains(candidate) {
+                distractors.append(candidate)
+            }
+        }
         guard distractors.count == 3 else { return nil }
-        var options = Array(distractors)
         let correctIndex = Int.random(in: 0...3)
+        var options = distractors
         options.insert(concept.name, at: correctIndex)
         return QuizQuestion(conceptName: concept.name,
                             question: "Which concept does this describe: “\(concept.conceptDefinition)”",

@@ -45,14 +45,17 @@ enum IntelligenceService {
         descriptor.fetchLimit = limit
         guard let pending = try? context.fetch(descriptor), !pending.isEmpty else { return }
 
+        let vocabulary = ((try? context.fetch(FetchDescriptor<Concept>())) ?? [])
+            .map { (name: $0.name, category: $0.category, definition: $0.conceptDefinition) }
         for article in pending {
-            let analysis = await analyze(article)
+            let analysis = await analyze(article, vocabulary: vocabulary)
             apply(analysis, to: article, context: context)
             try? context.save()
         }
     }
 
-    private static func analyze(_ article: Article) async -> ArticleAnalysis {
+    private static func analyze(_ article: Article,
+                                vocabulary: [(name: String, category: String, definition: String)]) async -> ArticleAnalysis {
         let body = String(article.content.strippingHTML.prefix(3000))
         if isModelAvailable {
             let session = LanguageModelSession(
@@ -65,7 +68,7 @@ enum IntelligenceService {
         }
         // Fallback works on the body only — echoing the title back as a
         // "summary" is worse than showing nothing.
-        return fallbackAnalysis(title: article.title, body: body)
+        return fallbackAnalysis(title: article.title, body: body, vocabulary: vocabulary)
     }
 
     // MARK: Apply results to the store
@@ -92,9 +95,13 @@ enum IntelligenceService {
         KnowledgeEngine.linkCooccurring(attached, context: context)
     }
 
-    // MARK: Fallback (no Apple Intelligence): NaturalLanguage keyword extraction
+    // MARK: Fallback (no Apple Intelligence): vocabulary matching
 
-    private static func fallbackAnalysis(title: String, body: String) -> ArticleAnalysis {
+    /// Match article text against concepts the app already knows (pack +
+    /// resume + model-extracted). High precision, zero junk: no new concepts
+    /// are invented on this path — that needs the real model.
+    static func fallbackAnalysis(title: String, body: String,
+                                 vocabulary: [(name: String, category: String, definition: String)]) -> ArticleAnalysis {
         // Summary: leading body sentences up to ~260 characters; empty when the
         // feed carries no body text (UI hides empty summaries).
         var summary = ""
@@ -104,31 +111,21 @@ enum IntelligenceService {
             summary += String(body[range])
             return summary.count < 260
         }
-        let text = "\(title) \(body)"
 
-        // Concepts: recurring capitalized nouns (crude but offline-safe).
-        var counts: [String: Int] = [:]
-        let tagger = NLTagger(tagSchemes: [.lexicalClass])
-        tagger.string = text
-        tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word,
-                             scheme: .lexicalClass,
-                             options: [.omitPunctuation, .omitWhitespace]) { tag, range in
-            if tag == .noun {
-                let word = String(text[range])
-                if word.count > 3, word.first?.isUppercase == true {
-                    counts[word, default: 0] += 1
-                }
+        let haystack = "\(title) \(body)"
+        var concepts: [ExtractedConcept] = []
+        for item in vocabulary {
+            guard item.name.count > 2, concepts.count < 8 else { continue }
+            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: item.name))\\b"
+            if haystack.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil {
+                concepts.append(ExtractedConcept(name: item.name, category: item.category,
+                                                 definition: item.definition))
             }
-            return true
         }
-        let concepts = counts.filter { $0.value >= 2 }
-            .sorted { $0.value > $1.value }
-            .prefix(5)
-            .map { ExtractedConcept(name: $0.key, category: "Open Source", definition: "") }
 
         return ArticleAnalysis(
             summary: summary.trimmingCharacters(in: .whitespacesAndNewlines),
-            concepts: Array(concepts)
+            concepts: concepts
         )
     }
 }

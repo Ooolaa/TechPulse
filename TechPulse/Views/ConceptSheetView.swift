@@ -113,6 +113,7 @@ struct ConceptSheetView: View {
                 .padding(.bottom, 10)
         }
         .padding(.horizontal, 22)
+        .sensoryFeedback(.success, trigger: concept.isMarkedKnown)
         .presentationDetents([.fraction(0.67), .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Theme.card)

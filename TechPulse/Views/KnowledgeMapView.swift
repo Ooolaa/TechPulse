@@ -5,6 +5,15 @@ import SwiftData
 /// cluster cards — lit vs dim — with a GAP badge and the specialty lane.
 struct KnowledgeMapView: View {
     @Query private var concepts: [Concept]
+    @State private var searchText = ""
+    @State private var selectedConcept: Concept?
+
+    private var searchResults: [Concept] {
+        guard !searchText.isEmpty else { return [] }
+        return concepts
+            .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            .sorted { $0.masteryLevel > $1.masteryLevel }
+    }
 
     private var stats: [KnowledgePathEngine.ClusterStats] {
         KnowledgePathEngine.clusterStats(concepts: concepts)
@@ -48,6 +57,9 @@ struct KnowledgeMapView: View {
                         .foregroundStyle(Theme.textTertiary)
                         .padding(.top, 4)
 
+                    if !searchText.isEmpty {
+                        searchResultsList
+                    } else {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())],
                               spacing: 10) {
                         ForEach(gridStats, id: \.name) { cluster in
@@ -68,6 +80,7 @@ struct KnowledgeMapView: View {
                         .accessibilityIdentifier("clusterCard")
                         .padding(.top, 10)
                     }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 6)
@@ -79,7 +92,44 @@ struct KnowledgeMapView: View {
             .navigationDestination(for: String.self) { clusterName in
                 ClusterDetailView(clusterName: clusterName)
             }
+            .searchable(text: $searchText, prompt: "Search concepts")
+            .sheet(item: $selectedConcept) { concept in
+                ConceptSheetView(concept: concept)
+            }
         }
+    }
+
+    /// Design 2c/4a: search across every concept, tap → detail sheet.
+    private var searchResultsList: some View {
+        VStack(spacing: 8) {
+            ForEach(searchResults.prefix(12)) { concept in
+                Button { selectedConcept = concept } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(concept.name)
+                                .font(.system(size: 14.5, weight: .bold))
+                                .foregroundStyle(Theme.textPrimary)
+                            Text(concept.category)
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(Theme.textTertiary)
+                        }
+                        Spacer()
+                        ConceptChip(concept: concept, detailed: true)
+                    }
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 12)
+                    .techPulseCard()
+                }
+                .buttonStyle(.plain)
+            }
+            if searchResults.isEmpty {
+                Text("No concepts match “\(searchText)”")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.textSecondary)
+                    .padding(.top, 30)
+            }
+        }
+        .padding(.top, 12)
     }
 
     private func specialtyBanner(_ stats: KnowledgePathEngine.ClusterStats) -> some View {

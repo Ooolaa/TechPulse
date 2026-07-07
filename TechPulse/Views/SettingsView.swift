@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Query(sort: \FeedSource.name) private var sources: [FeedSource]
     @Environment(\.modelContext) private var modelContext
     @State private var isSyncing = false
+    @AppStorage("articleTextSize") private var textSize = "Medium"
 
     private var lastSynced: Date? {
         sources.compactMap(\.lastFetched).max()
@@ -62,8 +63,15 @@ struct SettingsView: View {
                     .disabled(isSyncing)
                     LabeledContent("Storage used", value: storageUsed)
                 }
+                Section("Reading") {
+                    Picker("Text size", selection: $textSize) {
+                        Text("Small").tag("Small")
+                        Text("Medium").tag("Medium")
+                        Text("Large").tag("Large")
+                    }
+                }
                 Section {
-                    LabeledContent("Version", value: "1.0 (M6)")
+                    LabeledContent("Version", value: "1.0")
                     LabeledContent("Intelligence", value: IntelligenceService.isModelAvailable
                                    ? "Apple Intelligence" : "On-device fallback")
                 } header: {

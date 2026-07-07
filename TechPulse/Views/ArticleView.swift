@@ -7,8 +7,42 @@ struct ArticleView: View {
     @Bindable var article: Article
     @Environment(\.modelContext) private var modelContext
     @State private var selectedConcept: Concept?
+    @State private var readProgress: CGFloat = 0
+    @AppStorage("articleTextSize") private var textSize = "Medium"
+
+    private var bodyFontSize: CGFloat {
+        switch textSize {
+        case "Small": 14
+        case "Large": 17.5
+        default: 15
+        }
+    }
 
     var body: some View {
+        articleScroll
+            .safeAreaInset(edge: .top, spacing: 0) { progressBar }
+            .background(Theme.card)
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                KnowledgeEngine.recordRead(article, context: modelContext)
+            }
+            .sheet(item: $selectedConcept) { concept in
+                ConceptSheetView(concept: concept)
+            }
+    }
+
+    /// Design 2b: thin bar under the nav showing how far you've read.
+    private var progressBar: some View {
+        GeometryReader { geo in
+            Rectangle()
+                .fill(Theme.stateLearning)
+                .frame(width: max(0, geo.size.width * readProgress))
+        }
+        .frame(height: 3)
+        .background(Color(hex: 0xEDF0F3))
+    }
+
+    private var articleScroll: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("\(article.sourceName.uppercased()) · \(article.publishedAt.formatted(date: .abbreviated, time: .omitted))")
@@ -33,7 +67,7 @@ struct ArticleView: View {
                 }
 
                 Text(article.content.strippingHTML)
-                    .font(.system(size: 15))
+                    .font(.system(size: bodyFontSize))
                     .foregroundStyle(Color(hex: 0x2B2F36))
                     .lineSpacing(6)
                     .padding(.top, 20)
@@ -41,13 +75,12 @@ struct ArticleView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
         }
-        .background(Theme.card)
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            KnowledgeEngine.recordRead(article, context: modelContext)
-        }
-        .sheet(item: $selectedConcept) { concept in
-            ConceptSheetView(concept: concept)
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            let scrollable = geo.contentSize.height - geo.containerSize.height
+            guard scrollable > 0 else { return 1 }
+            return min(1, max(0, geo.contentOffset.y / scrollable))
+        } action: { _, newValue in
+            readProgress = newValue
         }
     }
 

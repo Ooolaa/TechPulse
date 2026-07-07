@@ -75,7 +75,9 @@ struct QuizView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("\(question.conceptName)")
+                    // Cluster, not concept name — the name would spoil
+                    // "which concept does this describe" questions.
+                    Text(concepts.first { $0.name == question.conceptName }?.category ?? "Review")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Theme.stateLearning)
                         .padding(.horizontal, 10)
@@ -125,6 +127,10 @@ struct QuizView: View {
             .padding(.bottom, 12)
         }
         .background(Theme.background)
+        .sensoryFeedback(trigger: checked) { _, isChecked in
+            guard isChecked else { return nil }
+            return selected == question.correctIndex ? .success : .error
+        }
     }
 
     private func optionRow(question: QuizQuestion, optionIndex: Int) -> some View {
