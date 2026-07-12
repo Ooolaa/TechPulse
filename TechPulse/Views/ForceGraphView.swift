@@ -166,6 +166,7 @@ struct ForceGraphView: View {
     let links: [ConceptLink]
     var dependencies: [ConceptDependency] = []
     var frontier: Set<String> = []        // dashed "ready to learn" rings
+    var recent: Set<String> = []          // pulsing glow: dots added by recent reading
     var clusterAnchored = false           // archipelago layout for the full map
     var onSelect: (String) -> Void
 
@@ -185,9 +186,11 @@ struct ForceGraphView: View {
 
     var body: some View {
         GeometryReader { geo in
-            TimelineView(.animation(minimumInterval: 1 / 30)) { _ in
+            TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
                 Canvas { ctx, size in
                     sim.step(in: size)
+                    let pulsePhase = timeline.date.timeIntervalSinceReferenceDate
+                        .truncatingRemainder(dividingBy: 1.4) / 1.4   // 0→1 loop
                     let center = CGPoint(x: size.width / 2, y: size.height / 2)
                     ctx.translateBy(x: offset.width + center.x * (1 - scale),
                                     y: offset.height + center.y * (1 - scale))
@@ -236,6 +239,14 @@ struct ForceGraphView: View {
                             ctx.stroke(Path(ellipseIn: ring),
                                        with: .color(Theme.stateLearning),
                                        style: StrokeStyle(lineWidth: 2.5, dash: [4, 3]))
+                        }
+                        if recent.contains(node.name) {
+                            // Expanding, fading ripple — today's reading grew this dot.
+                            let spread = 4 + 10 * pulsePhase
+                            let ripple = rect.insetBy(dx: -spread, dy: -spread)
+                            ctx.stroke(Path(ellipseIn: ripple),
+                                       with: .color(Theme.stateLearning.opacity(0.75 * (1 - pulsePhase))),
+                                       lineWidth: 2.5)
                         }
                         if node.radius > 9 || frontier.contains(node.name) {
                             ctx.draw(

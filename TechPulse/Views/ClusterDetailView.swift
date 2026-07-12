@@ -44,7 +44,10 @@ struct ClusterDetailView: View {
                     .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.cardBorder, lineWidth: 1))
                 ForceGraphView(concepts: clusterConcepts, links: [],
                                dependencies: clusterDependencies,
-                               frontier: frontierNames) { name in
+                               frontier: frontierNames,
+                               recent: Set(clusterConcepts
+                                   .filter { $0.firstSeen > Date.now.addingTimeInterval(-86_400) }
+                                   .map(\.name))) { name in
                     selectedConcept = clusterConcepts.first { $0.name == name }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 22))

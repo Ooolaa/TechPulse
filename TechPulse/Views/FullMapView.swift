@@ -16,6 +16,12 @@ struct FullMapView: View {
         KnowledgePathEngine.frontier(concepts: concepts, dependencies: dependencies)
     }
 
+    /// Dots that arrived in the last 24 h — reading visibly grows the net.
+    private var recentNames: Set<String> {
+        let cutoff = Date.now.addingTimeInterval(-86_400)
+        return Set(concepts.filter { $0.firstSeen > cutoff }.map(\.name))
+    }
+
     private var litCount: Int {
         concepts.filter(KnowledgePathEngine.isLit).count
     }
@@ -27,6 +33,7 @@ struct FullMapView: View {
                 .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.cardBorder, lineWidth: 1))
             ForceGraphView(concepts: concepts, links: links,
                            frontier: frontierNames,
+                           recent: recentNames,
                            clusterAnchored: true) { name in
                 selectedConcept = concepts.first { $0.name == name }
             }

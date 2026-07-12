@@ -10,6 +10,8 @@ struct ConceptSheetView: View {
     @Query private var allLinks: [ConceptLink]
     @Query private var allConcepts: [Concept]
     @State private var quizzing = false
+    @State private var deepening = false
+    @State private var deepenedNames: [String] = []
 
     /// Concepts linked to this one, heaviest edges first (design 2d).
     private var relatedConcepts: [Concept] {
@@ -108,8 +110,10 @@ struct ConceptSheetView: View {
             }
 
             Spacer(minLength: 0)
+            goDeeperButton
+                .padding(.top, 12)
             actionButtons
-                .padding(.top, 14)
+                .padding(.top, 10)
                 .padding(.bottom, 10)
         }
         .padding(.horizontal, 22)
@@ -151,6 +155,53 @@ struct ConceptSheetView: View {
         .padding(.vertical, 11)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 13))
         .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(Theme.cardBorder, lineWidth: 1))
+    }
+
+    /// The pull direction of learning: expand this concept into 3–5 related
+    /// sub-concepts on the map, instead of waiting for the feed to bring them.
+    private var goDeeperButton: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Button {
+                deepening = true
+                Task {
+                    let added = await IntelligenceService.deepen(concept, context: modelContext)
+                    deepenedNames = added.map(\.name)
+                    deepening = false
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if deepening {
+                        ProgressView().controlSize(.small)
+                        Text("Growing the map…")
+                    } else {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(deepenedNames.isEmpty ? "Go deeper — grow related dots"
+                                                   : "Added \(deepenedNames.count) dots ✓")
+                    }
+                }
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(IntelligenceService.isModelAvailable ? Theme.stateLearning : Theme.textTertiary)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .background(Theme.learningTint.opacity(IntelligenceService.isModelAvailable ? 1 : 0.4),
+                            in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .disabled(deepening || !IntelligenceService.isModelAvailable || !deepenedNames.isEmpty)
+            .accessibilityIdentifier("goDeeper")
+            .sensoryFeedback(.success, trigger: deepenedNames.count)
+
+            if !IntelligenceService.isModelAvailable {
+                Text("Needs Apple Intelligence for on-device generation.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.textTertiary)
+            } else if !deepenedNames.isEmpty {
+                Text(deepenedNames.joined(separator: " · "))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.stateLearning)
+                    .lineLimit(2)
+            }
+        }
     }
 
     private var actionButtons: some View {
