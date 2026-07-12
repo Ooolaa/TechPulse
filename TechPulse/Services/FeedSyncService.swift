@@ -5,8 +5,13 @@ import SwiftData
 /// Offline-first: failures are silently skipped; whatever is cached stays readable.
 @MainActor
 enum FeedSyncService {
-    /// Newest items kept per feed per sync (arXiv daily feeds can carry hundreds).
+    /// Newest items parsed per feed per sync (arXiv daily feeds can carry hundreds).
     private static let perFeedLimit = 30
+
+    /// Daily intake cap across ALL feeds. 30 fresh articles a day is plenty
+    /// for a starting reader — an overflowing feed kills the habit
+    /// (Atomic Habits: make it easy; an achievable pile gets opened).
+    private static let dailyIntakeLimit = 30
 
     @discardableResult
     static func syncAll(context: ModelContext) async -> Int {
@@ -32,28 +37,45 @@ enum FeedSyncService {
             return results
         }
 
-        var knownGuids = Set(((try? context.fetch(FetchDescriptor<Article>())) ?? []).map(\.guid))
+        let existing = (try? context.fetch(FetchDescriptor<Article>())) ?? []
+        var knownGuids = Set(existing.map(\.guid))
+
+        // Enforce the daily intake cap: count what was already cached today.
+        let todayStart = Calendar.current.startOfDay(for: .now)
+        let addedToday = existing.count { ($0.addedAt ?? .distantPast) >= todayStart }
+        var allowance = max(0, dailyIntakeLimit - addedToday)
         var added = 0
 
+        // Pool candidates across all feeds, newest first, so the cap keeps the
+        // best (freshest) 30 rather than whichever feed happened to come first.
+        var candidates: [(sourceName: String, item: ParsedFeedItem)] = []
         for (index, source) in sources.enumerated() {
             guard let data = payloads[index] else { continue }
-
             for item in RSSParser.parse(data).prefix(perFeedLimit) {
-                guard !item.guid.isEmpty, !knownGuids.contains(item.guid) else { continue }
-                // Some publishers post-date RSS timestamps; clamp so the feed
-                // never shows articles from "the future".
-                let article = Article(
-                    guid: item.guid,
-                    title: item.title.strippingHTML,
-                    content: item.content,
-                    publishedAt: min(item.publishedAt ?? .now, .now),
-                    sourceName: source.name
-                )
-                context.insert(article)
-                knownGuids.insert(item.guid)
-                added += 1
+                candidates.append((source.name, item))
             }
             source.lastFetched = .now
+        }
+        candidates.sort { ($0.item.publishedAt ?? .now) > ($1.item.publishedAt ?? .now) }
+
+        for candidate in candidates {
+            guard allowance > 0 else { break }
+            let item = candidate.item
+            guard !item.guid.isEmpty, !knownGuids.contains(item.guid) else { continue }
+            // Some publishers post-date RSS timestamps; clamp so the feed
+            // never shows articles from "the future".
+            let article = Article(
+                guid: item.guid,
+                title: item.title.strippingHTML,
+                content: item.content,
+                publishedAt: min(item.publishedAt ?? .now, .now),
+                sourceName: candidate.sourceName,
+                link: item.link.isEmpty ? nil : item.link
+            )
+            context.insert(article)
+            knownGuids.insert(item.guid)
+            added += 1
+            allowance -= 1
         }
         prune(context: context)
         try? context.save()

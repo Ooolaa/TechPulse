@@ -23,6 +23,21 @@ struct ArticleView: View {
             .safeAreaInset(edge: .top, spacing: 0) { progressBar }
             .background(Theme.card)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if let link = article.link, let url = URL(string: link) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Link(destination: url) {
+                            Image(systemName: "safari")
+                        }
+                        .accessibilityLabel("Open original article in browser")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        ShareLink(item: url) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
             .onAppear {
                 KnowledgeEngine.recordRead(article, context: modelContext)
             }
@@ -54,22 +69,25 @@ struct ArticleView: View {
                     .font(.system(size: 23, weight: .heavy))
                     .foregroundStyle(Theme.textPrimary)
                     .lineSpacing(3)
+                    .textSelection(.enabled)
                     .padding(.top, 8)
 
-                if let summary = article.summary, !summary.isEmpty {
-                    summaryCard(summary)
+                // Know the keywords BEFORE reading — primer with definitions.
+                if !article.concepts.isEmpty {
+                    conceptPrimer
                         .padding(.top, 16)
                 }
 
-                if !article.concepts.isEmpty {
-                    conceptSection
-                        .padding(.top, 18)
+                if let summary = article.summary, !summary.isEmpty {
+                    summaryCard(summary)
+                        .padding(.top, 14)
                 }
 
                 Text(article.content.strippingHTML)
                     .font(.system(size: bodyFontSize))
                     .foregroundStyle(Color(hex: 0x2B2F36))
                     .lineSpacing(6)
+                    .textSelection(.enabled)
                     .padding(.top, 20)
             }
             .padding(.horizontal, 20)
@@ -112,26 +130,60 @@ struct ArticleView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
     }
 
-    private var conceptSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    /// "Before you read" glossary: each keyword with its one-line definition,
+    /// colored by mastery. Tap a row for the full concept sheet.
+    private var conceptPrimer: some View {
+        VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Concepts in this article")
-                    .font(.system(size: 13, weight: .bold))
+                Text("Key concepts — know these before you read")
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                 Spacer()
-                Text("tap to mark what you know")
-                    .font(.system(size: 11))
+                Text("tap for detail")
+                    .font(.system(size: 10.5))
                     .foregroundStyle(Theme.textTertiary)
             }
-            FlowLayout(spacing: 7) {
-                ForEach(article.concepts) { concept in
-                    Button { selectedConcept = concept } label: {
-                        ConceptChip(concept: concept, detailed: true)
+            .padding(.bottom, 4)
+
+            ForEach(Array(article.concepts.prefix(4).enumerated()), id: \.element.name) { index, concept in
+                if index > 0 { Divider().padding(.vertical, 8) }
+                Button { selectedConcept = concept } label: {
+                    HStack(alignment: .top, spacing: 9) {
+                        Circle()
+                            .fill(primerColor(concept))
+                            .frame(width: 8, height: 8)
+                            .padding(.top, 4.5)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(concept.name)
+                                .font(.system(size: 13.5, weight: .bold))
+                                .foregroundStyle(Theme.textPrimary)
+                            Text(concept.conceptDefinition.isEmpty
+                                 ? "New to your map — reading this adds it."
+                                 : concept.conceptDefinition)
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(Theme.textSecondary)
+                                .lineSpacing(3)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer(minLength: 0)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("conceptChip")
+                    .padding(.top, index == 0 ? 8 : 0)
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("conceptChip")
             }
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 13)
+        .background(Theme.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.cardBorder, lineWidth: 1))
+    }
+
+    private func primerColor(_ concept: Concept) -> Color {
+        switch concept.masteryState {
+        case .new: Theme.stateNew
+        case .learning: Theme.stateLearning
+        case .known: Theme.stateKnown
         }
     }
 }

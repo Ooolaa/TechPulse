@@ -60,6 +60,13 @@ struct KnowledgeMapView: View {
                     if !searchText.isEmpty {
                         searchResultsList
                     } else {
+                    NavigationLink(value: FullMapRoute()) {
+                        fullMapCard
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("fullMapCard")
+                    .padding(.top, 12)
+
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())],
                               spacing: 10) {
                         ForEach(gridStats, id: \.name) { cluster in
@@ -91,6 +98,9 @@ struct KnowledgeMapView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { clusterName in
                 ClusterDetailView(clusterName: clusterName)
+            }
+            .navigationDestination(for: FullMapRoute.self) { _ in
+                FullMapView()
             }
             .searchable(text: $searchText, prompt: "Search concepts")
             .sheet(item: $selectedConcept) { concept in
@@ -130,6 +140,34 @@ struct KnowledgeMapView: View {
             }
         }
         .padding(.top, 12)
+    }
+
+    /// One net, no topic walls — every dot connected (design request).
+    private var fullMapCard: some View {
+        HStack {
+            HStack(spacing: 11) {
+                Image(systemName: "circle.hexagongrid.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.stateLearning)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Full map — one net")
+                        .font(.system(size: 13.5, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("All \(concepts.count) concepts connected, no sections")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.stateLearning)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
+            .strokeBorder(Theme.cardBorder, lineWidth: 1))
     }
 
     private func specialtyBanner(_ stats: KnowledgePathEngine.ClusterStats) -> some View {

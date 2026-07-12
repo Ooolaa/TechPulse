@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var isSyncing = false
     @AppStorage("articleTextSize") private var textSize = "Medium"
+    @AppStorage("dailyReadingGoal") private var dailyGoal = 3
 
     private var lastSynced: Date? {
         sources.compactMap(\.lastFetched).max()
@@ -63,12 +64,22 @@ struct SettingsView: View {
                     .disabled(isSyncing)
                     LabeledContent("Storage used", value: storageUsed)
                 }
-                Section("Reading") {
+                Section {
                     Picker("Text size", selection: $textSize) {
                         Text("Small").tag("Small")
                         Text("Medium").tag("Medium")
                         Text("Large").tag("Large")
                     }
+                    Picker("Daily reading goal", selection: $dailyGoal) {
+                        Text("1 article").tag(1)
+                        Text("3 articles").tag(3)
+                        Text("5 articles").tag(5)
+                        Text("10 articles").tag(10)
+                    }
+                } header: {
+                    Text("Reading")
+                } footer: {
+                    Text("Start tiny — a goal you hit daily beats one you abandon. The feed caps at 30 fresh articles a day so it never becomes a chore.")
                 }
                 Section {
                     LabeledContent("Version", value: "1.0")

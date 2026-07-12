@@ -10,6 +10,8 @@ struct FeedView: View {
     @State private var selectedCategory: String?
     @State private var isSyncing = false
     @State private var searchText = ""
+    // Atomic Habits: start tiny (3/day), make progress visible, reward completion.
+    @AppStorage("dailyReadingGoal") private var dailyGoal = 3
 
     private var categories: [String] {
         Array(Set(sources.map(\.category))).sorted()
@@ -218,9 +220,81 @@ struct FeedView: View {
         return parts.joined(separator: " ")
     }
 
+    // MARK: Daily goal (Atomic Habits loop: cue → tiny action → visible reward)
+
+    private var readToday: Int {
+        let todayStart = Calendar.current.startOfDay(for: .now)
+        return articles.count { ($0.readAt ?? .distantPast) >= todayStart }
+    }
+
+    private var streakDays: Int {
+        let calendar = Calendar.current
+        let readDays = Set(articles.compactMap(\.readAt).map { calendar.startOfDay(for: $0) })
+        var streak = 0
+        var day = calendar.startOfDay(for: .now)
+        while readDays.contains(day) {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { break }
+            day = previous
+        }
+        return streak
+    }
+
+    private var dailyGoalCard: some View {
+        let done = readToday
+        let met = done >= dailyGoal
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle().stroke(met ? Theme.knownTint : Theme.learningTint, lineWidth: 5)
+                Circle()
+                    .trim(from: 0, to: min(1, CGFloat(done) / CGFloat(max(1, dailyGoal))))
+                    .stroke(met ? Theme.stateKnown : Theme.stateLearning,
+                            style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                if met {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundStyle(Theme.stateKnown)
+                } else {
+                    Text("\(done)/\(dailyGoal)")
+                        .font(.system(size: 11, weight: .heavy))
+                        .foregroundStyle(Theme.stateLearning)
+                }
+            }
+            .frame(width: 40, height: 40)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(met ? "Daily goal met 🎉" : "Today's goal: read \(dailyGoal) article\(dailyGoal == 1 ? "" : "s")")
+                    .font(.system(size: 13.5, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(met
+                     ? "Streak: \(streakDays) day\(streakDays == 1 ? "" : "s"). Come back tomorrow — don't break the chain."
+                     : done == 0
+                        ? "Just one article counts — two minutes is a win."
+                        : "\(dailyGoal - done) to go. You've already shown up.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineSpacing(2)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 12)
+        .background(met
+                    ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xEFFBF4), .white],
+                                                   startPoint: .top, endPoint: .bottom))
+                    : AnyShapeStyle(Theme.card),
+                    in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
+            .strokeBorder(met ? Color(hex: 0xD3EBDD) : Theme.cardBorder, lineWidth: 1))
+        .sensoryFeedback(.success, trigger: met)
+        .accessibilityIdentifier("dailyGoalCard")
+    }
+
     private var articleList: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
+                dailyGoalCard
                 if let nextDot {
                     nextDotBanner(nextDot)
                 }

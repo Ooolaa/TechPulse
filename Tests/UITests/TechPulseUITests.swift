@@ -64,6 +64,15 @@ final class TechPulseUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()   // back
         sleep(1)
 
+        // Full map: every concept in one net, no sections.
+        let fullMap = app.buttons["fullMapCard"].firstMatch
+        XCTAssertTrue(fullMap.waitForExistence(timeout: 5), "full map card missing")
+        fullMap.tap()
+        sleep(3)
+        snap(app, "5c-full-map")
+        app.navigationBars.buttons.firstMatch.tap()
+        sleep(1)
+
         app.buttons["Progress"].tap()
         sleep(1)
         snap(app, "6-progress-charts")
