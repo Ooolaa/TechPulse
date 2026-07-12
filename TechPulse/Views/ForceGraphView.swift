@@ -20,24 +20,54 @@ final class GraphSimulation {
 
     private(set) var nodes: [Node] = []
     private(set) var edges: [Edge] = []
+    /// Cluster-island mode: each node is pulled toward its cluster's anchor
+    /// instead of the global center; labels name the islands.
+    private(set) var anchors: [Int: CGPoint] = [:]
+    private(set) var clusterLabels: [(name: String, position: CGPoint)] = []
     private var settledFrames = 0
     private var lastSize: CGSize = .zero
 
     func configure(concepts: [Concept], links: [ConceptLink],
-                   dependencies: [ConceptDependency] = [], in size: CGSize) {
+                   dependencies: [ConceptDependency] = [],
+                   clusterAnchored: Bool = false, in size: CGSize) {
         // Keep positions of existing nodes so re-configuration doesn't scatter the net.
         let existing = Dictionary(nodes.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
+
+        // Cluster islands: anchor points on an ellipse, one per category.
+        var anchorByCategory: [String: CGPoint] = [:]
+        if clusterAnchored {
+            let categories = Array(Set(concepts.map(\.category))).sorted()
+            let radiusX = size.width * 0.30
+            let radiusY = size.height * 0.32
+            for (index, category) in categories.enumerated() {
+                let angle = (2 * .pi * CGFloat(index)) / CGFloat(max(1, categories.count)) - .pi / 2
+                anchorByCategory[category] = CGPoint(x: center.x + cos(angle) * radiusX,
+                                                     y: center.y + sin(angle) * radiusY)
+            }
+            clusterLabels = anchorByCategory.map { ($0.key, $0.value) }
+        } else {
+            clusterLabels = []
+        }
+
         nodes = concepts.map { concept in
+            let home = anchorByCategory[concept.category] ?? center
             var node = existing[concept.name] ?? Node(
                 name: concept.name,
-                position: CGPoint(x: center.x + .random(in: -90...90),
-                                  y: center.y + .random(in: -130...130))
+                position: CGPoint(x: home.x + .random(in: -60...60),
+                                  y: home.y + .random(in: -60...60))
             )
             node.radius = 6 + concept.masteryLevel * 10
             node.state = concept.masteryState
             return node
         }
+        anchors = clusterAnchored
+            ? Dictionary(uniqueKeysWithValues: nodes.enumerated().compactMap { index, node in
+                concepts.first { $0.name == node.name }
+                    .flatMap { anchorByCategory[$0.category] }
+                    .map { (index, $0) }
+            })
+            : [:]
         let index = Dictionary(uniqueKeysWithValues: nodes.enumerated().map { ($0.element.name, $0.offset) })
         if dependencies.isEmpty {
             edges = links.compactMap { link in
@@ -74,8 +104,11 @@ final class GraphSimulation {
         var forces = [CGVector](repeating: .init(dx: 0, dy: 0), count: nodes.count)
 
         for i in nodes.indices {
-            forces[i].dx += (center.x - nodes[i].position.x) * 0.015
-            forces[i].dy += (center.y - nodes[i].position.y) * 0.015
+            // Pull toward the cluster island when anchored, else the center.
+            let home = anchors[i] ?? center
+            let pull: CGFloat = anchors[i] != nil ? 0.05 : 0.015
+            forces[i].dx += (home.x - nodes[i].position.x) * pull
+            forces[i].dy += (home.y - nodes[i].position.y) * pull
             for j in nodes.indices where j > i {
                 var dx = nodes[i].position.x - nodes[j].position.x
                 var dy = nodes[i].position.y - nodes[j].position.y
@@ -133,6 +166,7 @@ struct ForceGraphView: View {
     let links: [ConceptLink]
     var dependencies: [ConceptDependency] = []
     var frontier: Set<String> = []        // dashed "ready to learn" rings
+    var clusterAnchored = false           // archipelago layout for the full map
     var onSelect: (String) -> Void
 
     @State private var sim = GraphSimulation()
@@ -158,6 +192,16 @@ struct ForceGraphView: View {
                     ctx.translateBy(x: offset.width + center.x * (1 - scale),
                                     y: offset.height + center.y * (1 - scale))
                     ctx.scaleBy(x: scale, y: scale)
+
+                    // Island names behind the dots.
+                    for label in sim.clusterLabels {
+                        ctx.draw(
+                            Text(label.name.uppercased())
+                                .font(.system(size: 11, weight: .heavy))
+                                .foregroundStyle(Color(hex: 0x8A919C).opacity(0.45)),
+                            at: CGPoint(x: label.position.x, y: label.position.y - 58)
+                        )
+                    }
 
                     for edge in sim.edges {
                         let from = sim.nodes[edge.a].position
@@ -228,15 +272,18 @@ struct ForceGraphView: View {
             )
             .onAppear {
                 sim.configure(concepts: concepts, links: links,
-                              dependencies: dependencies, in: geo.size)
+                              dependencies: dependencies,
+                              clusterAnchored: clusterAnchored, in: geo.size)
             }
             .onChange(of: concepts.count) {
                 sim.configure(concepts: concepts, links: links,
-                              dependencies: dependencies, in: geo.size)
+                              dependencies: dependencies,
+                              clusterAnchored: clusterAnchored, in: geo.size)
             }
             .onChange(of: links.count) {
                 sim.configure(concepts: concepts, links: links,
-                              dependencies: dependencies, in: geo.size)
+                              dependencies: dependencies,
+                              clusterAnchored: clusterAnchored, in: geo.size)
             }
         }
         .accessibilityIdentifier("knowledgeGraph")

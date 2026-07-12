@@ -26,7 +26,8 @@ struct FullMapView: View {
                 .fill(Theme.card)
                 .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.cardBorder, lineWidth: 1))
             ForceGraphView(concepts: concepts, links: links,
-                           frontier: frontierNames) { name in
+                           frontier: frontierNames,
+                           clusterAnchored: true) { name in
                 selectedConcept = concepts.first { $0.name == name }
             }
             .id(graphReset)

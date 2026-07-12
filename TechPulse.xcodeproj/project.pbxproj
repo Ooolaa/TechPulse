@@ -19,6 +19,7 @@
 		3DC63038E15D9C51D29250FA /* ForceGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8587075ACC8C5B50E579FD /* ForceGraphView.swift */; };
 		3E3CF15088A284E0EB84871C /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B90CCA674EAE8D32108CD3 /* RootTabView.swift */; };
 		453B0A7702E4A1224840AC2A /* RSSParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3888CD6831CCA2655369901B /* RSSParserTests.swift */; };
+		4A2B4EC62E3B4BF6E10CD9CC /* SelectableText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8740BCA165AACC9103823F /* SelectableText.swift */; };
 		4C714C5DB37A3929083FB727 /* KnowledgeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AD1BC18D4319A7AA8A7A80A /* KnowledgeEngine.swift */; };
 		54270DCF1E686461F4D799E8 /* FeedSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F913F99EDEF0C8346A46BF8 /* FeedSource.swift */; };
 		55AEB1106174B5C14FB36FA2 /* TechPulseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFCD8E2B92F580179B914CAB /* TechPulseApp.swift */; };
@@ -75,6 +76,7 @@
 		4AD1BC18D4319A7AA8A7A80A /* KnowledgeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeEngine.swift; sourceTree = "<group>"; };
 		4BB5D3C26FD8D3646C05997E /* KnowledgePack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgePack.swift; sourceTree = "<group>"; };
 		4C0794BD56A9EDCCBA857486 /* WeeklyLearningIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyLearningIntent.swift; sourceTree = "<group>"; };
+		4E8740BCA165AACC9103823F /* SelectableText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableText.swift; sourceTree = "<group>"; };
 		617B35B67651116A05F5ADB6 /* TechPulse.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TechPulse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		626B44DBD4047ED09444071D /* FeedSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedSyncService.swift; sourceTree = "<group>"; };
 		65E7E29ED174FA263DEDB606 /* KnowledgePathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgePathTests.swift; sourceTree = "<group>"; };
@@ -154,6 +156,7 @@
 				0B5DEA33C7F76331B8669A39 /* ProgressTabView.swift */,
 				1BC5918EC41E2DC2BE2E6884 /* QuizView.swift */,
 				21B90CCA674EAE8D32108CD3 /* RootTabView.swift */,
+				4E8740BCA165AACC9103823F /* SelectableText.swift */,
 				064A64AB8DE1CF19F91AF0D7 /* SettingsView.swift */,
 				2B07EE9C61977870716F7F9E /* Theme.swift */,
 			);
@@ -362,6 +365,7 @@
 				8ED69BE743E9A55FDF347BA3 /* RSSParser.swift in Sources */,
 				3E3CF15088A284E0EB84871C /* RootTabView.swift in Sources */,
 				223A361D7999C367F1CF2752 /* SeedData.swift in Sources */,
+				4A2B4EC62E3B4BF6E10CD9CC /* SelectableText.swift in Sources */,
 				D7B535CDDF16574CA88ED9CD /* SettingsView.swift in Sources */,
 				55AEB1106174B5C14FB36FA2 /* TechPulseApp.swift in Sources */,
 				2D8B0F0767C9B416C80DDB30 /* Theme.swift in Sources */,

@@ -83,12 +83,13 @@ struct ArticleView: View {
                         .padding(.top, 14)
                 }
 
-                Text(article.content.strippingHTML)
-                    .font(.system(size: bodyFontSize))
-                    .foregroundStyle(Color(hex: 0x2B2F36))
-                    .lineSpacing(6)
-                    .textSelection(.enabled)
+                SelectableText(text: article.content.strippingHTML, fontSize: bodyFontSize)
                     .padding(.top, 20)
+
+                if article.content.strippingHTML.count < 400 {
+                    snippetFooter
+                        .padding(.top, 18)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
@@ -177,6 +178,34 @@ struct ArticleView: View {
         .padding(.vertical, 13)
         .background(Theme.background, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.cardBorder, lineWidth: 1))
+    }
+
+    /// Some publishers (Hugging Face, OpenAI, DeepMind) only put a title or a
+    /// one-liner in their RSS feed — explain that and hand over the full story.
+    private var snippetFooter: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("\(article.sourceName) only shares a preview in its feed — the full article lives on their site.")
+                .font(.system(size: 12.5))
+                .foregroundStyle(Theme.textSecondary)
+                .lineSpacing(3)
+            if let link = article.link, let url = URL(string: link) {
+                Link(destination: url) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "safari")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Read the full story")
+                            .font(.system(size: 13.5, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 11)
+                    .background(Theme.stateLearning, in: Capsule())
+                }
+            }
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.background, in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func primerColor(_ concept: Concept) -> Color {
