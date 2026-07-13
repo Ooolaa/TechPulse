@@ -9,7 +9,8 @@ struct FullMapView: View {
     @Query(sort: \Concept.masteryLevel, order: .reverse) private var concepts: [Concept]
     @Query private var links: [ConceptLink]
     @Query private var dependencies: [ConceptDependency]
-    @State private var selectedConcept: Concept?
+    @State private var selectedConcept: Concept?   // drives the glossary strip
+    @State private var detailConcept: Concept?     // drives the full sheet
     @State private var graphReset = UUID()
 
     private var frontierNames: Set<String> {
@@ -17,9 +18,14 @@ struct FullMapView: View {
     }
 
     /// Dots that arrived in the last 24 h — reading visibly grows the net.
+    /// The initial seeding batch is excluded (on a fresh install everything
+    /// is "new", and 73 pulsing rings mean nothing).
     private var recentNames: Set<String> {
+        guard let epoch = concepts.map(\.firstSeen).min() else { return [] }
         let cutoff = Date.now.addingTimeInterval(-86_400)
-        return Set(concepts.filter { $0.firstSeen > cutoff }.map(\.name))
+        return Set(concepts
+            .filter { $0.firstSeen > cutoff && $0.firstSeen > epoch.addingTimeInterval(3_600) }
+            .map(\.name))
     }
 
     private var litCount: Int {
@@ -39,7 +45,11 @@ struct FullMapView: View {
             }
             .id(graphReset)
             .clipShape(RoundedRectangle(cornerRadius: 22))
-            legend
+            if let selectedConcept {
+                glossaryStrip(selectedConcept)
+            } else {
+                legend
+            }
             recenterButton
         }
         .padding(.horizontal, 12)
@@ -55,8 +65,64 @@ struct FullMapView: View {
                     .foregroundStyle(Theme.textSecondary)
             }
         }
-        .sheet(item: $selectedConcept) { concept in
+        .sheet(item: $detailConcept) { concept in
             ConceptSheetView(concept: concept)
+        }
+    }
+
+    /// Tap a dot → brief review of what the keyword means, right under the map.
+    private func glossaryStrip(_ concept: Concept) -> some View {
+        VStack {
+            Spacer()
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Circle().fill(stripColor(concept)).frame(width: 9, height: 9)
+                    Text(concept.name)
+                        .font(.system(size: 14.5, weight: .heavy))
+                        .foregroundStyle(Theme.textPrimary)
+                    ConceptChip(concept: concept, detailed: true)
+                    Spacer()
+                    Button {
+                        withAnimation(.easeOut(duration: 0.15)) { selectedConcept = nil }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Theme.textTertiary)
+                            .frame(width: 26, height: 26)
+                            .background(Theme.newTint, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text(concept.conceptDefinition.isEmpty
+                     ? "No definition yet — reading tagged articles fills this in."
+                     : concept.conceptDefinition)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineSpacing(3)
+                    .lineLimit(2)
+                Button { detailConcept = concept } label: {
+                    Text("Details ›")
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundStyle(Theme.stateLearning)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("glossaryDetails")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(Theme.card.opacity(0.96), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
+            .shadow(color: Color(hex: 0x17181A).opacity(0.08), radius: 10, y: 5)
+            .padding(12)
+        }
+        .accessibilityIdentifier("glossaryStrip")
+    }
+
+    private func stripColor(_ concept: Concept) -> Color {
+        switch concept.masteryState {
+        case .new: Theme.stateNew
+        case .learning: Theme.stateLearning
+        case .known: Theme.stateKnown
         }
     }
 

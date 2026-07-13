@@ -11,6 +11,7 @@ final class Article {
     var sourceName: String
     var link: String?            // original URL, for opening in the browser
     var addedAt: Date?           // when WE cached it — drives the 30/day intake cap
+    var fullTextAttemptedAt: Date?   // one full-text fetch attempt per article
     var isRead: Bool
     var readAt: Date?
     @Relationship var concepts: [Concept]

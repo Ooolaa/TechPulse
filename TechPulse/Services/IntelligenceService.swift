@@ -77,6 +77,15 @@ enum IntelligenceService {
         return fallbackAnalysis(title: article.title, body: body, vocabulary: vocabulary)
     }
 
+    /// Re-run analysis for one article (e.g. after full text replaced a snippet).
+    static func reanalyze(_ article: Article, context: ModelContext) async {
+        let vocabulary = ((try? context.fetch(FetchDescriptor<Concept>())) ?? [])
+            .map { (name: $0.name, category: $0.category, definition: $0.conceptDefinition) }
+        let analysis = await analyze(article, vocabulary: vocabulary)
+        apply(analysis, to: article, context: context)
+        try? context.save()
+    }
+
     // MARK: "Go deeper" — grow the map outward from a concept (pull direction)
 
     /// Expands a concept into 3–5 related sub-concepts, added as dim dots on

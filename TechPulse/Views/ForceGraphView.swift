@@ -248,14 +248,35 @@ struct ForceGraphView: View {
                                        with: .color(Theme.stateLearning.opacity(0.75 * (1 - pulsePhase))),
                                        lineWidth: 2.5)
                         }
-                        if node.radius > 9 || frontier.contains(node.name) {
-                            ctx.draw(
-                                Text(node.name)
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(Color(hex: 0x4B5563)),
-                                at: CGPoint(x: node.position.x, y: node.position.y + node.radius + 11)
-                            )
-                        }
+                    }
+
+                    // Label pass: collision-culled so text never overlaps.
+                    // Priority: frontier dots, then biggest mastery. Collision
+                    // rects shrink as you zoom in (÷scale), so pinch-zooming
+                    // progressively reveals more labels.
+                    var occupied: [CGRect] = []
+                    let byPriority = sim.nodes.indices.sorted { a, b in
+                        let fa = frontier.contains(sim.nodes[a].name)
+                        let fb = frontier.contains(sim.nodes[b].name)
+                        if fa != fb { return fa }
+                        return sim.nodes[a].radius > sim.nodes[b].radius
+                    }
+                    for index in byPriority {
+                        let node = sim.nodes[index]
+                        guard node.radius > 9 || frontier.contains(node.name) else { continue }
+                        let width = CGFloat(node.name.count) * 11 * 0.62 / scale
+                        let height = 16 / scale
+                        let labelRect = CGRect(x: node.position.x - width / 2,
+                                               y: node.position.y + node.radius + 3,
+                                               width: width, height: height)
+                        guard !occupied.contains(where: { $0.intersects(labelRect) }) else { continue }
+                        occupied.append(labelRect.insetBy(dx: -6 / scale, dy: -3 / scale))
+                        ctx.draw(
+                            Text(node.name)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color(hex: 0x4B5563)),
+                            at: CGPoint(x: node.position.x, y: node.position.y + node.radius + 11)
+                        )
                     }
                 }
             }

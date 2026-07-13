@@ -8,6 +8,7 @@ struct ArticleView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedConcept: Concept?
     @State private var readProgress: CGFloat = 0
+    @State private var fetchingFullText = false
     @AppStorage("articleTextSize") private var textSize = "Medium"
 
     private var bodyFontSize: CGFloat {
@@ -40,6 +41,12 @@ struct ArticleView: View {
             }
             .onAppear {
                 KnowledgeEngine.recordRead(article, context: modelContext)
+            }
+            .task {
+                guard FullTextService.needsFullText(article) else { return }
+                fetchingFullText = true
+                await FullTextService.fetchIfNeeded(article, context: modelContext)
+                fetchingFullText = false
             }
             .sheet(item: $selectedConcept) { concept in
                 ConceptSheetView(concept: concept)
@@ -83,10 +90,23 @@ struct ArticleView: View {
                         .padding(.top, 14)
                 }
 
+                if fetchingFullText {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Fetching the full article from \(article.sourceName)…")
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    .padding(.top, 16)
+                }
+
                 SelectableText(text: article.content.strippingHTML, fontSize: bodyFontSize)
                     .padding(.top, 20)
 
-                if article.content.strippingHTML.count < 400 {
+                // Only after a fetch attempt still leaves us short.
+                if !fetchingFullText,
+                   article.content.strippingHTML.count < FullTextService.snippetThreshold,
+                   article.fullTextAttemptedAt != nil || article.link == nil {
                     snippetFooter
                         .padding(.top, 18)
                 }

@@ -29,7 +29,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 ForEach(grouped, id: \.category) { group in
-                    Section(group.category) {
+                    Section {
                         ForEach(group.sources) { source in
                             Toggle(isOn: Bindable(source).isEnabled) {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -42,9 +42,11 @@ struct SettingsView: View {
                             }
                             .tint(Theme.stateKnown)
                         }
+                    } header: {
+                        SettingsHeader(group.category)
                     }
                 }
-                Section("Sync & Storage") {
+                Section {
                     Button {
                         Task {
                             isSyncing = true
@@ -63,6 +65,8 @@ struct SettingsView: View {
                     }
                     .disabled(isSyncing)
                     LabeledContent("Storage used", value: storageUsed)
+                } header: {
+                    SettingsHeader("Sync & Storage")
                 }
                 Section {
                     Picker("Text size", selection: $textSize) {
@@ -77,7 +81,7 @@ struct SettingsView: View {
                         Text("10 articles").tag(10)
                     }
                 } header: {
-                    Text("Reading")
+                    SettingsHeader("Reading")
                 } footer: {
                     Text("Start tiny — a goal you hit daily beats one you abandon. The feed caps at 30 fresh articles a day so it never becomes a chore.")
                 }
@@ -86,7 +90,7 @@ struct SettingsView: View {
                     LabeledContent("Intelligence", value: IntelligenceService.isModelAvailable
                                    ? "Apple Intelligence" : "On-device fallback")
                 } header: {
-                    Text("About")
+                    SettingsHeader("About")
                 } footer: {
                     Text("All analysis happens on-device. No analytics; nothing leaves your iPhone. Read articles older than 60 days are pruned automatically.")
                 }
@@ -95,6 +99,21 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(Theme.background)
         }
+    }
+}
+
+/// Legible section header — the default List header gray disappears against
+/// the light background.
+struct SettingsHeader: View {
+    let title: String
+    init(_ title: String) { self.title = title }
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 12, weight: .bold))
+            .kerning(0.6)
+            .foregroundStyle(Color(hex: 0x6B7280))
+            .textCase(.uppercase)
     }
 }
 
