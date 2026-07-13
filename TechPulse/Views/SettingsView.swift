@@ -110,10 +110,11 @@ struct SettingsHeader: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 12, weight: .bold))
-            .kerning(0.6)
-            .foregroundStyle(Color(hex: 0x6B7280))
+            .font(.system(size: 13.5, weight: .heavy))
+            .kerning(0.5)
+            .foregroundStyle(Theme.textPrimary)
             .textCase(.uppercase)
+            .padding(.bottom, 2)
     }
 }
 

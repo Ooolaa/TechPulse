@@ -28,6 +28,14 @@ struct ProgressTabView: View {
                             .font(.system(size: 24, weight: .heavy))
                             .foregroundStyle(Theme.textPrimary)
                         Spacer()
+                        // Don't break the chain — the streak stays in sight.
+                        Text("\(readingStreakDays)-day streak")
+                            .font(.system(size: 11.5, weight: .bold))
+                            .foregroundStyle(readingStreakDays > 0 ? Theme.stateLearning : Theme.textTertiary)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 6)
+                            .background(readingStreakDays > 0 ? Theme.learningTint : Theme.newTint,
+                                        in: Capsule())
                     }
                     .padding(.horizontal, 4)
                     .padding(.top, 6)

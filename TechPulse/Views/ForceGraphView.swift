@@ -147,12 +147,16 @@ final class GraphSimulation {
         settledFrames = maxSpeed < 0.05 ? settledFrames + 1 : 0
     }
 
-    func node(at point: CGPoint) -> Node? {
-        nodes.min { a, b in
+    func node(at point: CGPoint, zoom: CGFloat = 1) -> Node? {
+        let s = max(1, zoom)
+        return nodes.min { a, b in
             hypot(a.position.x - point.x, a.position.y - point.y) <
             hypot(b.position.x - point.x, b.position.y - point.y)
         }.flatMap { nearest in
-            hypot(nearest.position.x - point.x, nearest.position.y - point.y) <= nearest.radius + 14
+            // Displayed radius shrinks with semantic zoom; so must the hit area,
+            // or high zoom grabs neighbors.
+            hypot(nearest.position.x - point.x, nearest.position.y - point.y)
+                <= nearest.radius / s + 14 / s
                 ? nearest : nil
         }
     }
@@ -196,11 +200,17 @@ struct ForceGraphView: View {
                                     y: offset.height + center.y * (1 - scale))
                     ctx.scaleBy(x: scale, y: scale)
 
+                    // Semantic zoom: when zooming IN, positions spread apart but
+                    // dots/lines/text keep constant screen size (÷s) — so overlap
+                    // at overview genuinely resolves as you zoom. Zoomed out
+                    // (scale ≤ 1) everything behaves as before.
+                    let s = max(1, scale)
+
                     // Island names behind the dots.
                     for label in sim.clusterLabels {
                         ctx.draw(
                             Text(label.name.uppercased())
-                                .font(.system(size: 11, weight: .heavy))
+                                .font(.system(size: 11 / s, weight: .heavy))
                                 .foregroundStyle(Color(hex: 0x8A919C).opacity(0.45)),
                             at: CGPoint(x: label.position.x, y: label.position.y - 58)
                         )
@@ -213,47 +223,49 @@ struct ForceGraphView: View {
                         path.move(to: from)
                         path.addLine(to: to)
                         ctx.stroke(path, with: .color(Color(hex: edge.directed ? 0xD5DBE3 : 0xDDE3EA)),
-                                   lineWidth: edge.width)
+                                   lineWidth: edge.width / s)
                         if edge.directed {
                             // Arrowhead just outside the target node's radius.
                             let angle = atan2(to.y - from.y, to.x - from.x)
-                            let tip = CGPoint(x: to.x - cos(angle) * (sim.nodes[edge.b].radius + 3),
-                                              y: to.y - sin(angle) * (sim.nodes[edge.b].radius + 3))
+                            let targetR = sim.nodes[edge.b].radius / s
+                            let tip = CGPoint(x: to.x - cos(angle) * (targetR + 3 / s),
+                                              y: to.y - sin(angle) * (targetR + 3 / s))
                             var arrow = Path()
                             arrow.move(to: tip)
-                            arrow.addLine(to: CGPoint(x: tip.x - cos(angle - 0.45) * 7,
-                                                      y: tip.y - sin(angle - 0.45) * 7))
-                            arrow.addLine(to: CGPoint(x: tip.x - cos(angle + 0.45) * 7,
-                                                      y: tip.y - sin(angle + 0.45) * 7))
+                            arrow.addLine(to: CGPoint(x: tip.x - cos(angle - 0.45) * 7 / s,
+                                                      y: tip.y - sin(angle - 0.45) * 7 / s))
+                            arrow.addLine(to: CGPoint(x: tip.x - cos(angle + 0.45) * 7 / s,
+                                                      y: tip.y - sin(angle + 0.45) * 7 / s))
                             arrow.closeSubpath()
                             ctx.fill(arrow, with: .color(Color(hex: 0xC9D0D9)))
                         }
                     }
                     for node in sim.nodes {
-                        let rect = CGRect(x: node.position.x - node.radius,
-                                          y: node.position.y - node.radius,
-                                          width: node.radius * 2, height: node.radius * 2)
+                        let radius = node.radius / s
+                        let rect = CGRect(x: node.position.x - radius,
+                                          y: node.position.y - radius,
+                                          width: radius * 2, height: radius * 2)
                         ctx.fill(Path(ellipseIn: rect), with: .color(nodeColor(node.state)))
                         if frontier.contains(node.name) {
-                            let ring = rect.insetBy(dx: -5, dy: -5)
+                            let ring = rect.insetBy(dx: -5 / s, dy: -5 / s)
                             ctx.stroke(Path(ellipseIn: ring),
                                        with: .color(Theme.stateLearning),
-                                       style: StrokeStyle(lineWidth: 2.5, dash: [4, 3]))
+                                       style: StrokeStyle(lineWidth: 2.5 / s, dash: [4 / s, 3 / s]))
                         }
                         if recent.contains(node.name) {
                             // Expanding, fading ripple — today's reading grew this dot.
-                            let spread = 4 + 10 * pulsePhase
+                            let spread = (4 + 10 * pulsePhase) / s
                             let ripple = rect.insetBy(dx: -spread, dy: -spread)
                             ctx.stroke(Path(ellipseIn: ripple),
                                        with: .color(Theme.stateLearning.opacity(0.75 * (1 - pulsePhase))),
-                                       lineWidth: 2.5)
+                                       lineWidth: 2.5 / s)
                         }
                     }
 
                     // Label pass: collision-culled so text never overlaps.
-                    // Priority: frontier dots, then biggest mastery. Collision
-                    // rects shrink as you zoom in (÷scale), so pinch-zooming
-                    // progressively reveals more labels.
+                    // Priority: frontier dots, then biggest mastery. Zooming in
+                    // spreads positions while labels stay screen-sized, so more
+                    // and more labels fit; past 1.8× every dot is eligible.
                     var occupied: [CGRect] = []
                     let byPriority = sim.nodes.indices.sorted { a, b in
                         let fa = frontier.contains(sim.nodes[a].name)
@@ -263,19 +275,20 @@ struct ForceGraphView: View {
                     }
                     for index in byPriority {
                         let node = sim.nodes[index]
-                        guard node.radius > 9 || frontier.contains(node.name) else { continue }
-                        let width = CGFloat(node.name.count) * 11 * 0.62 / scale
-                        let height = 16 / scale
+                        guard node.radius > 9 || frontier.contains(node.name) || scale > 1.8 else { continue }
+                        let radius = node.radius / s
+                        let width = CGFloat(node.name.count) * 11 * 0.62 / s
+                        let height = 16 / s
                         let labelRect = CGRect(x: node.position.x - width / 2,
-                                               y: node.position.y + node.radius + 3,
+                                               y: node.position.y + radius + 3 / s,
                                                width: width, height: height)
                         guard !occupied.contains(where: { $0.intersects(labelRect) }) else { continue }
-                        occupied.append(labelRect.insetBy(dx: -6 / scale, dy: -3 / scale))
+                        occupied.append(labelRect.insetBy(dx: -6 / s, dy: -3 / s))
                         ctx.draw(
                             Text(node.name)
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.system(size: 11 / s, weight: .semibold))
                                 .foregroundStyle(Color(hex: 0x4B5563)),
-                            at: CGPoint(x: node.position.x, y: node.position.y + node.radius + 11)
+                            at: CGPoint(x: node.position.x, y: node.position.y + radius + 11 / s)
                         )
                     }
                 }
@@ -287,7 +300,7 @@ struct ForceGraphView: View {
                     x: (location.x - offset.width - center.x * (1 - scale)) / scale,
                     y: (location.y - offset.height - center.y * (1 - scale)) / scale
                 )
-                if let node = sim.node(at: world) { onSelect(node.name) }
+                if let node = sim.node(at: world, zoom: scale) { onSelect(node.name) }
             }
             .gesture(
                 DragGesture()
@@ -299,7 +312,7 @@ struct ForceGraphView: View {
             )
             .simultaneousGesture(
                 MagnificationGesture()
-                    .onChanged { value in scale = min(3, max(0.5, baseScale * value)) }
+                    .onChanged { value in scale = min(5, max(0.5, baseScale * value)) }
                     .onEnded { _ in baseScale = scale }
             )
             .onAppear {
