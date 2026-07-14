@@ -91,20 +91,47 @@ enum IntelligenceService {
     /// Expands a concept into 3–5 related sub-concepts, added as dim dots on
     /// the same cluster island and linked to the parent. Requires the
     /// on-device model; returns the newly attached concepts.
+    static var canDeepen: Bool { isModelAvailable || KeychainStore.hasAnthropicKey }
+
+    private struct RemoteExpansion: Decodable {
+        struct Item: Decodable { let name: String; let definition: String }
+        let subConcepts: [Item]
+    }
+
     static func deepen(_ concept: Concept, context: ModelContext) async -> [Concept] {
-        guard isModelAvailable else { return [] }
-        let session = LanguageModelSession(
-            instructions: "You suggest narrower technical sub-concepts that deepen a learner's understanding of a given concept. Each needs a one-line beginner definition."
-        )
         let prompt = "Concept: \(concept.name)\nDefinition: \(concept.conceptDefinition)\nCluster: \(concept.category)"
-        guard let response = try? await session.respond(to: prompt, generating: ConceptExpansion.self)
-        else { return [] }
+        var items: [(name: String, definition: String)] = []
+
+        if isModelAvailable {
+            let session = LanguageModelSession(
+                instructions: "You suggest narrower technical sub-concepts that deepen a learner's understanding of a given concept. Each needs a one-line beginner definition."
+            )
+            guard let response = try? await session.respond(to: prompt, generating: ConceptExpansion.self)
+            else { return [] }
+            items = response.content.subConcepts.map { ($0.name, $0.definition) }
+        } else if let key = KeychainStore.read() {
+            // BYO key: same request, direct to Anthropic, typed JSON only.
+            let system = """
+            You suggest 3-5 narrower sub-concepts that deepen a learner's \
+            understanding of a concept. Reply ONLY with JSON: \
+            {"subConcepts":[{"name":str,"definition":str}]}
+            """
+            guard let text = try? await AnthropicClient().complete(system: system, user: prompt,
+                                                                   maxTokens: 1024, apiKey: key),
+                  let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"),
+                  let parsed = try? JSONDecoder().decode(RemoteExpansion.self,
+                                                         from: Data(String(text[start...end]).utf8))
+            else { return [] }
+            items = parsed.subConcepts.map { ($0.name, $0.definition) }
+        } else {
+            return []
+        }
 
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
         var cache = Dictionary(allConcepts.map { ($0.name.lowercased(), $0) },
                                uniquingKeysWith: { first, _ in first })
         var added: [Concept] = []
-        for extracted in response.content.subConcepts.prefix(5) {
+        for extracted in items.prefix(5) {
             let existedBefore = cache[extracted.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()] != nil
             guard let child = KnowledgeEngine.findOrCreateConcept(
                 named: extracted.name,

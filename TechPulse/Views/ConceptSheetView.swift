@@ -181,18 +181,18 @@ struct ConceptSheetView: View {
                     }
                 }
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(IntelligenceService.isModelAvailable ? Theme.stateLearning : Theme.textTertiary)
+                .foregroundStyle(IntelligenceService.canDeepen ? Theme.stateLearning : Theme.textTertiary)
                 .frame(maxWidth: .infinity, minHeight: 46)
-                .background(Theme.learningTint.opacity(IntelligenceService.isModelAvailable ? 1 : 0.4),
+                .background(Theme.learningTint.opacity(IntelligenceService.canDeepen ? 1 : 0.4),
                             in: RoundedRectangle(cornerRadius: 14))
             }
             .buttonStyle(.plain)
-            .disabled(deepening || !IntelligenceService.isModelAvailable || !deepenedNames.isEmpty)
+            .disabled(deepening || !IntelligenceService.canDeepen || !deepenedNames.isEmpty)
             .accessibilityIdentifier("goDeeper")
             .sensoryFeedback(.success, trigger: deepenedNames.count)
 
-            if !IntelligenceService.isModelAvailable {
-                Text("Needs Apple Intelligence for on-device generation.")
+            if !IntelligenceService.canDeepen {
+                Text("Needs Apple Intelligence — or add your Claude API key in Settings → AI engine.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(Theme.textTertiary)
             } else if !deepenedNames.isEmpty {

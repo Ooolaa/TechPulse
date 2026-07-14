@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-14 — BYO Claude key unlocks Go deeper (back-port from CareerPulse)
+
+**Built** Added `KeychainStore` + `AnthropicClient` and wired the BYO-key path
+into "Go deeper": on devices without Apple Intelligence (John's iPhone 14 Pro),
+adding your own Claude API key in Settings → AI engine unlocks concept
+expansion. Key lives in the Keychain only, used directly with Anthropic.
+Also hardened the feed parser against XXE (external entities disabled) and
+added an entitlements file.
+
+**Verified** 21 unit + 2 UI journeys green.
+
+---
+
 ## 2026-07-13 — Semantic zoom + readability round (`24209c1`, `ab409bc`)
 
 **Built**

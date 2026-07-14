@@ -18,6 +18,8 @@ final class RSSParser: NSObject, XMLParserDelegate {
     static func parse(_ data: Data) -> [ParsedFeedItem] {
         let delegate = RSSParser()
         let parser = XMLParser(data: data)
+        // Security: never resolve external entities (XXE / billion-laughs).
+        parser.shouldResolveExternalEntities = false
         parser.delegate = delegate
         parser.parse()
         return delegate.items

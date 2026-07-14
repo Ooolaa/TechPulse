@@ -7,6 +7,8 @@ struct SettingsView: View {
     @State private var isSyncing = false
     @AppStorage("articleTextSize") private var textSize = "Medium"
     @AppStorage("dailyReadingGoal") private var dailyGoal = 3
+    @State private var keyInput = ""
+    @State private var hasKey = KeychainStore.hasAnthropicKey
 
     private var lastSynced: Date? {
         sources.compactMap(\.lastFetched).max()
@@ -84,6 +86,29 @@ struct SettingsView: View {
                     SettingsHeader("Reading")
                 } footer: {
                     Text("Start tiny — a goal you hit daily beats one you abandon. The feed caps at 30 fresh articles a day so it never becomes a chore.")
+                }
+                Section {
+                    LabeledContent("On-device model",
+                                   value: IntelligenceService.isModelAvailable ? "Available" : "Not available")
+                    if hasKey {
+                        LabeledContent("Claude API key", value: "Connected ••••")
+                        Button(role: .destructive) { KeychainStore.delete(); hasKey = false } label: {
+                            Text("Remove key")
+                        }
+                    } else {
+                        SecureField("Claude API key (sk-ant-…)", text: $keyInput)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        Button {
+                            if KeychainStore.save(keyInput.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                                hasKey = true; keyInput = ""
+                            }
+                        } label: { Text("Save key").foregroundStyle(Theme.stateLearning) }
+                        .disabled(keyInput.isEmpty)
+                    }
+                } header: {
+                    SettingsHeader("AI engine")
+                } footer: {
+                    Text("Optional: add your own Claude API key to unlock AI features on devices without Apple Intelligence. Stored only in your iPhone's Keychain; used directly with Anthropic, never sent through any server.")
                 }
                 Section {
                     LabeledContent("Version", value: "1.0")
