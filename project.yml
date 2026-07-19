@@ -59,3 +59,12 @@ schemes:
       config: Debug
     test:
       targets: [TechPulseTests, TechPulseUITests]
+  # Unit tests only — usable on a physical device, where the XCUITest
+  # runner can't be provisioned from the command line (no Xcode account).
+  TechPulseUnitTests:
+    build:
+      targets:
+        TechPulse: all
+        TechPulseTests: [test]
+    test:
+      targets: [TechPulseTests]

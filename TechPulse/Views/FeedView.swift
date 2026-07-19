@@ -8,6 +8,7 @@ struct FeedView: View {
     @Query private var allConcepts: [Concept]
     @Query private var dependencies: [ConceptDependency]
     @State private var selectedCategory: String?
+    @State private var showHotOnly = false
     @State private var isSyncing = false
     @State private var searchText = ""
     // Atomic Habits: start tiny (3/day), make progress visible, reward completion.
@@ -24,6 +25,9 @@ struct FeedView: View {
 
     private var filteredArticles: [Article] {
         var result = articles
+        if showHotOnly {
+            result = result.filter(isHot)
+        }
         if let selectedCategory {
             result = result.filter { sourceCategory[$0.sourceName] == selectedCategory }
         }
@@ -34,6 +38,25 @@ struct FeedView: View {
             }
         }
         return result
+    }
+
+    // MARK: 🔥 Hot-topics filter — the "what is the world doing right now" lens
+
+    private var hotConceptNames: Set<String> {
+        Set(allConcepts
+            .filter { $0.category == KnowledgePack.hotTopicsCluster }
+            .map { $0.name.lowercased() })
+    }
+
+    /// Hot if analysis tagged a Hot Topics concept, or the text itself
+    /// mentions a hot topic (works before any analysis has run).
+    private func isHot(_ article: Article) -> Bool {
+        if article.concepts.contains(where: { $0.category == KnowledgePack.hotTopicsCluster }) {
+            return true
+        }
+        let text = "\(article.title) \(article.summary ?? "")".lowercased()
+        return KnowledgePack.hotTopicAliases.contains(where: text.contains)
+            || hotConceptNames.contains(where: text.contains)
     }
 
     /// Day sections (design 2a): TODAY / YESTERDAY / explicit date.
@@ -120,10 +143,15 @@ struct FeedView: View {
     private var categoryChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip("All", isSelected: selectedCategory == nil) { selectedCategory = nil }
+                chip("All", isSelected: selectedCategory == nil && !showHotOnly) {
+                    selectedCategory = nil
+                    showHotOnly = false
+                }
+                hotTopicsChip
                 ForEach(categories, id: \.self) { category in
                     chip(category, isSelected: selectedCategory == category) {
                         selectedCategory = category
+                        showHotOnly = false
                     }
                 }
             }
@@ -131,11 +159,33 @@ struct FeedView: View {
         }
     }
 
+    private var hotTopicsChip: some View {
+        Button {
+            showHotOnly.toggle()
+            selectedCategory = nil
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(showHotOnly ? Theme.card : .orange)
+                Text("Hot topics")
+                    .font(.system(size: 13, weight: showHotOnly ? .semibold : .regular))
+                    .foregroundStyle(showHotOnly ? Theme.card : Theme.textSecondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(showHotOnly ? Theme.textPrimary : Theme.card, in: Capsule())
+            .overlay(Capsule().strokeBorder(showHotOnly ? .clear : Theme.cardBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("hotChip")
+    }
+
     private func chip(_ label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? .white : Theme.textSecondary)
+                .foregroundStyle(isSelected ? Theme.card : Theme.textSecondary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .background(isSelected ? Theme.textPrimary : Theme.card, in: Capsule())

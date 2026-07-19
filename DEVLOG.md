@@ -6,6 +6,91 @@
 
 ---
 
+## 2026-07-19 — Concept-sheet navigation, chip contrast, Data Science sources, feed hardening
+
+**Built**
+- **Concept sheet became a navigation surface** (user request): the sheet now
+  hosts its own NavigationStack — related-concept chips push the sibling
+  concept's page ("tap to jump" across the map without leaving the sheet),
+  article rows push the full ArticleView, and drilling in auto-expands the
+  sheet to full height. Article list capped at 10 (was 4) with chevrons.
+- **Second dark-mode contrast bug**, same shape as Settings: the selected
+  feed category chip was `.white` text on `Theme.textPrimary` — white-on-white
+  in dark mode. Fixed with the inverted-chip pattern (`Theme.card` text), now
+  consistent with onboarding chips.
+- **New sources, verified live before shipping** (curl: 200 + items):
+  Kaggle Blog + KDnuggets under a new **Data Science** tag, TechCrunch — AI
+  under Industry. Source seeding is now **incremental** (insert-by-URL), so
+  app updates deliver new feeds to existing installs — previously seeding
+  only ran on an empty table, meaning nobody updating would ever get them.
+- **Feed fetch hardening** (template §6): https-only guard + 5 MB response
+  cap on feed downloads (untrusted input; caps memory). Swift 6 gotcha again:
+  the cap constant needed `nonisolated` to be readable from the task group.
+- UI journey now drills the sheet deterministically via the frontier card
+  (related-jump + article-row + close), so this UX has regression coverage.
+
+**Verified** 21 unit tests + journeys green on the iPhone 17 sim in dark mode;
+screenshots confirm readable selected chips, the Data Science tag populated
+with KDnuggets/TechCrunch content on an *existing* data set (incremental
+seeding), and the sheet jump: MLX → tap PyTorch chip → PyTorch page with back
+button at full height. Installed on the iPhone 14 Pro.
+
+**Follow-up (same day):** the Data Science tag arrived empty on the device —
+three compounding causes, each now fixed:
+1. Kaggle's Medium blog **died in 2020** — replaced with the live r/kaggle
+   Atom feed and added a `retiredSourceURLs` mechanism that removes dead
+   seeded sources from existing installs.
+2. Reddit **403s default CFNetwork user-agents** — feed requests now send a
+   descriptive `TechPulse/1.0` UA (plus a Reddit-style Atom fixture test:
+   `t3_` ids, offset dates, html content — 22 unit tests now).
+3. The daily 30-article cap was **already spent** before the update, so new
+   sources starved until tomorrow — brand-new sources now bootstrap up to 5
+   articles outside the cap (this also rescued DeepMind's quiet feed).
+Also: **Data Science knowledge cluster** (8 concepts: EDA → features/CV →
+GBT/ensembling → Kaggle Competitions, wired into Probability & Statistics),
+`Class Imbalance` migrates from the resume seed into the new cluster, and
+pack seeding is now **versioned** (`packVersion`) so existing installs merge
+new pack content on update instead of being stranded by a one-shot flag.
+Verified in the sim DB: r/kaggle = 5 fresh community posts after a forced
+sync on an existing install.
+
+**Also (same day): per-topic article discovery.** Topics the feeds never
+cover ("Appears in 0 articles") can now pull content on demand:
+`TopicSearchService` queries the arXiv API (Atom — the parser already speaks
+it) for the newest papers matching the concept name and files them as
+articles tagged to the concept, outside the daily cap (user-initiated, like
+Go deeper). "Find fresh articles on arXiv" button shows in the concept sheet
+whenever a topic has < 3 articles; separator-safe query builder
+("LoRA / QLoRA" → quoted phrase) with 2 unit tests (24 total). Journey drills
+it via the frontier card: MLX went 0 → 3 real papers in the screenshot.
+Plus: Apple ML Research feed seeded (Research) — the authority source for the
+On-Device AI cluster.
+
+**Also (same day): Hot Topics radar.** The pack was strong on curriculum but
+silent on the news cycle — no Vibe Coding, no Reasoning Models, no video
+generation. Added a **Hot Topics cluster** (packVersion 3, 10 dots: Vision
+Language Models [migrates from the resume seed, stays green], Reasoning
+Models, Vibe Coding, World Models, Synthetic Data, Open-Weights Models,
+Small Language Models, Diffusion Models, AI Video Generation, Humanoid
+Robotics) wired into pack prerequisites, plus **Stage 8 · Staying current**
+on the learning path. On the Feed, a **flame "Hot topics" chip** filters to
+articles that either carry a Hot Topics concept or textually mention one
+(alias list in KnowledgePack — works before analysis runs). Journey covers
+the toggle; screenshot showed the filter surfacing AI-agent, robotics, and
+agentic-AI stories from the live feed. 68 pack concepts total. (Swapped the
+🔥 emoji for SF Symbol `flame.fill` — the sim rendered the emoji as a
+placeholder box in chips.)
+
+**Learned** An inverted chip (`textPrimary` bg + `.white` text) is a
+dark-mode landmine — grep for the pattern after any theme change; two views
+had it. Seed-only-when-empty silently strands existing installs: growth data
+needs an upsert path, not an install-time path — the same lesson three ways
+(sources, pack concepts, and the daily cap all needed an "existing install"
+story). And check a feed's newest-item date before shipping it: a 200 with
+items can still be a dead publication.
+
+---
+
 ## 2026-07-17 — Adaptive dark mode, cluster-tree zoom affordances, graph perf, privacy-claim reconciliation
 
 **Built**

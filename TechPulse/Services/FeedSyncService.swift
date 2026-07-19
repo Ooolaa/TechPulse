@@ -13,6 +13,15 @@ enum FeedSyncService {
     /// (Atomic Habits: make it easy; an achievable pile gets opened).
     private static let dailyIntakeLimit = 30
 
+    /// Feed responses are untrusted input; a hostile or broken publisher must
+    /// not be able to balloon memory. 5 MB dwarfs any legitimate feed.
+    private nonisolated static let maxFeedBytes = 5_000_000
+
+    /// Descriptive User-Agent: some hosts (notably reddit, which serves the
+    /// Kaggle community feed) throttle or 403 default CFNetwork agents.
+    /// Shared with TopicSearchService.
+    nonisolated static let userAgent = "TechPulse/1.0 (iOS offline RSS reader)"
+
     @discardableResult
     static func syncAll(context: ModelContext) async -> Int {
         let enabled = FetchDescriptor<FeedSource>(predicate: #Predicate { $0.isEnabled })
@@ -22,12 +31,16 @@ enum FeedSyncService {
         // the main actor. Cuts a cold sync from ~sum to ~max of feed latencies.
         let requests = sources.enumerated().map { (index: $0.offset, url: $0.element.url) }
         let payloads = await withTaskGroup(of: (Int, Data?).self) { group in
-            for request in requests {
+            for feed in requests {
                 group.addTask {
-                    guard let (data, response) = try? await URLSession.shared.data(from: request.url),
-                          (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true
-                    else { return (request.index, nil) }
-                    return (request.index, data)
+                    guard feed.url.scheme == "https" else { return (feed.index, nil) }
+                    var urlRequest = URLRequest(url: feed.url, timeoutInterval: 30)
+                    urlRequest.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+                    guard let (data, response) = try? await URLSession.shared.data(for: urlRequest),
+                          (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
+                          data.count <= maxFeedBytes
+                    else { return (feed.index, nil) }
+                    return (feed.index, data)
                 }
             }
             var results = [Int: Data]()
@@ -46,6 +59,16 @@ enum FeedSyncService {
         var allowance = max(0, dailyIntakeLimit - addedToday)
         var added = 0
 
+        // New-source bootstrap: a source with nothing cached may take a few
+        // articles OUTSIDE the daily cap — otherwise a source added on a day
+        // whose intake is already spent shows an empty tag until tomorrow.
+        let cachedSourceNames = Set(existing.map(\.sourceName))
+        var bootstrap: [String: Int] = Dictionary(
+            uniqueKeysWithValues: sources
+                .filter { !cachedSourceNames.contains($0.name) }
+                .map { ($0.name, 5) }
+        )
+
         // Pool candidates across all feeds, newest first, so the cap keeps the
         // best (freshest) 30 rather than whichever feed happened to come first.
         var candidates: [(sourceName: String, item: ParsedFeedItem)] = []
@@ -59,9 +82,19 @@ enum FeedSyncService {
         candidates.sort { ($0.item.publishedAt ?? .now) > ($1.item.publishedAt ?? .now) }
 
         for candidate in candidates {
-            guard allowance > 0 else { break }
+            guard allowance > 0 || !bootstrap.isEmpty else { break }
             let item = candidate.item
             guard !item.guid.isEmpty, !knownGuids.contains(item.guid) else { continue }
+            // Charge the bootstrap ration first for brand-new sources; the
+            // shared daily allowance pays for everything else.
+            if let ration = bootstrap[candidate.sourceName] {
+                if ration <= 1 { bootstrap.removeValue(forKey: candidate.sourceName) }
+                else { bootstrap[candidate.sourceName] = ration - 1 }
+            } else if allowance > 0 {
+                allowance -= 1
+            } else {
+                continue
+            }
             // Some publishers post-date RSS timestamps; clamp so the feed
             // never shows articles from "the future".
             let article = Article(
@@ -75,7 +108,6 @@ enum FeedSyncService {
             context.insert(article)
             knownGuids.insert(item.guid)
             added += 1
-            allowance -= 1
         }
         prune(context: context)
         try? context.save()

@@ -31,6 +31,17 @@ final class TechPulseUITests: XCTestCase {
         sleep(10)
         snap(app, "1-feed")
 
+        // 🔥 Hot-topics filter: toggling must show a (possibly empty) filtered
+        // list and toggle back cleanly.
+        let hotChip = app.buttons["hotChip"].firstMatch
+        if hotChip.exists {
+            hotChip.tap()
+            sleep(1)
+            snap(app, "1b-hot-topics-filter")
+            hotChip.tap()
+            sleep(1)
+        }
+
         firstCard.tap()
         sleep(2)
         snap(app, "2-article")
@@ -41,6 +52,26 @@ final class TechPulseUITests: XCTestCase {
             chip.tap()
             sleep(1)
             snap(app, "3-concept-sheet")
+
+            // Drill-through: related concept → sibling page → back;
+            // article row → full article → back. Both must be tappable.
+            let related = app.buttons["relatedConceptChip"].firstMatch
+            if related.exists {
+                related.tap()
+                sleep(1)
+                snap(app, "3b-related-concept-jump")
+                app.navigationBars.buttons.firstMatch.tap()
+                sleep(1)
+            }
+            let articleRow = app.buttons["conceptArticleRow"].firstMatch
+            if articleRow.exists {
+                articleRow.tap()
+                sleep(1)
+                snap(app, "3c-article-from-sheet")
+                app.navigationBars.buttons.firstMatch.tap()
+                sleep(1)
+            }
+
             let know = app.buttons["knowButton"].firstMatch
             if know.exists, know.isEnabled {
                 know.tap()
@@ -61,6 +92,45 @@ final class TechPulseUITests: XCTestCase {
         clusterCard.tap()
         sleep(3)                              // let the force layout settle
         snap(app, "5b-cluster-detail")
+
+        // Deterministic concept-sheet entry: the frontier card always exists
+        // while the cluster has unlit pack concepts. Verify sheet drill-through
+        // (article row → ArticleView, related chip → sibling concept).
+        let frontier = app.buttons["frontierCard"].firstMatch
+        if frontier.exists {
+            frontier.tap()
+            sleep(1)
+            snap(app, "5b2-concept-sheet")
+
+            // Topic search: a frontier concept usually has no articles yet —
+            // pull fresh arXiv matches, which should populate the row list.
+            let find = app.buttons["findArticles"].firstMatch
+            if find.exists {
+                find.tap()
+                sleep(6)
+                snap(app, "5b2b-topic-search")
+            }
+
+            let row = app.buttons["conceptArticleRow"].firstMatch
+            if row.exists {
+                row.tap()
+                sleep(1)
+                snap(app, "5b3-article-from-sheet")
+                app.navigationBars.buttons.firstMatch.tap()
+                sleep(1)
+            }
+            let related = app.buttons["relatedConceptChip"].firstMatch
+            if related.exists {
+                related.tap()
+                sleep(1)
+                snap(app, "5b4-related-concept-jump")
+                app.navigationBars.buttons.firstMatch.tap()
+                sleep(1)
+            }
+            app.buttons["closeSheet"].tap()
+            sleep(1)
+        }
+
         app.navigationBars.buttons.firstMatch.tap()   // back
         sleep(1)
 

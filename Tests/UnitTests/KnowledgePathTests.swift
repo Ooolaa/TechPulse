@@ -91,9 +91,9 @@ struct KnowledgePathTests {
         #expect(tag == "Fills your gap: RAG")
     }
 
-    @Test("pack seed: ~50 concepts, dependencies, idempotent, keeps known green")
+    @Test("pack seed: ~68 concepts, dependencies, idempotent, keeps known green")
     func packSeed() throws {
-        UserDefaults.standard.removeObject(forKey: "knowledgePackSeeded")
+        UserDefaults.standard.removeObject(forKey: "knowledgePackVersion")
         let context = try makeContext()
 
         // Pre-existing known concept (from the resume) must keep its mastery
@@ -113,11 +113,11 @@ struct KnowledgePathTests {
         #expect(fineTuning.isMarkedKnown && fineTuning.masteryLevel == 1.0)
         #expect(fineTuning.category == "Foundations")
 
-        // Second call: no duplicates.
-        UserDefaults.standard.set(false, forKey: "knowledgePackSeeded")
+        // Second call (as after a pack-version bump): merge again, no duplicates.
+        UserDefaults.standard.set(0, forKey: "knowledgePackVersion")
         KnowledgePack.seedIfNeeded(context: context)
         #expect(try context.fetch(FetchDescriptor<Concept>()).count == concepts.count)
-        UserDefaults.standard.removeObject(forKey: "knowledgePackSeeded")
+        UserDefaults.standard.removeObject(forKey: "knowledgePackVersion")
     }
 
     @Test("stage progress: current stage is first incomplete")

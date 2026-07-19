@@ -7,24 +7,43 @@ enum SeedData {
         ("arXiv cs.AI", "https://export.arxiv.org/rss/cs.AI", "Research"),
         ("arXiv cs.LG", "https://export.arxiv.org/rss/cs.LG", "Research"),
         ("arXiv cs.CL", "https://export.arxiv.org/rss/cs.CL", "Research"),
+        ("Apple ML Research", "https://machinelearning.apple.com/rss.xml", "Research"),
         ("Hugging Face Blog", "https://huggingface.co/blog/feed.xml", "Open Source"),
         ("OpenAI News", "https://openai.com/news/rss.xml", "Frontier Labs"),
         ("Google DeepMind Blog", "https://deepmind.google/blog/rss.xml", "Frontier Labs"),
         ("MIT Technology Review — AI", "https://www.technologyreview.com/topic/artificial-intelligence/feed", "Industry"),
         ("The Verge — AI", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "Industry"),
         ("VentureBeat — AI", "https://venturebeat.com/category/ai/feed/", "Industry"),
+        ("TechCrunch — AI", "https://techcrunch.com/category/artificial-intelligence/feed/", "Industry"),
+        ("Kaggle (r/kaggle)", "https://www.reddit.com/r/kaggle/.rss", "Data Science"),
+        ("KDnuggets", "https://www.kdnuggets.com/feed", "Data Science"),
+    ]
+
+    /// Once-shipped defaults that turned out dead; removed from installs that
+    /// received them. (Kaggle's Medium blog stopped posting in 2020.)
+    private static let retiredSourceURLs: Set<String> = [
+        "https://medium.com/feed/kaggle-blog",
     ]
 
     @MainActor
     static func seedIfNeeded(context: ModelContext) {
-        let count = (try? context.fetchCount(FetchDescriptor<FeedSource>())) ?? 0
-        if count == 0 {
-            for source in defaultSources {
-                guard let url = URL(string: source.url) else { continue }
-                context.insert(FeedSource(name: source.name, url: url, category: source.category))
-            }
-            try? context.save()
+        // Incremental: insert any default source not already present, so app
+        // updates deliver new feeds to existing installs. Safe because
+        // Settings can only toggle sources, not delete them — re-inserting
+        // can't resurrect something the user removed.
+        let existingSources = (try? context.fetch(FetchDescriptor<FeedSource>())) ?? []
+        var changed = false
+        for source in existingSources where retiredSourceURLs.contains(source.url.absoluteString) {
+            context.delete(source)
+            changed = true
         }
+        let knownURLs = Set(existingSources.map(\.url.absoluteString))
+        for source in defaultSources where !knownURLs.contains(source.url) {
+            guard let url = URL(string: source.url) else { continue }
+            context.insert(FeedSource(name: source.name, url: url, category: source.category))
+            changed = true
+        }
+        if changed { try? context.save() }
         seedResumeKnowledgeIfNeeded(context: context)
         // After the resume: pack concepts merge with anything already known
         // (Fine-Tuning, PyTorch stay green) and everything joins its cluster.

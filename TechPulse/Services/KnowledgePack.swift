@@ -6,9 +6,27 @@ import SwiftData
 enum KnowledgePack {
     /// Cluster display order (matches the pack's reading order).
     static let clusterOrder = [
-        "Foundations", "LLM Engineering", "Evaluation", "Agents",
+        "Foundations", "Hot Topics", "Data Science", "LLM Engineering", "Evaluation", "Agents",
         "Inference & Infra", "Safety & Production", "On-Device AI",
     ]
+
+    /// The rolling "what the world is doing right now" lane.
+    static let hotTopicsCluster = "Hot Topics"
+
+    /// Lowercased text aliases for the Feed's 🔥 filter — matches article
+    /// text directly, so the filter works even before on-device analysis
+    /// tags concepts. Keep aliases specific enough not to false-positive.
+    static let hotTopicAliases: [String] = [
+        "ai agent", "agentic", "vibe coding", "reasoning model", "world model",
+        "synthetic data", "open-weight", "open weights", "small language model",
+        "diffusion model", "text-to-video", "video generation", "humanoid",
+        "robotics", "vision language", "multimodal",
+    ]
+
+    /// Bump when the pack gains concepts or dependencies: seeding re-runs the
+    /// (idempotent) merge on existing installs, delivering new dots with an
+    /// app update instead of stranding them behind a one-shot flag.
+    static let packVersion = 3
 
     /// The app's specialty lane, shown as a full-width card.
     static let specialtyCluster = "On-Device AI"
@@ -48,6 +66,46 @@ enum KnowledgePack {
               definition: "Fine-tune big models on small GPUs with low-rank adapters.", prerequisites: ["Fine-Tuning"]),
         .init(name: "RLHF / DPO", cluster: "Foundations",
               definition: "How models learn to be helpful and aligned from preference data.", prerequisites: ["Fine-Tuning"]),
+
+        // 🔥 Hot Topics (the 2025-26 radar: what the world is talking about)
+        .init(name: "Vision Language Models", cluster: "Hot Topics",
+              definition: "Models that jointly understand images and text — e.g. analyzing traffic-camera frames.", prerequisites: ["Attention"]),
+        .init(name: "Reasoning Models", cluster: "Hot Topics",
+              definition: "Models that spend extra test-time compute thinking step-by-step before answering (o-series, R1).", prerequisites: ["Transformer Architecture"]),
+        .init(name: "Vibe Coding", cluster: "Hot Topics",
+              definition: "Building software by describing intent to an AI and iterating on results instead of hand-writing code.", prerequisites: ["Coding Agents"]),
+        .init(name: "World Models", cluster: "Hot Topics",
+              definition: "Models that learn an internal simulation of the world to predict what happens next — the bet behind embodied AI.", prerequisites: ["Pretraining"]),
+        .init(name: "Synthetic Data", cluster: "Hot Topics",
+              definition: "Model-generated training data that stretches or replaces scarce human data.", prerequisites: ["Pretraining"]),
+        .init(name: "Open-Weights Models", cluster: "Hot Topics",
+              definition: "Downloadable frontier-class models (Llama, DeepSeek) you can run and fine-tune yourself.", prerequisites: ["Fine-Tuning"]),
+        .init(name: "Small Language Models", cluster: "Hot Topics",
+              definition: "Sub-10B models that trade raw power for speed, cost, and on-device deployment.", prerequisites: ["Distillation"]),
+        .init(name: "Diffusion Models", cluster: "Hot Topics",
+              definition: "Generate images and video by learning to reverse noise — the engine of modern generative media.", prerequisites: ["Probability & Statistics"]),
+        .init(name: "AI Video Generation", cluster: "Hot Topics",
+              definition: "Text-to-video systems (Sora, Veo) — the current frontier of generative media.", prerequisites: ["Diffusion Models"]),
+        .init(name: "Humanoid Robotics", cluster: "Hot Topics",
+              definition: "Foundation models meeting hardware: general-purpose robots learning from demonstration.", prerequisites: ["World Models"]),
+
+        // 📊 Data Science (the craft under every model — and the Kaggle feed's home)
+        .init(name: "Exploratory Data Analysis", cluster: "Data Science",
+              definition: "Look at the data before modeling: distributions, outliers, missing values.", prerequisites: ["Probability & Statistics"]),
+        .init(name: "Feature Engineering", cluster: "Data Science",
+              definition: "Turning raw columns into signals a model can learn from.", prerequisites: ["Exploratory Data Analysis"]),
+        .init(name: "Cross-Validation", cluster: "Data Science",
+              definition: "Estimate real-world performance by testing on held-out folds.", prerequisites: ["Probability & Statistics"]),
+        .init(name: "Data Leakage", cluster: "Data Science",
+              definition: "When training data secretly contains the answer — great scores, useless model.", prerequisites: ["Cross-Validation"]),
+        .init(name: "Class Imbalance", cluster: "Data Science",
+              definition: "When some labels dominate a dataset, biasing what the model learns.", prerequisites: ["Exploratory Data Analysis"]),
+        .init(name: "Gradient-Boosted Trees", cluster: "Data Science",
+              definition: "XGBoost/LightGBM — still the strongest baseline on tabular data.", prerequisites: ["Feature Engineering", "Cross-Validation"]),
+        .init(name: "Model Ensembling", cluster: "Data Science",
+              definition: "Combine diverse models to beat any single one.", prerequisites: ["Gradient-Boosted Trees"]),
+        .init(name: "Kaggle Competitions", cluster: "Data Science",
+              definition: "Practice arena: real datasets, leaderboards, and shared winning notebooks.", prerequisites: ["Feature Engineering", "Cross-Validation"]),
 
         // 🤖 LLM Engineering
         .init(name: "Prompt Engineering", cluster: "LLM Engineering",
@@ -141,21 +199,27 @@ enum KnowledgePack {
         ("Stage 1 · Foundations",
          "Python, math, tokenization, embeddings",
          ["PyTorch", "Linear Algebra", "Probability & Statistics", "Gradient Descent", "Tokenization", "Embeddings"]),
-        ("Stage 2 · Transformers & training",
+        ("Stage 2 · Data science craft",
+         "EDA, features, validation — the Kaggle skill set",
+         ["Exploratory Data Analysis", "Feature Engineering", "Cross-Validation", "Data Leakage", "Class Imbalance", "Gradient-Boosted Trees", "Model Ensembling", "Kaggle Competitions"]),
+        ("Stage 3 · Transformers & training",
          "Attention → transformer → fine-tuning",
          ["Attention", "Transformer Architecture", "Positional Encoding", "Pretraining", "Fine-Tuning", "LoRA / QLoRA", "RLHF / DPO"]),
-        ("Stage 3 · Prompting, structured outputs, RAG",
+        ("Stage 4 · Prompting, structured outputs, RAG",
          "The LLM engineering core",
          ["Prompt Engineering", "Structured Outputs", "Context Engineering", "Vector Databases", "RAG", "Chunking", "Hybrid Search", "Reranking", "Long-Context Management"]),
-        ("Stage 4 · Evals + inference",
+        ("Stage 5 · Evals + inference",
          "What separates seniors from juniors",
          ["Benchmarks", "Eval Suites", "LLM-as-Judge", "A/B & Regression Evals", "Quantization", "Distillation", "KV-Cache", "Speculative Decoding", "vLLM & Serving", "Batching & Cost"]),
-        ("Stage 5 · Agents",
+        ("Stage 6 · Agents",
          "Tool use, MCP, orchestration",
          ["Tool Use", "MCP", "Planning & Reasoning", "Agent Memory", "Multi-Agent Orchestration", "Coding Agents", "Computer-Use Agents"]),
-        ("Stage 6 · Safety & production",
+        ("Stage 7 · Safety & production",
          "Guardrails, red-teaming, observability",
          ["Prompt Injection Defense", "Jailbreak Awareness", "Hallucination Mitigation", "Guardrails", "Red-Teaming", "Observability"]),
+        ("Stage 8 · Staying current",
+         "The hot-topic radar: reasoning, agents, video, robots",
+         ["Vision Language Models", "Reasoning Models", "Vibe Coding", "World Models", "Synthetic Data", "Open-Weights Models", "Small Language Models", "Diffusion Models", "AI Video Generation", "Humanoid Robotics"]),
     ]
 
     static let sideQuestConcepts = ["Apple Foundation Models", "Core ML", "MLX", "Guided Generation", "Privacy-Preserving AI"]
@@ -164,7 +228,9 @@ enum KnowledgePack {
 
     @MainActor
     static func seedIfNeeded(context: ModelContext) {
-        guard !UserDefaults.standard.bool(forKey: "knowledgePackSeeded") else { return }
+        // Versioned, not one-shot: installs that seeded an older pack re-run
+        // the merge (idempotent by name) and gain the new concepts/deps.
+        guard UserDefaults.standard.integer(forKey: "knowledgePackVersion") < packVersion else { return }
 
         let existing = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
         var byLowerName = Dictionary(existing.map { ($0.name.lowercased(), $0) },
@@ -206,6 +272,6 @@ enum KnowledgePack {
             }
         }
         try? context.save()
-        UserDefaults.standard.set(true, forKey: "knowledgePackSeeded")
+        UserDefaults.standard.set(packVersion, forKey: "knowledgePackVersion")
     }
 }

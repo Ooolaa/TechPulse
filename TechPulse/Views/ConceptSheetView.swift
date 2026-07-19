@@ -3,8 +3,40 @@ import SwiftData
 
 /// Concept detail sheet, per mockup 1d: name + cluster, mastery ring,
 /// definition card, related articles, "I know this" / "Quiz me".
+///
+/// The sheet hosts its own NavigationStack: tapping a related-concept chip
+/// pushes that concept's page (jump across the map without leaving the
+/// sheet), and tapping an article row pushes the full ArticleView. Drilling
+/// in expands the sheet to full height so pushed pages get real estate.
 struct ConceptSheetView: View {
+    let concept: Concept
+    @State private var path = NavigationPath()
+    @State private var detent: PresentationDetent = .fraction(0.67)
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            ConceptDetail(concept: concept, isSheetRoot: true)
+                .navigationDestination(for: Concept.self) { pushed in
+                    ConceptDetail(concept: pushed)
+                }
+                .navigationDestination(for: Article.self) { article in
+                    ArticleView(article: article)
+                }
+        }
+        .onChange(of: path.count) { _, depth in
+            if depth > 0 { detent = .large }
+        }
+        .presentationDetents([.fraction(0.67), .large], selection: $detent)
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Theme.card)
+    }
+}
+
+/// One concept page — the sheet root (custom ✕, hidden nav bar) or a pushed
+/// sibling (system back button).
+private struct ConceptDetail: View {
     @Bindable var concept: Concept
+    var isSheetRoot = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var allLinks: [ConceptLink]
@@ -12,6 +44,8 @@ struct ConceptSheetView: View {
     @State private var quizzing = false
     @State private var deepening = false
     @State private var deepenedNames: [String] = []
+    @State private var findingArticles = false
+    @State private var foundCount: Int?
 
     /// Concepts linked to this one, heaviest edges first (design 2d).
     private var relatedConcepts: [Concept] {
@@ -38,19 +72,21 @@ struct ConceptSheetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Spacer()
-                Button { dismiss() } label: {
-                    Text("✕")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Theme.textSecondary)
-                        .frame(width: 32, height: 32)
-                        .background(Theme.newTint, in: Circle())
+            if isSheetRoot {
+                HStack {
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Text("✕")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .frame(width: 32, height: 32)
+                            .background(Theme.newTint, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("closeSheet")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("closeSheet")
+                .padding(.top, 12)
             }
-            .padding(.top, 12)
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -64,7 +100,7 @@ struct ConceptSheetView: View {
                 Spacer()
                 masteryRing
             }
-            .padding(.top, 2)
+            .padding(.top, isSheetRoot ? 2 : 14)
 
             if !concept.conceptDefinition.isEmpty {
                 Text(concept.conceptDefinition)
@@ -79,7 +115,7 @@ struct ConceptSheetView: View {
             }
 
             if !relatedConcepts.isEmpty {
-                Text("Related concepts")
+                Text("Related concepts — tap to jump")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Theme.textTertiary)
                     .textCase(.uppercase)
@@ -87,7 +123,11 @@ struct ConceptSheetView: View {
                     .padding(.top, 16)
                 FlowLayout(spacing: 7) {
                     ForEach(relatedConcepts.prefix(6)) { related in
-                        ConceptChip(concept: related, detailed: true)
+                        NavigationLink(value: related) {
+                            ConceptChip(concept: related, detailed: true)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("relatedConceptChip")
                     }
                 }
                 .padding(.top, 8)
@@ -100,10 +140,21 @@ struct ConceptSheetView: View {
                 .kerning(0.6)
                 .padding(.top, 16)
 
+            // Topics the feeds haven't covered yet can pull fresh matching
+            // papers on demand — the content twin of "Go deeper".
+            if concept.articles.count < 3 {
+                findArticlesButton
+                    .padding(.top, 8)
+            }
+
             ScrollView {
                 VStack(spacing: 8) {
-                    ForEach(recentArticles.prefix(4)) { article in
-                        articleRow(article)
+                    ForEach(recentArticles.prefix(10)) { article in
+                        NavigationLink(value: article) {
+                            articleRow(article)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("conceptArticleRow")
                     }
                 }
                 .padding(.top, 10)
@@ -117,10 +168,10 @@ struct ConceptSheetView: View {
                 .padding(.bottom, 10)
         }
         .padding(.horizontal, 22)
+        .background(Theme.card)
         .sensoryFeedback(.success, trigger: concept.isMarkedKnown)
-        .presentationDetents([.fraction(0.67), .large])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Theme.card)
+        .toolbar(isSheetRoot ? .hidden : .visible, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var masteryRing: some View {
@@ -150,11 +201,48 @@ struct ConceptSheetView: View {
                     .foregroundStyle(Theme.textTertiary)
             }
             Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.textTertiary)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 13))
         .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(Theme.cardBorder, lineWidth: 1))
+        .contentShape(RoundedRectangle(cornerRadius: 13))
+    }
+
+    private var findArticlesButton: some View {
+        Button {
+            findingArticles = true
+            Task {
+                foundCount = await TopicSearchService.findArticles(for: concept, context: modelContext)
+                findingArticles = false
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if findingArticles {
+                    ProgressView().controlSize(.mini)
+                    Text("Searching arXiv…")
+                } else if let foundCount {
+                    Text(foundCount > 0
+                         ? "Added \(foundCount) fresh article\(foundCount == 1 ? "" : "s") ✓"
+                         : "No new matches right now")
+                } else {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11.5, weight: .semibold))
+                    Text("Find fresh articles on arXiv")
+                }
+            }
+            .font(.system(size: 12.5, weight: .semibold))
+            .foregroundStyle(Theme.stateLearning)
+            .frame(maxWidth: .infinity, minHeight: 38)
+            .background(Theme.learningTint, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .disabled(findingArticles || foundCount != nil)
+        .accessibilityIdentifier("findArticles")
+        .sensoryFeedback(.success, trigger: foundCount ?? 0)
     }
 
     /// The pull direction of learning: expand this concept into 3–5 related

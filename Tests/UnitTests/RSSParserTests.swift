@@ -48,6 +48,28 @@ struct RSSParserTests {
         #expect(items[0].publishedAt != nil)
     }
 
+    @Test("parses Reddit-style Atom: t3_ ids, offset dates, html content")
+    func redditAtom() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <entry>
+            <id>t3_1abcde</id>
+            <title>Winning solution write-up for the tabular playground</title>
+            <link href="https://www.reddit.com/r/kaggle/comments/1abcde/winning_solution/" />
+            <updated>2026-07-19T06:27:23+00:00</updated>
+            <content type="html">&lt;p&gt;How we won: heavy feature engineering plus GBT ensembling.&lt;/p&gt;</content>
+          </entry>
+        </feed>
+        """
+        let items = RSSParser.parse(Data(xml.utf8))
+        #expect(items.count == 1)
+        #expect(items[0].guid == "t3_1abcde")
+        #expect(items[0].link.contains("comments/1abcde"))
+        #expect(items[0].publishedAt != nil)
+        #expect(items[0].content.contains("How we won"))
+    }
+
     @Test("item without guid falls back to link, skips titleless items")
     func fallbacks() {
         let xml = """
