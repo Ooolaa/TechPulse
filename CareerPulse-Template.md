@@ -151,9 +151,16 @@ an all-gray map demoralizes experienced users.
 - **No accounts, no server, no analytics SDKs.** All state in the on-device
   database. The only network traffic is fetching public feeds over HTTPS (ATS
   enforced, no exceptions). App Store privacy label: "Data Not Collected".
-- **On-device AI only** (Foundation Models / Gemini Nano). Article text and the
-  user's knowledge profile never leave the phone. A knowledge map is a
-  *capability profile* — treat it like health data.
+- **On-device AI by default** (Foundation Models / Gemini Nano). Article text
+  and the user's knowledge profile never leave the phone — with one opt-in
+  exception: a user who adds their **own** vendor API key (to unlock generation
+  on hardware without on-device AI) sends the minimum needed — concept
+  name + definition + cluster, **never article text** — directly to that
+  vendor under their own key, through no server of yours. Instructions stay
+  system-side, output stays typed. Because nothing routes through you, the
+  "Data Not Collected" label survives; but a knowledge map is a *capability
+  profile* — treat it like health data, disclose the exception at the key
+  field, and never send more than the concept being expanded.
 - **Prompt-injection defense:** feed content is untrusted input that flows into
   an LLM. Instructions must be system-side only; strip HTML; cap lengths;
   structured output (@Generable) so the model can only return typed fields —

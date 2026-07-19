@@ -257,5 +257,5 @@ Also expose: "Mark <concept> as known", "Read me today's AI summary".
 - Strict concurrency on; prefer `actor` for services touching shared state.
 - No third-party dependencies unless necessary (an RSS parser package is acceptable).
 - All AI features must degrade gracefully on devices without Apple Intelligence.
-- Privacy: no analytics, no data leaves the device (this is a selling point — state it in App Store copy).
+- Privacy: no analytics; no data leaves the device **unless the user adds their own Claude API key** (Settings → AI engine) to unlock "Go deeper" on hardware without Apple Intelligence. In that opt-in case, only the concept name, its definition, and its cluster — never article text — go directly to `api.anthropic.com` under the user's own key; nothing routes through a server of ours, so the "Data Not Collected" App Store label still holds. State it this way in App Store copy: on-device by default, one user-controlled exception. The BYO-key path must keep instructions system-side only and accept typed JSON output.
 - File layout: `Models/`, `Services/`, `Views/`, `Intents/`, `Tests/`.

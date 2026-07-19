@@ -8,6 +8,7 @@ struct ClusterDetailView: View {
     @Query private var concepts: [Concept]
     @Query private var dependencies: [ConceptDependency]
     @State private var selectedConcept: Concept?
+    @State private var graphReset = UUID()
 
     private var clusterConcepts: [Concept] {
         concepts.filter { $0.category == clusterName }
@@ -58,7 +59,9 @@ struct ClusterDetailView: View {
                     selectedConcept = clusterConcepts.first { $0.name == name }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 22))
+                .id(graphReset)
                 legend
+                recenterButton
                 if let nextConcept {
                     frontierCard(nextConcept)
                 }
@@ -92,12 +95,38 @@ struct ClusterDetailView: View {
                                           style: StrokeStyle(lineWidth: 1.5, dash: [2.5, 2]))
                 }
                 Spacer()
+                Text("pinch to zoom")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.textTertiary)
             }
             .padding(.horizontal, 13)
             .padding(.vertical, 8)
             .background(Theme.card.opacity(0.92), in: Capsule())
             .overlay(Capsule().strokeBorder(Theme.cardBorder, lineWidth: 1))
             .padding(12)
+            Spacer()
+        }
+    }
+
+    /// Resets zoom/pan by recreating the graph (same trick as the full map).
+    private var recenterButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Button { graphReset = UUID() } label: {
+                    Image(systemName: "scope")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.textLabel)
+                        .frame(width: 40, height: 40)
+                        .background(Theme.card.opacity(0.94), in: Circle())
+                        .overlay(Circle().strokeBorder(Theme.cardBorder, lineWidth: 1))
+                        .shadow(color: Theme.shadow.opacity(0.1), radius: 7, y: 4)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Recenter")
+                .padding(.trailing, 22)
+                .padding(.top, 54)
+            }
             Spacer()
         }
     }
@@ -146,8 +175,8 @@ struct ClusterDetailView: View {
                 .padding(.horizontal, 15)
                 .padding(.vertical, 13)
                 .background(Theme.card.opacity(0.95), in: RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
-                .shadow(color: Color(hex: 0x17181A).opacity(0.1), radius: 12, y: 6)
+                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.learningBorder, lineWidth: 1))
+                .shadow(color: Theme.shadow.opacity(0.1), radius: 12, y: 6)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("frontierCard")

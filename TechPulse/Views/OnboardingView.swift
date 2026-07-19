@@ -114,10 +114,10 @@ struct OnboardingView: View {
         return Button { toggleTopic(topic) } label: {
             Text(isSelected ? "✓ \(topic)" : topic)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : Color(hex: 0x4B5563))
+                .foregroundStyle(isSelected ? Theme.card : Theme.textLabel)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
-                .background(isSelected ? Color(hex: 0x17181A) : Theme.card, in: Capsule())
+                .background(isSelected ? Theme.textPrimary : Theme.card, in: Capsule())
                 .overlay(Capsule().strokeBorder(isSelected ? .clear : Theme.cardBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)

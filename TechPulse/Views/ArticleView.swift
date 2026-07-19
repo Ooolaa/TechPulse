@@ -61,7 +61,7 @@ struct ArticleView: View {
                 .frame(width: max(0, geo.size.width * readProgress))
         }
         .frame(height: 3)
-        .background(Color(hex: 0xEDF0F3))
+        .background(Theme.track)
     }
 
     private var articleScroll: some View {
@@ -137,18 +137,18 @@ struct ArticleView: View {
 
             Text(summary)
                 .font(.system(size: 13.5))
-                .foregroundStyle(Color(hex: 0x374151))
+                .foregroundStyle(Theme.textStrong)
                 .lineSpacing(5)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [Color(hex: 0xF3F7FE), Color(hex: 0xF7F9FC)],
+            LinearGradient(colors: [Theme.learningTint, Theme.card],
                            startPoint: .top, endPoint: .bottom),
             in: RoundedRectangle(cornerRadius: 16)
         )
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.learningBorder, lineWidth: 1))
     }
 
     /// "Before you read" glossary: each keyword with its one-line definition,

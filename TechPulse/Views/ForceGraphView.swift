@@ -25,7 +25,13 @@ final class GraphSimulation {
     private(set) var anchors: [Int: CGPoint] = [:]
     private(set) var clusterLabels: [(name: String, position: CGPoint)] = []
     private var settledFrames = 0
+    private var framesSinceConfigure = 0
     private var lastSize: CGSize = .zero
+
+    // Label draw order is stable between configures / frontier changes, so cache
+    // it instead of re-sorting every node on every 30fps frame.
+    private var priorityCache: [Int] = []
+    private var priorityCacheFrontier: Set<String> = []
 
     func configure(concepts: [Concept], links: [ConceptLink],
                    dependencies: [ConceptDependency] = [],
@@ -82,6 +88,24 @@ final class GraphSimulation {
             }
         }
         settledFrames = 0
+        framesSinceConfigure = 0
+        priorityCache = []      // node set / radii changed — rebuild draw order
+    }
+
+    /// Nodes in label-draw priority (frontier first, then biggest mastery),
+    /// cached so a settled graph doesn't re-sort every frame.
+    func labelPriority(frontier: Set<String>) -> [Int] {
+        if !priorityCache.isEmpty, priorityCacheFrontier == frontier {
+            return priorityCache
+        }
+        priorityCacheFrontier = frontier
+        priorityCache = nodes.indices.sorted { a, b in
+            let fa = frontier.contains(nodes[a].name)
+            let fb = frontier.contains(nodes[b].name)
+            if fa != fb { return fa }
+            return nodes[a].radius > nodes[b].radius
+        }
+        return priorityCache
     }
 
     /// One physics tick: node repulsion + spring attraction on edges +
@@ -98,8 +122,14 @@ final class GraphSimulation {
             }
             lastSize = size
             settledFrames = 0
+            framesSinceConfigure = 0
         }
-        guard nodes.count > 1, settledFrames < 30 else { return }
+        // Stop once the net settles (motion died down) OR after a hard cap: a
+        // force-directed layout is visually done within ~3s, but residual
+        // sub-pixel jitter can keep maxSpeed above the settle threshold forever,
+        // pinning the O(n²) loop at 30fps. The cap guarantees it goes idle.
+        framesSinceConfigure += 1
+        guard nodes.count > 1, settledFrames < 30, framesSinceConfigure < 240 else { return }
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         var forces = [CGVector](repeating: .init(dx: 0, dy: 0), count: nodes.count)
 
@@ -211,7 +241,7 @@ struct ForceGraphView: View {
                         ctx.draw(
                             Text(label.name.uppercased())
                                 .font(.system(size: 11 / s, weight: .heavy))
-                                .foregroundStyle(Color(hex: 0x8A919C).opacity(0.45)),
+                                .foregroundStyle(Theme.textTertiary.opacity(0.45)),
                             at: CGPoint(x: label.position.x, y: label.position.y - 58)
                         )
                     }
@@ -222,7 +252,7 @@ struct ForceGraphView: View {
                         var path = Path()
                         path.move(to: from)
                         path.addLine(to: to)
-                        ctx.stroke(path, with: .color(Color(hex: edge.directed ? 0xD5DBE3 : 0xDDE3EA)),
+                        ctx.stroke(path, with: .color(edge.directed ? Theme.graphEdgeDirected : Theme.graphEdge),
                                    lineWidth: edge.width / s)
                         if edge.directed {
                             // Arrowhead just outside the target node's radius.
@@ -237,7 +267,7 @@ struct ForceGraphView: View {
                             arrow.addLine(to: CGPoint(x: tip.x - cos(angle + 0.45) * 7 / s,
                                                       y: tip.y - sin(angle + 0.45) * 7 / s))
                             arrow.closeSubpath()
-                            ctx.fill(arrow, with: .color(Color(hex: 0xC9D0D9)))
+                            ctx.fill(arrow, with: .color(Theme.graphArrow))
                         }
                     }
                     for node in sim.nodes {
@@ -267,12 +297,7 @@ struct ForceGraphView: View {
                     // spreads positions while labels stay screen-sized, so more
                     // and more labels fit; past 1.8× every dot is eligible.
                     var occupied: [CGRect] = []
-                    let byPriority = sim.nodes.indices.sorted { a, b in
-                        let fa = frontier.contains(sim.nodes[a].name)
-                        let fb = frontier.contains(sim.nodes[b].name)
-                        if fa != fb { return fa }
-                        return sim.nodes[a].radius > sim.nodes[b].radius
-                    }
+                    let byPriority = sim.labelPriority(frontier: frontier)
                     for index in byPriority {
                         let node = sim.nodes[index]
                         guard node.radius > 9 || frontier.contains(node.name) || scale > 1.8 else { continue }
@@ -287,7 +312,7 @@ struct ForceGraphView: View {
                         ctx.draw(
                             Text(node.name)
                                 .font(.system(size: 11 / s, weight: .semibold))
-                                .foregroundStyle(Color(hex: 0x4B5563)),
+                                .foregroundStyle(Theme.textLabel),
                             at: CGPoint(x: node.position.x, y: node.position.y + radius + 11 / s)
                         )
                     }

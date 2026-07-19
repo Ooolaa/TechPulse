@@ -198,12 +198,12 @@ struct FeedView: View {
         .padding(.vertical, 15)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [Color(hex: 0xF3F7FE), .white],
+            LinearGradient(colors: [Theme.learningTint, Theme.card],
                            startPoint: .top, endPoint: .bottom),
             in: RoundedRectangle(cornerRadius: Theme.cardRadius)
         )
         .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
-            .strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
+            .strokeBorder(Theme.learningBorder, lineWidth: 1))
         .accessibilityIdentifier("nextDotBanner")
     }
 
@@ -281,12 +281,12 @@ struct FeedView: View {
         .padding(.horizontal, 15)
         .padding(.vertical, 12)
         .background(met
-                    ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xEFFBF4), .white],
+                    ? AnyShapeStyle(LinearGradient(colors: [Theme.knownTint, Theme.card],
                                                    startPoint: .top, endPoint: .bottom))
                     : AnyShapeStyle(Theme.card),
                     in: RoundedRectangle(cornerRadius: Theme.cardRadius))
         .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
-            .strokeBorder(met ? Color(hex: 0xD3EBDD) : Theme.cardBorder, lineWidth: 1))
+            .strokeBorder(met ? Theme.knownBorder : Theme.cardBorder, lineWidth: 1))
         .sensoryFeedback(.success, trigger: met)
         .accessibilityIdentifier("dailyGoalCard")
     }
@@ -422,7 +422,7 @@ struct ArticleCard: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(hex: 0xF3F7FE), in: RoundedRectangle(cornerRadius: 10))
+                .background(Theme.learningTint, in: RoundedRectangle(cornerRadius: 10))
             }
         }
         .padding(16)

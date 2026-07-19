@@ -117,7 +117,7 @@ struct SettingsView: View {
                 } header: {
                     SettingsHeader("About")
                 } footer: {
-                    Text("All analysis happens on-device. No analytics; nothing leaves your iPhone. Read articles older than 60 days are pruned automatically.")
+                    Text("Analysis happens on-device. No analytics; nothing leaves your iPhone unless you add your own API key above. Read articles older than 60 days are pruned automatically.")
                 }
             }
             .navigationTitle("Settings")

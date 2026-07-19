@@ -58,7 +58,7 @@ struct QuizView: View {
                 Spacer()
                 Text("Weekly quiz")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color(hex: 0x4B5563))
+                    .foregroundStyle(Theme.textLabel)
                 Spacer()
                 Text("\(index + 1) / \(questions.count)")
                     .font(.system(size: 13, weight: .semibold))
@@ -137,11 +137,11 @@ struct QuizView: View {
         let isSelected = selected == optionIndex
         let isCorrect = optionIndex == question.correctIndex
         let borderColor: Color = checked
-            ? (isCorrect ? Theme.stateKnown : (isSelected ? Color(hex: 0xD9534F) : Theme.cardBorder))
+            ? (isCorrect ? Theme.stateKnown : (isSelected ? Theme.danger : Theme.cardBorder))
             : (isSelected ? Theme.stateLearning : Theme.cardBorder)
         let background: Color = checked
-            ? (isCorrect ? Theme.knownTint : (isSelected ? Color(hex: 0xFDF0EF) : Theme.card))
-            : (isSelected ? Color(hex: 0xF3F7FE) : Theme.card)
+            ? (isCorrect ? Theme.knownTint : (isSelected ? Theme.dangerTint : Theme.card))
+            : (isSelected ? Theme.learningTint : Theme.card)
 
         return Button {
             guard !checked else { return }
@@ -150,7 +150,7 @@ struct QuizView: View {
             HStack(spacing: 10) {
                 Text(question.options[optionIndex])
                     .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundStyle(Color(hex: 0x374151))
+                    .foregroundStyle(Theme.textStrong)
                     .lineSpacing(3)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 0)

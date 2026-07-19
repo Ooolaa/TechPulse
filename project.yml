@@ -34,6 +34,9 @@ targets:
     sources: [Tests/UITests]
     dependencies:
       - target: TechPulse
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
   TechPulseTests:
     type: bundle.unit-test
     platform: iOS
@@ -42,6 +45,7 @@ targets:
       - target: TechPulse
     settings:
       base:
+        GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/TechPulse.app/TechPulse
         BUNDLE_LOADER: $(TEST_HOST)
 schemes:

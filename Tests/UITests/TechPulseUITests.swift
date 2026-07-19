@@ -97,6 +97,17 @@ final class TechPulseUITests: XCTestCase {
             snap(app, "8-quiz-result")
             done.tap()
         }
+
+        // Settings: the large title and the section footers must both be
+        // legible — this screen shipped a dark-mode readability bug once
+        // precisely because the journey never captured it.
+        app.buttons["Settings"].tap()
+        sleep(1)
+        snap(app, "9-settings")
+        app.swipeUp()
+        app.swipeUp()
+        sleep(1)
+        snap(app, "9b-settings-footers")
     }
 
     /// Usability guards: every tab reachable, primary controls hittable.

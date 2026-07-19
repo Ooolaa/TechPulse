@@ -193,12 +193,12 @@ struct KnowledgeMapView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(
-            LinearGradient(colors: [Color(hex: 0xF3F7FE), .white],
+            LinearGradient(colors: [Theme.learningTint, Theme.card],
                            startPoint: .top, endPoint: .bottom),
             in: RoundedRectangle(cornerRadius: Theme.cardRadius)
         )
         .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
-            .strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
+            .strokeBorder(Theme.learningBorder, lineWidth: 1))
     }
 }
 
@@ -239,7 +239,7 @@ struct ClusterCard: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color(hex: 0xEDF0F3))
+                    Capsule().fill(Theme.track)
                     Capsule().fill(barColor)
                         .frame(width: max(4, geo.size.width * stats.ratio))
                 }
@@ -251,7 +251,7 @@ struct ClusterCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
         .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
-            .strokeBorder(isGap ? Color(hex: 0xD6E4FA) : Theme.cardBorder,
+            .strokeBorder(isGap ? Theme.learningBorder : Theme.cardBorder,
                           lineWidth: isGap ? 1.5 : 1))
     }
 
@@ -267,7 +267,7 @@ struct ClusterCard: View {
                 var path = Path()
                 path.move(to: points[a])
                 path.addLine(to: points[b])
-                ctx.stroke(path, with: .color(Color(hex: 0xDDE3EA)), lineWidth: 1.2)
+                ctx.stroke(path, with: .color(Theme.graphEdge), lineWidth: 1.2)
             }
             for (index, point) in points.enumerated() {
                 let radius: CGFloat = [4.5, 3.5, 4, 3][index]

@@ -69,7 +69,7 @@ struct ConceptSheetView: View {
             if !concept.conceptDefinition.isEmpty {
                 Text(concept.conceptDefinition)
                     .font(.system(size: 14))
-                    .foregroundStyle(Color(hex: 0x374151))
+                    .foregroundStyle(Theme.textStrong)
                     .lineSpacing(5)
                     .padding(.horizontal, 15)
                     .padding(.vertical, 13)
@@ -224,7 +224,7 @@ struct ConceptSheetView: View {
             Button { quizzing = true } label: {
                 Text("Quiz me")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(concept.conceptDefinition.isEmpty ? Theme.textTertiary : Color(hex: 0x4B5563))
+                    .foregroundStyle(concept.conceptDefinition.isEmpty ? Theme.textTertiary : Theme.textLabel)
                     .padding(.vertical, 15)
                     .padding(.horizontal, 18)
                     .background(Theme.newTint, in: RoundedRectangle(cornerRadius: 14))

@@ -164,7 +164,7 @@ struct ProgressTabView: View {
                 if isCurrent {
                     HStack(spacing: 8) {
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color(hex: 0xEDF0F3)).frame(width: 110, height: 6)
+                            Capsule().fill(Theme.track).frame(width: 110, height: 6)
                             Capsule().fill(Theme.stateLearning)
                                 .frame(width: max(5, 110 * Double(stage.lit) / Double(max(1, stage.total))),
                                        height: 6)
@@ -196,12 +196,12 @@ struct ProgressTabView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(
-            LinearGradient(colors: [Color(hex: 0xF3F7FE), .white],
+            LinearGradient(colors: [Theme.learningTint, Theme.card],
                            startPoint: .top, endPoint: .bottom),
             in: RoundedRectangle(cornerRadius: Theme.cardRadius)
         )
         .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
-            .strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
+            .strokeBorder(Theme.learningBorder, lineWidth: 1))
     }
 
     // MARK: Concepts learned (cumulative)
@@ -312,12 +312,12 @@ struct ProgressTabView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(
-            LinearGradient(colors: [Color(hex: 0xF3F7FE), .white],
+            LinearGradient(colors: [Theme.learningTint, Theme.card],
                            startPoint: .top, endPoint: .bottom),
             in: RoundedRectangle(cornerRadius: Theme.cardRadius)
         )
         .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
-            .strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
+            .strokeBorder(Theme.learningBorder, lineWidth: 1))
     }
 }
 

@@ -111,8 +111,8 @@ struct FullMapView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
             .background(Theme.card.opacity(0.96), in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color(hex: 0xDCE7F8), lineWidth: 1))
-            .shadow(color: Color(hex: 0x17181A).opacity(0.08), radius: 10, y: 5)
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.learningBorder, lineWidth: 1))
+            .shadow(color: Theme.shadow.opacity(0.08), radius: 10, y: 5)
             .padding(12)
         }
         .accessibilityIdentifier("glossaryStrip")
@@ -163,11 +163,11 @@ struct FullMapView: View {
                 Button { graphReset = UUID() } label: {
                     Image(systemName: "scope")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x4B5563))
+                        .foregroundStyle(Theme.textLabel)
                         .frame(width: 42, height: 42)
                         .background(Theme.card.opacity(0.94), in: Circle())
                         .overlay(Circle().strokeBorder(Theme.cardBorder, lineWidth: 1))
-                        .shadow(color: Color(hex: 0x17181A).opacity(0.1), radius: 7, y: 4)
+                        .shadow(color: Theme.shadow.opacity(0.1), radius: 7, y: 4)
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 14)

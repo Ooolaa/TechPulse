@@ -8,7 +8,7 @@ struct SelectableText: UIViewRepresentable {
     let text: String
     var fontSize: CGFloat = 15
     var lineSpacing: CGFloat = 6
-    var textColor: UIColor = UIColor(Color(hex: 0x2B2F36))
+    var textColor: UIColor = UIColor(Theme.textBody)
 
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView()
