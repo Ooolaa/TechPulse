@@ -165,7 +165,6 @@ enum IntelligenceService {
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
         var cache = Dictionary(allConcepts.map { ($0.name.lowercased(), $0) },
                                uniquingKeysWith: { first, _ in first })
-        let existedBefore = cache[result.name.lowercased()] != nil
 
         // Prefer the model's canonical name, but never let it drift into
         // something unrelated to what the reader actually selected.
@@ -175,7 +174,11 @@ enum IntelligenceService {
             definition: result.definition, context: context, cache: &cache
         ) else { return nil }
 
-        if !existedBefore { concept.masteryLevel = 0.0 }   // new dots arrive dim
+        // Asked of the concept that came back, not of the name that went in:
+        // an embedding match returns a concept whose name differs from the key.
+        if KnowledgeEngine.isNewlyCreated(concept, priorConcepts: allConcepts) {
+            concept.masteryLevel = 0.0                     // new dots arrive dim
+        }
         try? context.save()
         return concept
     }
@@ -214,14 +217,15 @@ enum IntelligenceService {
                                uniquingKeysWith: { first, _ in first })
         var added: [Concept] = []
         for extracted in items.prefix(5) {
-            let existedBefore = cache[extracted.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()] != nil
             guard let child = KnowledgeEngine.findOrCreateConcept(
                 named: extracted.name,
                 category: concept.category,     // grow on the parent's island
                 definition: extracted.definition,
                 context: context, cache: &cache
             ), child.name != concept.name else { continue }
-            if !existedBefore {
+            // Asked of the concept that came back, not of the name that went
+            // in: an embedding match returns a concept named something else.
+            if KnowledgeEngine.isNewlyCreated(child, priorConcepts: allConcepts) {
                 child.masteryLevel = 0.0        // brand-new dots arrive dim
             }
             KnowledgeEngine.linkCooccurring([concept, child], context: context)
