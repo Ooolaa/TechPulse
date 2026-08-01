@@ -55,9 +55,18 @@ learn right now.
 _Avoid_: available, unlocked, ready set
 
 **Next Dot**:
-The single Concept recommended from the Frontier. The app makes one
-recommendation, not a list.
+The single Concept recommended from the Frontier, picked by Stage order so the
+recommendation follows the path the Pack's author intended rather than an
+arbitrary ready Concept. The app makes one recommendation, not a list.
 _Avoid_: suggestion, recommendation, up next
+
+**Stage**:
+A named step in a Pack's reading order, grouping the Concepts its author thinks
+should be met together. Authored, unlike the Frontier it filters, and it does
+two jobs: it draws the "You are here" ladder, and its order is what reduces a
+Frontier of several ready Concepts to one Next Dot. A Pack with no Stages still
+has a Frontier; it just has no opinion about which part of it to read first.
+_Avoid_: level, chapter, milestone, phase
 
 **Hot Topic**:
 A term rising in frequency across your recent reading. Observed from your own
