@@ -1,0 +1,82 @@
+# TechPulse
+
+A habit-driven reading app. You read a little every day from sources you choose;
+what you read lights up a map of the field you're learning.
+
+## Language
+
+**Concept**:
+A single idea worth learning, and one dot on the map. The unit everything else
+is measured against.
+_Avoid_: node, dot, note, topic, tag, skill
+
+**Pack**:
+A field's worth of Concepts, their Clusters, their Dependencies and a suggested
+set of Sources — the map before you've read anything. A Pack is data, not code:
+it can be authored, generated, or installed. The AI Engineer pack is the
+flagship, not the only one.
+_Avoid_: curriculum, syllabus, course, career
+
+**Cluster**:
+A named group of Concepts within a Pack ("Foundations", "Agents"), and the unit
+progress is reported against.
+_Avoid_: category, section, topic, module
+
+**Dependency**:
+A directed edge asserting that one Concept should be learned before another.
+Authored as part of a Pack.
+_Avoid_: prerequisite edge, arrow, blocker
+
+**Semantic Link**:
+An undirected edge between two Concepts that mean related things, derived from
+the Concepts themselves rather than from anything you did. Present from the
+moment a Pack is installed.
+_Avoid_: similarity edge, embedding link
+
+**Co-read Link**:
+An undirected edge between two Concepts you have met together in the same
+reading. Observed, never authored — a Co-read Link records what you actually
+read, a Dependency records what someone claims is true.
+_Avoid_: co-occurrence, relation, association, edge (ambiguous — name the kind)
+
+**Lit**:
+The state of a Concept you have engaged with at all, as opposed to one still
+untouched. Lighting the map is the reward loop.
+_Avoid_: unlocked, completed, visited, seen
+
+**Mastery**:
+How well a Concept is held, from newly-seen to known. Grows by reading and
+quizzing, fades without review.
+_Avoid_: score, level, XP, progress
+
+**Frontier**:
+The set of unlit Concepts whose Dependencies are all Lit — what you're ready to
+learn right now.
+_Avoid_: available, unlocked, ready set
+
+**Next Dot**:
+The single Concept recommended from the Frontier. The app makes one
+recommendation, not a list.
+_Avoid_: suggestion, recommendation, up next
+
+**Hot Topic**:
+A term rising in frequency across your recent reading. Observed from your own
+Sources, never declared by hand — what the field is talking about now, as
+opposed to what a Pack author thought mattered when they wrote it.
+_Avoid_: trending, buzzword, radar, hype
+
+**Source**:
+A place reading arrives from, chosen by the user. A Source is a subscription,
+not a publisher — the app is indifferent to what kind of thing is on the other
+end.
+_Avoid_: feed, channel, subscription, publisher
+
+**Reading Intention**:
+The user's own stated plan for when reading happens — a time, and the existing
+routine it follows. Declared once, and the thing a reminder is derived from.
+_Avoid_: reminder, schedule, goal, notification setting
+
+**Streak**:
+The run of consecutive days on which reading happened. Survives a day not yet
+extended; only a fully missed day breaks it.
+_Avoid_: chain, run, combo
