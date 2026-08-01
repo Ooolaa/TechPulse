@@ -3,3 +3,6 @@ DerivedData/
 build/
 *.xcuserstate
 xcuserdata/
+
+# Personal prep notes about this project, not project documentation.
+INTERVIEW-RESPONSE.md
