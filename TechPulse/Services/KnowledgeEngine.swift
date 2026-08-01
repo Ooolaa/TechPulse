@@ -28,6 +28,14 @@ enum KnowledgeEngine {
         return concept
     }
 
+    /// True when `concept` wasn't in the store before this dedup pass.
+    /// Checked by identity, not name: `findOrCreateConcept` may return a
+    /// pre-existing concept matched via embedding similarity, whose name
+    /// won't equal the lowercased key a caller checked beforehand.
+    static func isNewlyCreated(_ concept: Concept, priorConcepts: [Concept]) -> Bool {
+        !priorConcepts.contains { $0 === concept }
+    }
+
     private static func embeddingMatch(for name: String, in cache: [String: Concept]) -> Concept? {
         // O(n) scan is fine at personal-knowledge-base scale; skip past it.
         guard cache.count < 500,
@@ -60,6 +68,7 @@ enum KnowledgeEngine {
                                          masteryDelta: delta))
         }
         try? context.save()
+        WidgetRefresh.refresh(context: context)
     }
 
     /// Quiz result (spec §6): passed = +0.3 mastery; a miss only logs the event
@@ -109,6 +118,7 @@ enum KnowledgeEngine {
         context.insert(LearningEvent(kind: "markedKnown", conceptName: concept.name,
                                      masteryDelta: delta))
         try? context.save()
+        WidgetRefresh.refresh(context: context)
     }
 
     /// Spaced-repetition flavor: −0.05 per full month without review.

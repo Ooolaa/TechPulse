@@ -18,7 +18,7 @@ struct SettingsView: View {
     private var storageUsed: String {
         let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
         let size = (try? FileManager.default.attributesOfItem(atPath: storeURL.path)[.size] as? Int64) ?? 0
-        return ByteCountFormatter.string(fromByteCount: size ?? 0, countStyle: .file)
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
 
     private var grouped: [(category: String, sources: [FeedSource])] {
@@ -82,6 +82,8 @@ struct SettingsView: View {
                         Text("5 articles").tag(5)
                         Text("10 articles").tag(10)
                     }
+                    // The widget's ring is drawn against this goal.
+                    .onChange(of: dailyGoal) { WidgetRefresh.refresh(context: modelContext) }
                 } header: {
                     SettingsHeader("Reading")
                 } footer: {

@@ -272,23 +272,9 @@ struct FeedView: View {
 
     // MARK: Daily goal (Atomic Habits loop: cue → tiny action → visible reward)
 
-    private var readToday: Int {
-        let todayStart = Calendar.current.startOfDay(for: .now)
-        return articles.count { ($0.readAt ?? .distantPast) >= todayStart }
-    }
+    private var readToday: Int { HabitEngine.readToday(articles: articles) }
 
-    private var streakDays: Int {
-        let calendar = Calendar.current
-        let readDays = Set(articles.compactMap(\.readAt).map { calendar.startOfDay(for: $0) })
-        var streak = 0
-        var day = calendar.startOfDay(for: .now)
-        while readDays.contains(day) {
-            streak += 1
-            guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { break }
-            day = previous
-        }
-        return streak
-    }
+    private var streakDays: Int { HabitEngine.streakDays(articles: articles) }
 
     private var dailyGoalCard: some View {
         let done = readToday

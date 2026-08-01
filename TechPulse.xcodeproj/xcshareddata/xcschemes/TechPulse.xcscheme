@@ -49,6 +49,20 @@
                ReferencedContainer = "container:TechPulse.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F3F7C83075ABD86FE1E70F28"
+               BuildableName = "TechPulseWidgetExtension.appex"
+               BlueprintName = "TechPulseWidgetExtension"
+               ReferencedContainer = "container:TechPulse.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction

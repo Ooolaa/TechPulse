@@ -9,6 +9,8 @@ struct ArticleView: View {
     @State private var selectedConcept: Concept?
     @State private var readProgress: CGFloat = 0
     @State private var fetchingFullText = false
+    @State private var explaining: String?
+    @State private var explainFailed: String?
     @AppStorage("articleTextSize") private var textSize = "Medium"
 
     private var bodyFontSize: CGFloat {
@@ -51,6 +53,64 @@ struct ArticleView: View {
             .sheet(item: $selectedConcept) { concept in
                 ConceptSheetView(concept: concept)
             }
+            .overlay(alignment: .bottom) {
+                if let explaining {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Explaining “\(explaining)”…")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Theme.card, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.cardBorder, lineWidth: 1))
+                    .shadow(color: Theme.shadow.opacity(0.18), radius: 10, y: 3)
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.snappy, value: explaining)
+            .alert("Couldn't explain that", isPresented: .constant(explainFailed != nil)) {
+                Button("OK") { explainFailed = nil }
+            } message: {
+                Text(IntelligenceService.canDeepen
+                     ? "The model didn't return a definition for “\(explainFailed ?? "")”. Try selecting just the term."
+                     : "Needs Apple Intelligence — or add your Claude API key in Settings → AI engine.")
+            }
+    }
+
+    // MARK: Explain a selected term
+
+    /// Map first, model second. A word already on the map opens its existing
+    /// sheet instantly and offline; only genuinely unknown terms cost a
+    /// generation. `WordSelection.normalize` has already rejected paragraph
+    /// drags before we get here.
+    private func explain(_ term: String, _ excerpt: String) {
+        let known = (try? modelContext.fetch(FetchDescriptor<Concept>())) ?? []
+        if let hit = known.first(where: {
+            $0.name.localizedCaseInsensitiveCompare(term) == .orderedSame
+        }) {
+            selectedConcept = hit
+            return
+        }
+
+        guard IntelligenceService.canDeepen else {
+            explainFailed = term
+            return
+        }
+
+        explaining = term
+        Task {
+            let concept = await IntelligenceService.define(term: term, excerpt: excerpt,
+                                                          context: modelContext)
+            explaining = nil
+            if let concept {
+                selectedConcept = concept
+            } else {
+                explainFailed = term
+            }
+        }
     }
 
     /// Design 2b: thin bar under the nav showing how far you've read.
@@ -100,7 +160,8 @@ struct ArticleView: View {
                     .padding(.top, 16)
                 }
 
-                SelectableText(text: article.content.strippingHTML, fontSize: bodyFontSize)
+                SelectableText(text: article.content.strippingHTML, fontSize: bodyFontSize,
+                               onExplain: explain)
                     .padding(.top, 20)
 
                 // Only after a fetch attempt still leaves us short.

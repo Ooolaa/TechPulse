@@ -66,20 +66,9 @@ struct ProgressTabView: View {
 
     // MARK: Stats
 
-    /// Consecutive days (ending today) with at least one article read.
-    private var readingStreakDays: Int {
-        let calendar = Calendar.current
-        let readDays = Set(articles.compactMap(\.readAt)
-            .map { calendar.startOfDay(for: $0) })
-        var streak = 0
-        var day = calendar.startOfDay(for: .now)
-        while readDays.contains(day) {
-            streak += 1
-            guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { break }
-            day = previous
-        }
-        return streak
-    }
+    /// Consecutive days with at least one article read; a day not yet extended
+    /// keeps the run alive (see `HabitEngine.streakDays`).
+    private var readingStreakDays: Int { HabitEngine.streakDays(articles: articles) }
 
     private func statTile(_ value: String, _ label: String, _ valueColor: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {

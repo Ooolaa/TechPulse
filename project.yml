@@ -21,6 +21,13 @@ targets:
         BGTaskSchedulerPermittedIdentifiers:
           - com.johnchen.TechPulse.refresh
         ITSAppUsesNonExemptEncryption: false
+        # Widget taps deep-link back in: techpulse://feed | knowledge | ...
+        CFBundleURLTypes:
+          - CFBundleURLName: com.johnchen.TechPulse
+            CFBundleURLSchemes: [techpulse]
+    dependencies:
+      - target: TechPulseWidgetExtension
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.johnchen.TechPulse
@@ -28,6 +35,29 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: TechPulse/TechPulse.entitlements
+
+  # WidgetKit extension. Sources are listed file-by-file rather than pointing at
+  # TechPulse/ wholesale: the widget needs only the design tokens and the
+  # snapshot model, and must not pull in UITextView-backed views.
+  TechPulseWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - TechPulseWidget
+      - path: TechPulse/Views/Theme.swift
+      - path: TechPulse/Models/WidgetSnapshot.swift
+    info:
+      path: TechPulseWidget/Info.plist
+      properties:
+        CFBundleDisplayName: TechPulse
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.johnchen.TechPulse.widget
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: TechPulseWidget/TechPulseWidget.entitlements
   TechPulseUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -53,6 +83,7 @@ schemes:
     build:
       targets:
         TechPulse: all
+        TechPulseWidgetExtension: all
         TechPulseUITests: [test]
         TechPulseTests: [test]
     run:

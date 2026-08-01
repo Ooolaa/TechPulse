@@ -17,6 +17,9 @@ struct TechPulseApp: App {
             )
             SeedData.seedIfNeeded(context: container.mainContext)
             KnowledgeEngine.applyTimeDecay(context: container.mainContext)
+            // Seed the widget on first launch, and let decay/day-rollover land
+            // in it without waiting for the next read.
+            WidgetRefresh.refresh(context: container.mainContext)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
@@ -29,6 +32,8 @@ struct TechPulseApp: App {
                 await FeedSyncService.syncAll(context: container.mainContext)
                 // Spec §5: batch analysis in BackgroundTasks windows to save battery.
                 await IntelligenceService.analyzePending(context: container.mainContext)
+                // New articles can change "your next dot"; keep the widget honest.
+                WidgetRefresh.refresh(context: container.mainContext)
                 refresh.setTaskCompleted(success: true)
             }
             refresh.expirationHandler = { syncTask.cancel() }

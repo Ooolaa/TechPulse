@@ -66,6 +66,24 @@ struct KnowledgeEngineTests {
         #expect(concept.masteryState == .known)
     }
 
+    @Test("pre-existing check tracks identity, not name — catches concepts matched via embedding similarity")
+    func isNewlyCreatedTracksByIdentity() throws {
+        let context = try makeContext()
+        let concept = Concept(name: "Transformer", category: "LLMs", definition: "d")
+        context.insert(concept)
+        try context.save()
+
+        let prior = try context.fetch(FetchDescriptor<Concept>())
+
+        // Same instance as returned via any dedup path — including an
+        // embedding-similarity match whose name never equals the lowercased
+        // lookup key a caller checked beforehand.
+        #expect(KnowledgeEngine.isNewlyCreated(concept, priorConcepts: prior) == false)
+
+        let freshlyMade = Concept(name: "New concept", category: "LLMs", definition: "d")
+        #expect(KnowledgeEngine.isNewlyCreated(freshlyMade, priorConcepts: prior) == true)
+    }
+
     @Test("quiz pass adds 0.3, quiz miss only logs")
     func quizScoring() throws {
         let context = try makeContext()

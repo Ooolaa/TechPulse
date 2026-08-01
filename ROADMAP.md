@@ -46,9 +46,22 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
 
 ## Horizon 2 — Retention loop (weeks; highest product value per template §9)
 
-5. **Widgets + Live Activity.** Streak ring + "your next dot" on home/lock
-   screen. The habit system already computes both; this is surface area, not
-   new logic. Strongest cheap retention lever.
+5. ~~**Widgets.**~~ **Shipped.** Streak ring + "your next dot" across five
+   families (small, medium, and the three lock-screen accessories). App writes
+   a small `WidgetSnapshot` JSON to an App Group; the extension only decodes
+   and renders — no SwiftData in a 30 MB widget process, and the app's store
+   stays where it was (no migration). Forced two fixes worth keeping: the
+   streak walk was duplicated in two views (now `HabitEngine`), and it returned
+   0 until you'd read *that day*, so a morning widget read "0-day streak" on a
+   live run — streaks now carry a one-day grace.
+
+   *Still open:* **Live Activity** was deliberately cut, not forgotten. Live
+   Activities are for time-bound events that end within ~8–12h; a streak has no
+   start or end and would squat on the lock screen forever — and the roadmap's
+   "lock screen" goal is already met by the accessory families. If revisited,
+   the honest shape is a *reading-session* activity: starts on the day's first
+   article, shows the goal ring filling, auto-ends at goal or day rollover.
+   Local ActivityKit updates only (push needs APNs, which the free team lacks).
 
 6. **Spaced-repetition notifications.** Decay already exists in the mastery
    model; surface it: "3 concepts fading — 2-minute review?" as *local*
