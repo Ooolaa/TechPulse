@@ -1,0 +1,753 @@
+{
+  "clusterOrder" : [
+    "Foundations",
+    "Hot Topics",
+    "Data Science",
+    "LLM Engineering",
+    "Evaluation",
+    "Agents",
+    "Inference & Infra",
+    "Safety & Production",
+    "On-Device AI"
+  ],
+  "concepts" : [
+    {
+      "cluster" : "Foundations",
+      "definition" : "The lingua franca of ML — everything else is built on it.",
+      "dependencies" : [
+
+      ],
+      "name" : "PyTorch"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Matrices ARE the model: weights and embeddings are linear algebra.",
+      "dependencies" : [
+
+      ],
+      "name" : "Linear Algebra"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Sampling, temperature and loss functions are applied probability.",
+      "dependencies" : [
+
+      ],
+      "name" : "Probability & Statistics"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "How every model learns: follow the loss downhill via backprop.",
+      "dependencies" : [
+        "Linear Algebra"
+      ],
+      "name" : "Gradient Descent"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "How text becomes numbers (BPE, tiktoken).",
+      "dependencies" : [
+
+      ],
+      "name" : "Tokenization"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Meaning as vectors; powers RAG and semantic search.",
+      "dependencies" : [
+        "Linear Algebra"
+      ],
+      "name" : "Embeddings"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "The core operation of transformers: weigh which inputs matter for each output.",
+      "dependencies" : [
+        "Embeddings"
+      ],
+      "name" : "Attention"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "The blueprint of every modern LLM.",
+      "dependencies" : [
+        "Attention",
+        "Tokenization"
+      ],
+      "name" : "Transformer Architecture"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "How transformers know word order (RoPE).",
+      "dependencies" : [
+        "Transformer Architecture"
+      ],
+      "name" : "Positional Encoding"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Base knowledge learned from raw text at scale.",
+      "dependencies" : [
+        "Transformer Architecture"
+      ],
+      "name" : "Pretraining"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Continuing training of a pretrained model on task-specific data.",
+      "dependencies" : [
+        "Pretraining"
+      ],
+      "name" : "Fine-Tuning"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Fine-tune big models on small GPUs with low-rank adapters.",
+      "dependencies" : [
+        "Fine-Tuning"
+      ],
+      "name" : "LoRA / QLoRA"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "How models learn to be helpful and aligned from preference data.",
+      "dependencies" : [
+        "Fine-Tuning"
+      ],
+      "name" : "RLHF / DPO"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Models that jointly understand images and text — e.g. analyzing traffic-camera frames.",
+      "dependencies" : [
+        "Attention"
+      ],
+      "name" : "Vision Language Models"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Models that spend extra test-time compute thinking step-by-step before answering (o-series, R1).",
+      "dependencies" : [
+        "Transformer Architecture"
+      ],
+      "name" : "Reasoning Models"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Building software by describing intent to an AI and iterating on results instead of hand-writing code.",
+      "dependencies" : [
+        "Coding Agents"
+      ],
+      "name" : "Vibe Coding"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Models that learn an internal simulation of the world to predict what happens next — the bet behind embodied AI.",
+      "dependencies" : [
+        "Pretraining"
+      ],
+      "name" : "World Models"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Model-generated training data that stretches or replaces scarce human data.",
+      "dependencies" : [
+        "Pretraining"
+      ],
+      "name" : "Synthetic Data"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Downloadable frontier-class models (Llama, DeepSeek) you can run and fine-tune yourself.",
+      "dependencies" : [
+        "Fine-Tuning"
+      ],
+      "name" : "Open-Weights Models"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Sub-10B models that trade raw power for speed, cost, and on-device deployment.",
+      "dependencies" : [
+        "Distillation"
+      ],
+      "name" : "Small Language Models"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Generate images and video by learning to reverse noise — the engine of modern generative media.",
+      "dependencies" : [
+        "Probability & Statistics"
+      ],
+      "name" : "Diffusion Models"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Text-to-video systems (Sora, Veo) — the current frontier of generative media.",
+      "dependencies" : [
+        "Diffusion Models"
+      ],
+      "name" : "AI Video Generation"
+    },
+    {
+      "cluster" : "Hot Topics",
+      "definition" : "Foundation models meeting hardware: general-purpose robots learning from demonstration.",
+      "dependencies" : [
+        "World Models"
+      ],
+      "name" : "Humanoid Robotics"
+    },
+    {
+      "cluster" : "Data Science",
+      "definition" : "Look at the data before modeling: distributions, outliers, missing values.",
+      "dependencies" : [
+        "Probability & Statistics"
+      ],
+      "name" : "Exploratory Data Analysis"
+    },
+    {
+      "cluster" : "Data Science",
+      "definition" : "Turning raw columns into signals a model can learn from.",
+      "dependencies" : [
+        "Exploratory Data Analysis"
+      ],
+      "name" : "Feature Engineering"
+    },
+    {
+      "cluster" : "Data Science",
+      "definition" : "Estimate real-world performance by testing on held-out folds.",
+      "dependencies" : [
+        "Probability & Statistics"
+      ],
+      "name" : "Cross-Validation"
+    },
+    {
+      "cluster" : "Data Science",
+      "definition" : "When training data secretly contains the answer — great scores, useless model.",
+      "dependencies" : [
+        "Cross-Validation"
+      ],
+      "name" : "Data Leakage"
+    },
+    {
+      "cluster" : "Data Science",
+      "definition" : "When some labels dominate a dataset, biasing what the model learns.",
+      "dependencies" : [
+        "Exploratory Data Analysis"
+      ],
+      "name" : "Class Imbalance"
+    },
+    {
+      "cluster" : "Data Science",
+      "definition" : "XGBoost/LightGBM — still the strongest baseline on tabular data.",
+      "dependencies" : [
+        "Feature Engineering",
+        "Cross-Validation"
+      ],
+      "name" : "Gradient-Boosted Trees"
+    },
+    {
+      "cluster" : "Data Science",
+      "definition" : "Combine diverse models to beat any single one.",
+      "dependencies" : [
+        "Gradient-Boosted Trees"
+      ],
+      "name" : "Model Ensembling"
+    },
+    {
+      "cluster" : "Data Science",
+      "definition" : "Practice arena: real datasets, leaderboards, and shared winning notebooks.",
+      "dependencies" : [
+        "Feature Engineering",
+        "Cross-Validation"
+      ],
+      "name" : "Kaggle Competitions"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "The cheapest lever for output quality.",
+      "dependencies" : [
+
+      ],
+      "name" : "Prompt Engineering"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "JSON/schema generation for reliable pipelines.",
+      "dependencies" : [
+        "Prompt Engineering"
+      ],
+      "name" : "Structured Outputs"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "Managing what goes in the window — the 2025-26 skill.",
+      "dependencies" : [
+        "Prompt Engineering",
+        "RAG"
+      ],
+      "name" : "Context Engineering"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "Store and search embeddings at scale.",
+      "dependencies" : [
+        "Embeddings"
+      ],
+      "name" : "Vector Databases"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "Ground answers in your data to reduce hallucination.",
+      "dependencies" : [
+        "Vector Databases"
+      ],
+      "name" : "RAG"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "Bad chunks = bad RAG; splitting is a modeling decision.",
+      "dependencies" : [
+        "RAG"
+      ],
+      "name" : "Chunking"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "Keyword (BM25) + semantic search beats either alone.",
+      "dependencies" : [
+        "Vector Databases"
+      ],
+      "name" : "Hybrid Search"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "Second-pass precision on retrieved results.",
+      "dependencies" : [
+        "Hybrid Search"
+      ],
+      "name" : "Reranking"
+    },
+    {
+      "cluster" : "LLM Engineering",
+      "definition" : "1M-token windows still need curation.",
+      "dependencies" : [
+        "Context Engineering"
+      ],
+      "name" : "Long-Context Management"
+    },
+    {
+      "cluster" : "Evaluation",
+      "definition" : "MMLU, SWE-bench and friends — know what scores mean and their limits.",
+      "dependencies" : [
+
+      ],
+      "name" : "Benchmarks"
+    },
+    {
+      "cluster" : "Evaluation",
+      "definition" : "Custom tests for YOUR use case; build before shipping.",
+      "dependencies" : [
+        "Benchmarks",
+        "Prompt Engineering"
+      ],
+      "name" : "Eval Suites"
+    },
+    {
+      "cluster" : "Evaluation",
+      "definition" : "Scale evaluation with models grading models.",
+      "dependencies" : [
+        "Eval Suites"
+      ],
+      "name" : "LLM-as-Judge"
+    },
+    {
+      "cluster" : "Evaluation",
+      "definition" : "Catch quality drops on every change.",
+      "dependencies" : [
+        "Eval Suites",
+        "LLM-as-Judge"
+      ],
+      "name" : "A/B & Regression Evals"
+    },
+    {
+      "cluster" : "Agents",
+      "definition" : "Function calling: models acting, not just talking.",
+      "dependencies" : [
+        "Structured Outputs"
+      ],
+      "name" : "Tool Use"
+    },
+    {
+      "cluster" : "Agents",
+      "definition" : "Model Context Protocol — the standard for connecting models to tools and data.",
+      "dependencies" : [
+        "Tool Use"
+      ],
+      "name" : "MCP"
+    },
+    {
+      "cluster" : "Agents",
+      "definition" : "Task decomposition, chain-of-thought, test-time compute.",
+      "dependencies" : [
+        "Prompt Engineering"
+      ],
+      "name" : "Planning & Reasoning"
+    },
+    {
+      "cluster" : "Agents",
+      "definition" : "Short-term scratchpads plus long-term recall.",
+      "dependencies" : [
+        "RAG"
+      ],
+      "name" : "Agent Memory"
+    },
+    {
+      "cluster" : "Agents",
+      "definition" : "Specialist agents collaborating on one task.",
+      "dependencies" : [
+        "Planning & Reasoning",
+        "Agent Memory",
+        "MCP"
+      ],
+      "name" : "Multi-Agent Orchestration"
+    },
+    {
+      "cluster" : "Agents",
+      "definition" : "Claude Code-style autonomous development workflows.",
+      "dependencies" : [
+        "Tool Use"
+      ],
+      "name" : "Coding Agents"
+    },
+    {
+      "cluster" : "Agents",
+      "definition" : "Models operating GUIs directly.",
+      "dependencies" : [
+        "Tool Use"
+      ],
+      "name" : "Computer-Use Agents"
+    },
+    {
+      "cluster" : "Inference & Infra",
+      "definition" : "Shrink models 4–8× (GGUF, AWQ) with minor quality loss.",
+      "dependencies" : [
+        "Transformer Architecture"
+      ],
+      "name" : "Quantization"
+    },
+    {
+      "cluster" : "Inference & Infra",
+      "definition" : "Train small fast models from big ones.",
+      "dependencies" : [
+        "Fine-Tuning"
+      ],
+      "name" : "Distillation"
+    },
+    {
+      "cluster" : "Inference & Infra",
+      "definition" : "Why long chats get slow — the core serving concept.",
+      "dependencies" : [
+        "Attention"
+      ],
+      "name" : "KV-Cache"
+    },
+    {
+      "cluster" : "Inference & Infra",
+      "definition" : "2–3× faster generation by drafting with a small model.",
+      "dependencies" : [
+        "KV-Cache"
+      ],
+      "name" : "Speculative Decoding"
+    },
+    {
+      "cluster" : "Inference & Infra",
+      "definition" : "Production-grade throughput for model serving.",
+      "dependencies" : [
+        "KV-Cache"
+      ],
+      "name" : "vLLM & Serving"
+    },
+    {
+      "cluster" : "Inference & Infra",
+      "definition" : "Latency/cost tradeoffs — the economics of AI products.",
+      "dependencies" : [
+        "vLLM & Serving"
+      ],
+      "name" : "Batching & Cost"
+    },
+    {
+      "cluster" : "On-Device AI",
+      "definition" : "The on-device LLM API TechPulse itself uses.",
+      "dependencies" : [
+        "Core ML",
+        "MLX"
+      ],
+      "name" : "Apple Foundation Models"
+    },
+    {
+      "cluster" : "On-Device AI",
+      "definition" : "Apple's model deployment runtime.",
+      "dependencies" : [
+        "Quantization"
+      ],
+      "name" : "Core ML"
+    },
+    {
+      "cluster" : "On-Device AI",
+      "definition" : "Apple-silicon ML framework for training and inference.",
+      "dependencies" : [
+        "PyTorch"
+      ],
+      "name" : "MLX"
+    },
+    {
+      "cluster" : "On-Device AI",
+      "definition" : "@Generable structured outputs on-device.",
+      "dependencies" : [
+        "Structured Outputs",
+        "Apple Foundation Models"
+      ],
+      "name" : "Guided Generation"
+    },
+    {
+      "cluster" : "On-Device AI",
+      "definition" : "The selling point of on-device: nothing leaves the phone.",
+      "dependencies" : [
+        "Apple Foundation Models"
+      ],
+      "name" : "Privacy-Preserving AI"
+    },
+    {
+      "cluster" : "Safety & Production",
+      "definition" : "The #1 security risk for agents.",
+      "dependencies" : [
+        "Tool Use"
+      ],
+      "name" : "Prompt Injection Defense"
+    },
+    {
+      "cluster" : "Safety & Production",
+      "definition" : "Know the attack surface of deployed models.",
+      "dependencies" : [
+        "Prompt Engineering"
+      ],
+      "name" : "Jailbreak Awareness"
+    },
+    {
+      "cluster" : "Safety & Production",
+      "definition" : "Grounding, citations, calibrated uncertainty.",
+      "dependencies" : [
+        "RAG"
+      ],
+      "name" : "Hallucination Mitigation"
+    },
+    {
+      "cluster" : "Safety & Production",
+      "definition" : "Input/output filtering layers.",
+      "dependencies" : [
+        "Eval Suites"
+      ],
+      "name" : "Guardrails"
+    },
+    {
+      "cluster" : "Safety & Production",
+      "definition" : "Attack your own system before others do.",
+      "dependencies" : [
+        "Guardrails",
+        "Prompt Injection Defense"
+      ],
+      "name" : "Red-Teaming"
+    },
+    {
+      "cluster" : "Safety & Production",
+      "definition" : "Tracing, logging, cost monitoring in production.",
+      "dependencies" : [
+        "vLLM & Serving"
+      ],
+      "name" : "Observability"
+    }
+  ],
+  "field" : "AI Engineering",
+  "formatVersion" : 1,
+  "specialtyCluster" : "On-Device AI",
+  "stages" : [
+    {
+      "concepts" : [
+        "PyTorch",
+        "Linear Algebra",
+        "Probability & Statistics",
+        "Gradient Descent",
+        "Tokenization",
+        "Embeddings"
+      ],
+      "subtitle" : "Python, math, tokenization, embeddings",
+      "title" : "Stage 1 · Foundations"
+    },
+    {
+      "concepts" : [
+        "Exploratory Data Analysis",
+        "Feature Engineering",
+        "Cross-Validation",
+        "Data Leakage",
+        "Class Imbalance",
+        "Gradient-Boosted Trees",
+        "Model Ensembling",
+        "Kaggle Competitions"
+      ],
+      "subtitle" : "EDA, features, validation — the Kaggle skill set",
+      "title" : "Stage 2 · Data science craft"
+    },
+    {
+      "concepts" : [
+        "Attention",
+        "Transformer Architecture",
+        "Positional Encoding",
+        "Pretraining",
+        "Fine-Tuning",
+        "LoRA / QLoRA",
+        "RLHF / DPO"
+      ],
+      "subtitle" : "Attention → transformer → fine-tuning",
+      "title" : "Stage 3 · Transformers & training"
+    },
+    {
+      "concepts" : [
+        "Prompt Engineering",
+        "Structured Outputs",
+        "Context Engineering",
+        "Vector Databases",
+        "RAG",
+        "Chunking",
+        "Hybrid Search",
+        "Reranking",
+        "Long-Context Management"
+      ],
+      "subtitle" : "The LLM engineering core",
+      "title" : "Stage 4 · Prompting, structured outputs, RAG"
+    },
+    {
+      "concepts" : [
+        "Benchmarks",
+        "Eval Suites",
+        "LLM-as-Judge",
+        "A/B & Regression Evals",
+        "Quantization",
+        "Distillation",
+        "KV-Cache",
+        "Speculative Decoding",
+        "vLLM & Serving",
+        "Batching & Cost"
+      ],
+      "subtitle" : "What separates seniors from juniors",
+      "title" : "Stage 5 · Evals + inference"
+    },
+    {
+      "concepts" : [
+        "Tool Use",
+        "MCP",
+        "Planning & Reasoning",
+        "Agent Memory",
+        "Multi-Agent Orchestration",
+        "Coding Agents",
+        "Computer-Use Agents"
+      ],
+      "subtitle" : "Tool use, MCP, orchestration",
+      "title" : "Stage 6 · Agents"
+    },
+    {
+      "concepts" : [
+        "Prompt Injection Defense",
+        "Jailbreak Awareness",
+        "Hallucination Mitigation",
+        "Guardrails",
+        "Red-Teaming",
+        "Observability"
+      ],
+      "subtitle" : "Guardrails, red-teaming, observability",
+      "title" : "Stage 7 · Safety & production"
+    },
+    {
+      "concepts" : [
+        "Vision Language Models",
+        "Reasoning Models",
+        "Vibe Coding",
+        "World Models",
+        "Synthetic Data",
+        "Open-Weights Models",
+        "Small Language Models",
+        "Diffusion Models",
+        "AI Video Generation",
+        "Humanoid Robotics"
+      ],
+      "subtitle" : "The hot-topic radar: reasoning, agents, video, robots",
+      "title" : "Stage 8 · Staying current"
+    }
+  ],
+  "suggestedSources" : [
+    {
+      "category" : "Research",
+      "name" : "arXiv cs.AI",
+      "url" : "https://export.arxiv.org/rss/cs.AI"
+    },
+    {
+      "category" : "Research",
+      "name" : "arXiv cs.LG",
+      "url" : "https://export.arxiv.org/rss/cs.LG"
+    },
+    {
+      "category" : "Research",
+      "name" : "arXiv cs.CL",
+      "url" : "https://export.arxiv.org/rss/cs.CL"
+    },
+    {
+      "category" : "Research",
+      "name" : "Apple ML Research",
+      "url" : "https://machinelearning.apple.com/rss.xml"
+    },
+    {
+      "category" : "Open Source",
+      "name" : "Hugging Face Blog",
+      "url" : "https://huggingface.co/blog/feed.xml"
+    },
+    {
+      "category" : "Frontier Labs",
+      "name" : "OpenAI News",
+      "url" : "https://openai.com/news/rss.xml"
+    },
+    {
+      "category" : "Frontier Labs",
+      "name" : "Google DeepMind Blog",
+      "url" : "https://deepmind.google/blog/rss.xml"
+    },
+    {
+      "category" : "Industry",
+      "name" : "MIT Technology Review — AI",
+      "url" : "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+    },
+    {
+      "category" : "Industry",
+      "name" : "The Verge — AI",
+      "url" : "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+    },
+    {
+      "category" : "Industry",
+      "name" : "VentureBeat — AI",
+      "url" : "https://venturebeat.com/category/ai/feed/"
+    },
+    {
+      "category" : "Industry",
+      "name" : "TechCrunch — AI",
+      "url" : "https://techcrunch.com/category/artificial-intelligence/feed/"
+    },
+    {
+      "category" : "Data Science",
+      "name" : "Kaggle (r/kaggle)",
+      "url" : "https://www.reddit.com/r/kaggle/.rss"
+    },
+    {
+      "category" : "Data Science",
+      "name" : "KDnuggets",
+      "url" : "https://www.kdnuggets.com/feed"
+    }
+  ]
+}
