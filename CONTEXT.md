@@ -17,6 +17,14 @@ it can be authored, generated, or installed. The AI Engineer pack is the
 flagship, not the only one.
 _Avoid_: curriculum, syllabus, course, career
 
+**Active Pack**:
+The one installed Pack the app is currently a map of. Installing another
+retires the previous one without taking its Concepts away — what you learned is
+yours, not the Pack's, so a retired Pack's Concepts keep their Mastery and
+history whether or not the new Pack still contains them.
+_Avoid_: current pack, selected pack, installed pack (ambiguous — several may
+be installed, one is active)
+
 **Cluster**:
 A named group of Concepts within a Pack ("Foundations", "Agents"), and the unit
 progress is reported against.
