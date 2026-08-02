@@ -68,6 +68,12 @@ recommendation follows the path the Pack's author intended rather than an
 arbitrary ready Concept. The app makes one recommendation, not a list.
 _Avoid_: suggestion, recommendation, up next
 
+**Side Quest**:
+A Concept in the Pack's specialty Cluster — the optional lane running alongside
+the staged path, reported on separately so progress through it never reads as
+falling behind on the main one. A Pack need not have one.
+_Avoid_: bonus, extra, optional track
+
 **Stage**:
 A named step in a Pack's reading order, grouping the Concepts its author thinks
 should be met together. Authored, unlike the Frontier it filters, and it does

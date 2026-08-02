@@ -19,9 +19,10 @@ enum KnowledgePathEngine {
     }
 
     /// Pack clusters in reading order, then any extra categories (resume, articles).
-    static func clusterStats(concepts: [Concept]) -> [ClusterStats] {
+    static func clusterStats(concepts: [Concept],
+                             pack: ActivePack = .current) -> [ClusterStats] {
         let grouped = Dictionary(grouping: concepts, by: \.category)
-        let packNames = KnowledgePack.clusterOrder
+        let packNames = pack.clusterOrder
         let extraNames = grouped.keys.filter { !packNames.contains($0) }.sorted()
         return (packNames + extraNames).compactMap { name in
             guard let members = grouped[name], !members.isEmpty else { return nil }
@@ -31,9 +32,9 @@ enum KnowledgePathEngine {
     }
 
     /// The cluster holding you back: lowest completion among pack clusters.
-    static func gapCluster(concepts: [Concept]) -> String? {
-        clusterStats(concepts: concepts)
-            .filter { KnowledgePack.clusterOrder.contains($0.name) && $0.ratio < 1 }
+    static func gapCluster(concepts: [Concept], pack: ActivePack = .current) -> String? {
+        clusterStats(concepts: concepts, pack: pack)
+            .filter { pack.clusterOrder.contains($0.name) && $0.ratio < 1 }
             .min { $0.ratio < $1.ratio }?.name
     }
 
@@ -41,8 +42,9 @@ enum KnowledgePathEngine {
     /// dashed "ready to learn" ring). Restricted to knowledge-pack concepts:
     /// stray article-extracted concepts have no dependency structure and would
     /// otherwise all count as "ready", flooding recommendations with noise.
-    static func frontier(concepts: [Concept], dependencies: [ConceptDependency]) -> Set<String> {
-        let packNames = Set(KnowledgePack.concepts.map(\.name))
+    static func frontier(concepts: [Concept], dependencies: [ConceptDependency],
+                         pack: ActivePack = .current) -> Set<String> {
+        let packNames = Set(pack.conceptNames)
         let litNames = Set(concepts.filter(isLit).map(\.name))
         let prereqsByDependent = Dictionary(grouping: dependencies, by: \.dependent)
         var result = Set<String>()
@@ -65,11 +67,17 @@ enum KnowledgePathEngine {
     /// "YOUR NEXT DOT" (design 4c): the first frontier concept in learning-path
     /// order, with its lit prerequisites and the cached articles that mention it.
     static func nextDot(concepts: [Concept], dependencies: [ConceptDependency],
-                        articles: [Article]) -> Recommendation? {
-        let frontierNames = frontier(concepts: concepts, dependencies: dependencies)
+                        articles: [Article],
+                        pack: ActivePack = .current) -> Recommendation? {
+        let frontierNames = frontier(concepts: concepts, dependencies: dependencies, pack: pack)
         guard !frontierNames.isEmpty else { return nil }
 
-        let pathOrder = KnowledgePack.stages.flatMap(\.conceptNames) + KnowledgePack.sideQuestConcepts
+        // Deliberately still the old expression, not `pack.pathOrder(dependencies:)`.
+        // ADR-0004's version sorts the unstaged tail topologically, which for the
+        // compiled pack orders the side quests differently from the authored list
+        // — a behaviour change, and #17 is a prefactor. #6 swaps this line for the
+        // ADR-0004 call and deletes the twin in ClusterDetailView.
+        let pathOrder = pack.stages.flatMap(\.concepts) + pack.sideQuestConcepts
         let orderedName = pathOrder.first(where: frontierNames.contains)
             ?? frontierNames.sorted().first!
         guard let concept = concepts.first(where: { $0.name == orderedName }) else { return nil }
@@ -83,7 +91,7 @@ enum KnowledgePathEngine {
         }
         return Recommendation(concept: concept, litPrerequisites: prereqs,
                               articles: matching.sorted { $0.publishedAt > $1.publishedAt },
-                              followUpGap: gapCluster(concepts: concepts))
+                              followUpGap: gapCluster(concepts: concepts, pack: pack))
     }
 
     /// "Fills your gap: X" tag for an article (design 4c): the first frontier
@@ -110,19 +118,21 @@ enum KnowledgePathEngine {
 
     /// Learning path (design 4d): per-stage completion; "you are here" is the
     /// first incomplete stage.
-    static func stageProgress(concepts: [Concept]) -> [StageProgress] {
+    static func stageProgress(concepts: [Concept],
+                              pack: ActivePack = .current) -> [StageProgress] {
         let byName = Dictionary(concepts.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
-        return KnowledgePack.stages.map { stage in
-            let members = stage.conceptNames.compactMap { byName[$0] }
+        return pack.stages.map { stage in
+            let members = stage.concepts.compactMap { byName[$0] }
             return StageProgress(title: stage.title, subtitle: stage.subtitle,
-                                 total: stage.conceptNames.count,
+                                 total: stage.concepts.count,
                                  lit: members.filter(isLit).count)
         }
     }
 
-    static func sideQuestProgress(concepts: [Concept]) -> (lit: Int, total: Int) {
+    static func sideQuestProgress(concepts: [Concept],
+                                  pack: ActivePack = .current) -> (lit: Int, total: Int) {
         let byName = Dictionary(concepts.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
-        let members = KnowledgePack.sideQuestConcepts.compactMap { byName[$0] }
-        return (members.filter(isLit).count, KnowledgePack.sideQuestConcepts.count)
+        let members = pack.sideQuestConcepts.compactMap { byName[$0] }
+        return (members.filter(isLit).count, pack.sideQuestConcepts.count)
     }
 }

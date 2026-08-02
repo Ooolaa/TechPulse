@@ -20,15 +20,39 @@ struct ActivePack {
     /// Names of this Pack's Concepts, in authored order, as they exist in the
     /// store — so every one of them resolves to a Concept that is really there.
     let conceptNames: [String]
+    /// The specialty Cluster's Concepts, in authored order — the "side quest"
+    /// lane, reported separately from the staged path.
+    let sideQuestConcepts: [String]
+
+    init(field: String, specialtyCluster: String?, clusterOrder: [String],
+         stages: [PackFile.PackStage], suggestedSources: [PackFile.PackSource],
+         conceptNames: [String], sideQuestConcepts: [String]) {
+        self.field = field
+        self.specialtyCluster = specialtyCluster
+        self.clusterOrder = clusterOrder
+        self.stages = stages
+        self.suggestedSources = suggestedSources
+        self.conceptNames = conceptNames
+        self.sideQuestConcepts = sideQuestConcepts
+    }
 
     init(record: InstalledPack) {
-        field = record.field
-        specialtyCluster = record.specialtyCluster
-        clusterOrder = record.clusterOrder
-        stages = record.stages
-        suggestedSources = record.suggestedSources
-        conceptNames = record.conceptNames
+        self.init(field: record.field,
+                  specialtyCluster: record.specialtyCluster,
+                  clusterOrder: record.clusterOrder,
+                  stages: record.stages,
+                  suggestedSources: record.suggestedSources,
+                  conceptNames: record.conceptNames,
+                  sideQuestConcepts: record.sideQuestConcepts)
     }
+
+    /// The Pack the engines run against when a caller does not name one.
+    ///
+    /// This is the seam the whole prefactor exists for. Every engine defaults
+    /// its `pack:` parameter to this, so #6 repoints **one property** at the
+    /// installed Pack instead of editing nine call sites. Until then it is the
+    /// compiled pack and nothing behaves differently.
+    static var current: ActivePack { .compiled }
 
     static func load(context: ModelContext) -> ActivePack? {
         let descriptor = FetchDescriptor<InstalledPack>(predicate: #Predicate { $0.isActive })
@@ -187,6 +211,9 @@ enum PackInstaller {
                 stages: stages,
                 suggestedSources: pack.suggestedSources,
                 conceptNames: pack.concepts.compactMap { resolved[$0.name]?.name },
+                sideQuestConcepts: pack.concepts
+                    .filter { $0.cluster == pack.specialtyCluster }
+                    .compactMap { resolved[$0.name]?.name },
                 origin: origin)
             context.insert(record)
             try context.save()

@@ -231,12 +231,22 @@ enum KnowledgePack {
         // Versioned, not one-shot: installs that seeded an older pack re-run
         // the merge (idempotent by name) and gain the new concepts/deps.
         guard UserDefaults.standard.integer(forKey: "knowledgePackVersion") < packVersion else { return }
+        seed(concepts, context: context)
+        UserDefaults.standard.set(packVersion, forKey: "knowledgePackVersion")
+    }
 
+    /// The merge itself, over whatever Pack Concepts it is handed.
+    ///
+    /// Takes its data as a parameter so the same merge can run against an
+    /// installed Pack — #6 changes what is passed, not what this does.
+    /// Idempotent by name: a Concept that already exists keeps its Mastery.
+    @MainActor
+    static func seed(_ packConcepts: [PackConcept], context: ModelContext) {
         let existing = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
         var byLowerName = Dictionary(existing.map { ($0.name.lowercased(), $0) },
                                      uniquingKeysWith: { first, _ in first })
 
-        for pack in concepts {
+        for pack in packConcepts {
             let concept: Concept
             if let found = byLowerName[pack.name.lowercased()] {
                 concept = found
@@ -257,7 +267,7 @@ enum KnowledgePack {
 
         let existingDeps = (try? context.fetch(FetchDescriptor<ConceptDependency>())) ?? []
         var depKeys = Set(existingDeps.map { "\($0.prerequisite)→\($0.dependent)" })
-        for pack in concepts {
+        for pack in packConcepts {
             for prerequisite in pack.prerequisites {
                 let key = "\(prerequisite)→\(pack.name)"
                 guard !depKeys.contains(key) else { continue }
@@ -272,6 +282,36 @@ enum KnowledgePack {
             }
         }
         try? context.save()
-        UserDefaults.standard.set(packVersion, forKey: "knowledgePackVersion")
+    }
+}
+
+// MARK: - The compiled pack as Pack data
+
+extension ActivePack {
+    /// The compiled pack, described the way an installed one is.
+    ///
+    /// This is the whole point of the prefactor: the engines stop reaching into
+    /// `KnowledgePack` and take an `ActivePack` instead, while call sites keep
+    /// handing them this one. Behaviour is unchanged until #6 passes the Pack
+    /// the reader actually installed — which becomes a change to what is
+    /// passed, not a rewrite of nine files.
+    ///
+    /// The coupling to `KnowledgePack` lives here rather than in the engines,
+    /// so deleting the compiled pack means deleting this property and its
+    /// callers, not hunting reads through the engine logic.
+    static var compiled: ActivePack {
+        ActivePack(
+            field: "AI Engineering",
+            specialtyCluster: KnowledgePack.specialtyCluster,
+            clusterOrder: KnowledgePack.clusterOrder,
+            stages: KnowledgePack.stages.map {
+                .init(title: $0.title, subtitle: $0.subtitle, concepts: $0.conceptNames)
+            },
+            suggestedSources: SeedData.defaultSources.map {
+                .init(name: $0.name, url: $0.url, category: $0.category)
+            },
+            conceptNames: KnowledgePack.concepts.map(\.name),
+            sideQuestConcepts: KnowledgePack.sideQuestConcepts
+        )
     }
 }
