@@ -1,0 +1,213 @@
+import Testing
+import Foundation
+import SwiftData
+@testable import TechPulse
+
+/// The cutover, from the returning reader's side: they open a build where the
+/// map comes from a Pack file instead of compiled Swift, and find their map
+/// exactly as they left it.
+@MainActor
+@Suite("Pack migration", .serialized)
+struct PackMigrationTests {
+
+    private func makeContext() throws -> ModelContext {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: FeedSource.self, Article.self, Concept.self,
+            LearningEvent.self, ConceptLink.self, ConceptDependency.self, InstalledPack.self,
+            configurations: config)
+        UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+        // The cache is process-global; a previous test's Pack must not leak in.
+        ActivePack.resetCache()
+        return ModelContext(container)
+    }
+
+    /// The store as it looked before Packs were data: Concepts seeded by the
+    /// compiled pack, with the reader's progress on them.
+    private func legacyInstall(_ context: ModelContext) throws {
+        KnowledgePack.seed(KnowledgePack.concepts, context: context)
+        try context.save()
+    }
+
+    private func concept(_ name: String, in context: ModelContext) throws -> Concept? {
+        try context.fetch(FetchDescriptor<Concept>()).first { $0.name == name }
+    }
+
+    // MARK: - Fresh install
+
+    @Test("a fresh install ends up on the built-in Pack with the same map as before")
+    func freshInstall() throws {
+        let context = try makeContext()
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let concepts = try context.fetch(FetchDescriptor<Concept>())
+        #expect(concepts.count == KnowledgePack.concepts.count)
+
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == "AI Engineering")
+        #expect(active.clusterOrder == KnowledgePack.clusterOrder)
+        #expect(active.sideQuestConcepts == KnowledgePack.sideQuestConcepts)
+
+        // Everything starts dim, exactly as compiled seeding left it.
+        #expect(concepts.allSatisfy { $0.masteryState == .new })
+    }
+
+    @Test("a fresh install starts with no Co-read Links — the map opens as dust until #9")
+    func freshInstallHasNoLinks() throws {
+        let context = try makeContext()
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        // Compiled seeding used to mirror every Dependency into a Co-read Link,
+        // so a brand-new map had structure. ADR-0002 forbids that — a Co-read
+        // Link records what you actually read — so installing creates none, and
+        // "related concepts" is empty until Semantic Links land in #9.
+        //
+        // This is a real regression against "behaves as the app does today",
+        // accepted deliberately rather than by oversight. ADR-0002 names
+        // Semantic Links as the fix and sets them first in the build order.
+        #expect(try context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
+        // The Dependency spine is there, so the map is not structureless.
+        #expect(try !context.fetch(FetchDescriptor<ConceptDependency>()).isEmpty)
+    }
+
+    @Test("running migration twice changes nothing")
+    func migrationIsIdempotent() throws {
+        let context = try makeContext()
+        PackMigration.ensureBuiltinInstalled(context: context)
+        let firstCount = try context.fetch(FetchDescriptor<Concept>()).count
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        #expect(try context.fetch(FetchDescriptor<Concept>()).count == firstCount)
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).filter(\.isActive).count == 1)
+    }
+
+    // MARK: - The returning reader
+
+    @Test("an existing install migrates with Mastery, Lit state and history intact")
+    func existingInstallKeepsEverything() throws {
+        let context = try makeContext()
+        try legacyInstall(context)
+
+        // The reader has been using the app: some Mastery, one Concept they
+        // marked known, and a history of reading.
+        let rag = try #require(try concept("RAG", in: context))
+        rag.masteryLevel = 0.6
+        rag.lastReviewed = .now
+        let pytorch = try #require(try concept("PyTorch", in: context))
+        pytorch.isMarkedKnown = true
+        pytorch.masteryLevel = 1.0
+        for day in 0..<3 {
+            context.insert(LearningEvent(kind: "read", conceptName: "RAG", masteryDelta: 0.1,
+                                         date: .now.addingTimeInterval(Double(-day) * 86_400)))
+        }
+        try context.save()
+        let conceptsBefore = try context.fetch(FetchDescriptor<Concept>()).count
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        // Mastery and Lit state survive.
+        let ragAfter = try #require(try concept("RAG", in: context))
+        #expect(ragAfter.masteryLevel == 0.6)
+        #expect(ragAfter.masteryState == .learning)
+        #expect(ragAfter.lastReviewed != nil)
+
+        let pytorchAfter = try #require(try concept("PyTorch", in: context))
+        #expect(pytorchAfter.isMarkedKnown)
+        #expect(pytorchAfter.masteryState == .known)
+
+        // Learning history survives untouched.
+        #expect(try context.fetch(FetchDescriptor<LearningEvent>()).count == 3)
+
+        // No twins: the Pack adopted the Concepts already there.
+        #expect(try context.fetch(FetchDescriptor<Concept>()).count == conceptsBefore)
+        #expect(ActivePack.load(context: context) != nil)
+    }
+
+    @Test("the Streak survives migration")
+    func streakSurvives() throws {
+        let context = try makeContext()
+        try legacyInstall(context)
+
+        // Three consecutive days of reading, today included. The Streak is
+        // counted off `Article.readAt`, which installing a Pack never touches.
+        for day in 0..<3 {
+            let when = Date.now.addingTimeInterval(Double(-day) * 86_400)
+            let article = Article(guid: "g\(day)", title: "t\(day)", content: "c",
+                                  publishedAt: when, sourceName: "s")
+            article.isRead = true
+            article.readAt = when
+            context.insert(article)
+        }
+        try context.save()
+        let before = HabitEngine.streakDays(
+            articles: try context.fetch(FetchDescriptor<Article>()))
+        #expect(before == 3)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let after = HabitEngine.streakDays(
+            articles: try context.fetch(FetchDescriptor<Article>()))
+        #expect(after == before)
+    }
+
+    @Test("a Concept the reader's own reading discovered survives migration")
+    func strayConceptSurvives() throws {
+        let context = try makeContext()
+        try legacyInstall(context)
+        let stray = Concept(name: "Some Article Term", category: "Vocabulary", definition: "d")
+        stray.masteryLevel = 0.4
+        context.insert(stray)
+        try context.save()
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let survivor = try #require(try concept("Some Article Term", in: context))
+        #expect(survivor.masteryLevel == 0.4)
+        // It is not part of the Pack, so it stays out of the Frontier.
+        #expect(!ActivePack.inUse.conceptNames.contains("Some Article Term"))
+    }
+
+    // MARK: - The engines now read the installed Pack
+
+    @Test("after migration the engines read the installed Pack, not the compiled one")
+    func enginesReadInstalledPack() throws {
+        let context = try makeContext()
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        // `current` is the installed Pack, not the compiled fallback.
+        let installed = try #require(ActivePack.load(context: context))
+        #expect(ActivePack.inUse.conceptNames == installed.conceptNames)
+
+        let concepts = try context.fetch(FetchDescriptor<Concept>())
+        let deps = try context.fetch(FetchDescriptor<ConceptDependency>())
+
+        // Frontier, stages and side quests all answer against it.
+        let frontier = KnowledgePathEngine.frontier(concepts: concepts, dependencies: deps)
+        #expect(!frontier.isEmpty)
+        #expect(frontier.allSatisfy(Set(installed.conceptNames).contains))
+
+        #expect(KnowledgePathEngine.stageProgress(concepts: concepts).count
+                == installed.stages.count)
+        #expect(KnowledgePathEngine.sideQuestProgress(concepts: concepts).total
+                == installed.sideQuestConcepts.count)
+    }
+
+    @Test("the Next Dot is a Concept with no unlit Dependencies, in reading order")
+    func nextDotIsSane() throws {
+        let context = try makeContext()
+        PackMigration.ensureBuiltinInstalled(context: context)
+        let concepts = try context.fetch(FetchDescriptor<Concept>())
+        let deps = try context.fetch(FetchDescriptor<ConceptDependency>())
+
+        let recommendation = try #require(
+            KnowledgePathEngine.nextDot(concepts: concepts, dependencies: deps, articles: []))
+
+        // Nothing is lit yet, so the recommendation must be a root — a Concept
+        // that depends on nothing. ADR-0004 having removed the alphabetical
+        // fallback, this is the Pack's order talking, not the alphabet.
+        let itsDependencies = deps.filter { $0.dependent == recommendation.concept.name }
+        #expect(itsDependencies.isEmpty)
+        #expect(recommendation.concept.name == KnowledgePack.stages[0].conceptNames[0])
+    }
+}

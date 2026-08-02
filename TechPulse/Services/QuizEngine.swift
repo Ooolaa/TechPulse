@@ -37,7 +37,7 @@ enum QuizEngine {
     }
 
     static func makeQuiz(for concepts: [Concept], context: ModelContext,
-                         pack: ActivePack = .current) async -> [QuizQuestion] {
+                         pack: ActivePack = .inUse) async -> [QuizQuestion] {
         let all = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
         var questions: [QuizQuestion] = []
         for concept in concepts {

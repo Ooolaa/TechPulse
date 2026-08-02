@@ -162,15 +162,12 @@ struct PackDrivenPathTests {
         #expect(progress.lit == 0)
     }
 
-    // MARK: - The default is still the compiled pack
+    // MARK: - The compiled pack still describes itself correctly
 
-    @Test("omitting the Pack still uses the compiled one, so nothing has changed yet")
-    func defaultIsCompiledPack() {
-        // The engines default to `.current`; today that is the compiled pack.
-        // #6 repoints this one property and every engine follows.
-        #expect(ActivePack.current.conceptNames == ActivePack.compiled.conceptNames)
-        #expect(ActivePack.current.clusterOrder == ActivePack.compiled.clusterOrder)
-
+    @Test("the compiled pack describes itself the way an installed one would")
+    func compiledPackIsFaithful() {
+        // `ActivePack.compiled` is now only the fallback and the equivalence
+        // fixture, but it still has to agree with what it describes.
         let compiled = ActivePack.compiled
         #expect(compiled.clusterOrder == KnowledgePack.clusterOrder)
         #expect(compiled.conceptNames == KnowledgePack.concepts.map(\.name))
@@ -178,7 +175,8 @@ struct PackDrivenPathTests {
         #expect(compiled.specialtyCluster == KnowledgePack.specialtyCluster)
         #expect(compiled.stages.map(\.title) == KnowledgePack.stages.map(\.title))
 
-        // The un-passed call and the explicitly-passed call agree.
+        // Passing it explicitly and letting it be the fallback agree.
+        ActivePack.resetCache()
         let concepts = [concept("Embeddings", "Foundations", lit: true),
                         concept("Attention", "Foundations", lit: false)]
         let deps = [ConceptDependency(prerequisite: "Embeddings", dependent: "Attention")]

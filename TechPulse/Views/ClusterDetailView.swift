@@ -39,10 +39,13 @@ struct ClusterDetailView: View {
     }
 
     private var nextConcept: Concept? {
-        let pathOrder = KnowledgePack.stages.flatMap(\.conceptNames) + KnowledgePack.sideQuestConcepts
+        let pathOrder = ActivePack.inUse.pathOrder(dependencies: dependencies)
         let localFrontier = frontierNames.intersection(clusterConcepts.map(\.name))
         guard !localFrontier.isEmpty else { return nil }
-        let name = pathOrder.first(where: localFrontier.contains) ?? localFrontier.sorted()[0]
+        // ADR-0004: reading order, never alphabetical. pathOrder covers every
+        // Pack Concept, and the Frontier holds only those, so a miss means the
+        // Concept is not part of the active Pack — not a reason to guess.
+        guard let name = pathOrder.first(where: localFrontier.contains) else { return nil }
         return clusterConcepts.first { $0.name == name }
     }
 

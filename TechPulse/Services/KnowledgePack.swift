@@ -1,8 +1,13 @@
 import Foundation
 import SwiftData
 
-/// The AI Engineer Knowledge Pack (2026): ~50 concepts in 7 clusters with
-/// dependency arrows. Seeded gray (mastery 0) — reading lights them up.
+/// The AI Engineer map as compiled Swift.
+///
+/// No longer what the app runs on: since #6 the map is installed from
+/// `Resources/Packs/ai-engineer.json`. This survives as the fixture
+/// `BuiltinPacksTests` compares that file against, so the conversion cannot
+/// silently drop content, and as `ActivePack.compiled`'s source. Delete it and
+/// you delete the only proof the two agree.
 enum KnowledgePack {
     /// Cluster display order (matches the pack's reading order).
     static let clusterOrder = [
@@ -10,22 +15,11 @@ enum KnowledgePack {
         "Inference & Infra", "Safety & Production", "On-Device AI",
     ]
 
-    /// The rolling "what the world is doing right now" lane.
-    static let hotTopicsCluster = "Hot Topics"
 
-    /// Lowercased text aliases for the Feed's 🔥 filter — matches article
-    /// text directly, so the filter works even before on-device analysis
-    /// tags concepts. Keep aliases specific enough not to false-positive.
-    static let hotTopicAliases: [String] = [
-        "ai agent", "agentic", "vibe coding", "reasoning model", "world model",
-        "synthetic data", "open-weight", "open weights", "small language model",
-        "diffusion model", "text-to-video", "video generation", "humanoid",
-        "robotics", "vision language", "multimodal",
-    ]
 
-    /// Bump when the pack gains concepts or dependencies: seeding re-runs the
-    /// (idempotent) merge on existing installs, delivering new dots with an
-    /// app update instead of stranding them behind a one-shot flag.
+    /// Historical. The live lever is `PackMigration.builtinPackVersion`; this
+    /// remains only so `seedIfNeeded` still compiles for the tests that
+    /// simulate a pre-Pack install.
     static let packVersion = 3
 
     /// The app's specialty lane, shown as a full-width card.

@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		021E288FC44CF65EFE7CBD6C /* PackMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 452EC513EA805C9E22C144DB /* PackMigration.swift */; };
 		053F38244CD10DA6ED77B640 /* FeedSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626B44DBD4047ED09444071D /* FeedSyncService.swift */; };
+		0F072B9F11A0DE69DF17EE7E /* HotTopics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A89345C4D2E92AB642D1812C /* HotTopics.swift */; };
 		113632B5A6A20C4EDE618116 /* ArticleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA7BA225FFE6F945A9104EE /* ArticleView.swift */; };
 		117C1701890EA77A9FFF1E2B /* PackDrivenPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC06445AEC3AEA0A988E1A48 /* PackDrivenPathTests.swift */; };
 		11952B7F3953AE8B946E7181 /* ConceptSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E99D5A4574651A0F930761 /* ConceptSheetView.swift */; };
@@ -26,6 +28,7 @@
 		3BD95E1A61FCB6A0870E645E /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AA05C84655EAF6E1F786B3 /* WidgetSnapshot.swift */; };
 		3C364DDB6D2D12B536FA8452 /* InstalledPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2166D44447F7648C738B4272 /* InstalledPack.swift */; };
 		3DC63038E15D9C51D29250FA /* ForceGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8587075ACC8C5B50E579FD /* ForceGraphView.swift */; };
+		3E2BEB38EB4C7B866C5D2660 /* PackMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADF59CC4F3856D6BC609022 /* PackMigrationTests.swift */; };
 		3E3CF15088A284E0EB84871C /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B90CCA674EAE8D32108CD3 /* RootTabView.swift */; };
 		453B0A7702E4A1224840AC2A /* RSSParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3888CD6831CCA2655369901B /* RSSParserTests.swift */; };
 		46FE11B0203CB7421E08B2DD /* HabitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CCF7B94959D93C993B9F598 /* HabitEngine.swift */; };
@@ -129,6 +132,7 @@
 		3622BA0341099C2B7B34C775 /* TechPulseWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TechPulseWidgetBundle.swift; sourceTree = "<group>"; };
 		366F07A6ACC8138673869DD7 /* ai-engineer.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ai-engineer.json"; sourceTree = "<group>"; };
 		3888CD6831CCA2655369901B /* RSSParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RSSParserTests.swift; sourceTree = "<group>"; };
+		452EC513EA805C9E22C144DB /* PackMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackMigration.swift; sourceTree = "<group>"; };
 		4AD1BC18D4319A7AA8A7A80A /* KnowledgeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeEngine.swift; sourceTree = "<group>"; };
 		4BB5D3C26FD8D3646C05997E /* KnowledgePack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgePack.swift; sourceTree = "<group>"; };
 		4C0794BD56A9EDCCBA857486 /* WeeklyLearningIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyLearningIntent.swift; sourceTree = "<group>"; };
@@ -151,6 +155,7 @@
 		966B6DB51F9C41FB72365B7B /* TechPulse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TechPulse.entitlements; sourceTree = "<group>"; };
 		9CCF7B94959D93C993B9F598 /* HabitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitEngine.swift; sourceTree = "<group>"; };
 		9F913F99EDEF0C8346A46BF8 /* FeedSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedSource.swift; sourceTree = "<group>"; };
+		A89345C4D2E92AB642D1812C /* HotTopics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotTopics.swift; sourceTree = "<group>"; };
 		AA24EEF0465D07C0890488BB /* BuiltinPacksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltinPacksTests.swift; sourceTree = "<group>"; };
 		B0B5916628B4441F136B85D0 /* QuizEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizEngine.swift; sourceTree = "<group>"; };
 		B2DB7FEBA756BC17F361DBE8 /* TechPulseTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TechPulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -174,6 +179,7 @@
 		F3A91E232A4865C54B96A6F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F3E99D5A4574651A0F930761 /* ConceptSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConceptSheetView.swift; sourceTree = "<group>"; };
 		F518937E357D9640AB20F567 /* KnowledgeMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapView.swift; sourceTree = "<group>"; };
+		FADF59CC4F3856D6BC609022 /* PackMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackMigrationTests.swift; sourceTree = "<group>"; };
 		FC06445AEC3AEA0A988E1A48 /* PackDrivenPathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackDrivenPathTests.swift; sourceTree = "<group>"; };
 		FC206139BB65D5F158F617F3 /* StreakWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakWidget.swift; sourceTree = "<group>"; };
 		FD06BF3A4AAACB4F2DCC8803 /* FullTextService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullTextService.swift; sourceTree = "<group>"; };
@@ -260,6 +266,7 @@
 				FC06445AEC3AEA0A988E1A48 /* PackDrivenPathTests.swift */,
 				2E37A1B81DE21F03EB89D165 /* PackFileTests.swift */,
 				EC0E3D4D133232BE13D2D895 /* PackInstallerTests.swift */,
+				FADF59CC4F3856D6BC609022 /* PackMigrationTests.swift */,
 				3888CD6831CCA2655369901B /* RSSParserTests.swift */,
 				F1C1E4844F48EA3BC9B6F3A3 /* TopicSearchTests.swift */,
 				F29ABE279F16EBD657FA2268 /* WordSelectionTests.swift */,
@@ -303,6 +310,7 @@
 				626B44DBD4047ED09444071D /* FeedSyncService.swift */,
 				FD06BF3A4AAACB4F2DCC8803 /* FullTextService.swift */,
 				9CCF7B94959D93C993B9F598 /* HabitEngine.swift */,
+				A89345C4D2E92AB642D1812C /* HotTopics.swift */,
 				EB39432F3B7A188E92A963D0 /* IntelligenceService.swift */,
 				24CB6AB829AE3904762AA2F3 /* KeychainStore.swift */,
 				4AD1BC18D4319A7AA8A7A80A /* KnowledgeEngine.swift */,
@@ -310,6 +318,7 @@
 				6AFB441714355495350731A0 /* KnowledgePathEngine.swift */,
 				D7F41B56AE8558577F90FF07 /* PackFile.swift */,
 				02C9F82D65A24E3E170F98C9 /* PackInstaller.swift */,
+				452EC513EA805C9E22C144DB /* PackMigration.swift */,
 				C026D81A3625A7A0FFB671BA /* PreviewData.swift */,
 				B0B5916628B4441F136B85D0 /* QuizEngine.swift */,
 				913AB0648317CE52447B34D6 /* RSSParser.swift */,
@@ -486,6 +495,7 @@
 				117C1701890EA77A9FFF1E2B /* PackDrivenPathTests.swift in Sources */,
 				AD3AF80B7D4B0DC6B5720FA4 /* PackFileTests.swift in Sources */,
 				B93232B2770B97869ACA2F64 /* PackInstallerTests.swift in Sources */,
+				3E2BEB38EB4C7B866C5D2660 /* PackMigrationTests.swift in Sources */,
 				453B0A7702E4A1224840AC2A /* RSSParserTests.swift in Sources */,
 				1E177F824E7AD32EE4346C8B /* TopicSearchTests.swift in Sources */,
 				F944E516BBFE88A84803266D /* WordSelectionTests.swift in Sources */,
@@ -512,6 +522,7 @@
 				2BA9F64AF3D7DFE40795F23E /* FullMapView.swift in Sources */,
 				E11F2305E68B942DCA1715B4 /* FullTextService.swift in Sources */,
 				46FE11B0203CB7421E08B2DD /* HabitEngine.swift in Sources */,
+				0F072B9F11A0DE69DF17EE7E /* HotTopics.swift in Sources */,
 				3C364DDB6D2D12B536FA8452 /* InstalledPack.swift in Sources */,
 				76300C799239920856F4869D /* IntelligenceService.swift in Sources */,
 				A12863526CABDA2078C6CC59 /* KeychainStore.swift in Sources */,
@@ -523,6 +534,7 @@
 				5CFCE9E2620A771B439CA427 /* OnboardingView.swift in Sources */,
 				9A027009EB10BC820E82765E /* PackFile.swift in Sources */,
 				1DE2B0C961EF8FA6EC20D428 /* PackInstaller.swift in Sources */,
+				021E288FC44CF65EFE7CBD6C /* PackMigration.swift in Sources */,
 				2033BEA874209872876F143A /* PreviewData.swift in Sources */,
 				787B5A057456E5A8138E7E57 /* ProgressTabView.swift in Sources */,
 				7B67654466C221D28BE47D9B /* QuizEngine.swift in Sources */,

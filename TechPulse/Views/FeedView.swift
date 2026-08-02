@@ -44,18 +44,18 @@ struct FeedView: View {
 
     private var hotConceptNames: Set<String> {
         Set(allConcepts
-            .filter { $0.category == KnowledgePack.hotTopicsCluster }
+            .filter { $0.category == HotTopics.cluster }
             .map { $0.name.lowercased() })
     }
 
     /// Hot if analysis tagged a Hot Topics concept, or the text itself
     /// mentions a hot topic (works before any analysis has run).
     private func isHot(_ article: Article) -> Bool {
-        if article.concepts.contains(where: { $0.category == KnowledgePack.hotTopicsCluster }) {
+        if article.concepts.contains(where: { $0.category == HotTopics.cluster }) {
             return true
         }
         let text = "\(article.title) \(article.summary ?? "")".lowercased()
-        return KnowledgePack.hotTopicAliases.contains(where: text.contains)
+        return HotTopics.aliases.contains(where: text.contains)
             || hotConceptNames.contains(where: text.contains)
     }
 

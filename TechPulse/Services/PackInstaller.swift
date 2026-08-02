@@ -46,13 +46,30 @@ struct ActivePack {
                   sideQuestConcepts: record.sideQuestConcepts)
     }
 
+    private static var cached: ActivePack?
+
     /// The Pack the engines run against when a caller does not name one.
     ///
-    /// This is the seam the whole prefactor exists for. Every engine defaults
-    /// its `pack:` parameter to this, so #6 repoints **one property** at the
-    /// installed Pack instead of editing nine call sites. Until then it is the
-    /// compiled pack and nothing behaves differently.
-    static var current: ActivePack { .compiled }
+    /// Cached rather than fetched per call: the engines are called from view
+    /// bodies, and a SwiftData fetch per recomputation would be paid on every
+    /// redraw. `refresh(context:)` is the only writer, called at launch and
+    /// after anything installs a Pack.
+    ///
+    /// Falls back to the compiled pack, which should be unreachable — launch
+    /// installs the built-in Pack before anything reads this. It is a net
+    /// under a first launch that failed to install, not a code path in use.
+    static var inUse: ActivePack { cached ?? .compiled }
+
+    /// Re-reads the active Pack. `PackInstaller.install` calls this, so
+    /// installing anything is enough to keep the engines current.
+    static func refresh(context: ModelContext) {
+        cached = load(context: context)
+    }
+
+    /// Drops the cache. For tests, which share one process across stores.
+    static func resetCache() {
+        cached = nil
+    }
 
     static func load(context: ModelContext) -> ActivePack? {
         let descriptor = FetchDescriptor<InstalledPack>(predicate: #Predicate { $0.isActive })
@@ -217,6 +234,9 @@ enum PackInstaller {
                 origin: origin)
             context.insert(record)
             try context.save()
+            // The engines read a cached Pack; installing one that nobody can
+            // see would be worse than not installing it.
+            ActivePack.refresh(context: context)
             return record
         } catch {
             // Never leave the live context holding a Pack that was not saved:

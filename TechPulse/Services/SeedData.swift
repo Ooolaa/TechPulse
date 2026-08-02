@@ -45,9 +45,10 @@ enum SeedData {
         }
         if changed { try? context.save() }
         seedResumeKnowledgeIfNeeded(context: context)
-        // After the resume: pack concepts merge with anything already known
-        // (Fine-Tuning, PyTorch stay green) and everything joins its cluster.
-        KnowledgePack.seedIfNeeded(context: context)
+        // After the resume: the built-in Pack installs over the top, so
+        // anything already known (Fine-Tuning, PyTorch) stays green and
+        // everything joins its Cluster. The map now comes from a Pack file.
+        PackMigration.ensureBuiltinInstalled(context: context)
     }
 
     // MARK: Resume-based knowledge base

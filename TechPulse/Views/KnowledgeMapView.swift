@@ -28,11 +28,11 @@ struct KnowledgeMapView: View {
     }
 
     private var gridStats: [KnowledgePathEngine.ClusterStats] {
-        stats.filter { $0.name != KnowledgePack.specialtyCluster }
+        stats.filter { $0.name != ActivePack.inUse.specialtyCluster }
     }
 
     private var specialty: KnowledgePathEngine.ClusterStats? {
-        stats.first { $0.name == KnowledgePack.specialtyCluster }
+        stats.first { $0.name == ActivePack.inUse.specialtyCluster }
     }
 
     var body: some View {

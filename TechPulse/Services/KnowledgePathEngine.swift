@@ -20,7 +20,7 @@ enum KnowledgePathEngine {
 
     /// Pack clusters in reading order, then any extra categories (resume, articles).
     static func clusterStats(concepts: [Concept],
-                             pack: ActivePack = .current) -> [ClusterStats] {
+                             pack: ActivePack = .inUse) -> [ClusterStats] {
         let grouped = Dictionary(grouping: concepts, by: \.category)
         let packNames = pack.clusterOrder
         let extraNames = grouped.keys.filter { !packNames.contains($0) }.sorted()
@@ -32,7 +32,7 @@ enum KnowledgePathEngine {
     }
 
     /// The cluster holding you back: lowest completion among pack clusters.
-    static func gapCluster(concepts: [Concept], pack: ActivePack = .current) -> String? {
+    static func gapCluster(concepts: [Concept], pack: ActivePack = .inUse) -> String? {
         clusterStats(concepts: concepts, pack: pack)
             .filter { pack.clusterOrder.contains($0.name) && $0.ratio < 1 }
             .min { $0.ratio < $1.ratio }?.name
@@ -43,7 +43,7 @@ enum KnowledgePathEngine {
     /// stray article-extracted concepts have no dependency structure and would
     /// otherwise all count as "ready", flooding recommendations with noise.
     static func frontier(concepts: [Concept], dependencies: [ConceptDependency],
-                         pack: ActivePack = .current) -> Set<String> {
+                         pack: ActivePack = .inUse) -> Set<String> {
         let packNames = Set(pack.conceptNames)
         let litNames = Set(concepts.filter(isLit).map(\.name))
         let prereqsByDependent = Dictionary(grouping: dependencies, by: \.dependent)
@@ -68,19 +68,17 @@ enum KnowledgePathEngine {
     /// order, with its lit prerequisites and the cached articles that mention it.
     static func nextDot(concepts: [Concept], dependencies: [ConceptDependency],
                         articles: [Article],
-                        pack: ActivePack = .current) -> Recommendation? {
+                        pack: ActivePack = .inUse) -> Recommendation? {
         let frontierNames = frontier(concepts: concepts, dependencies: dependencies, pack: pack)
         guard !frontierNames.isEmpty else { return nil }
 
-        // Deliberately still the old expression, not `pack.pathOrder(dependencies:)`.
-        // ADR-0004's version sorts the unstaged tail topologically, which for the
-        // compiled pack orders the side quests differently from the authored list
-        // — a behaviour change, and #17 is a prefactor. #6 swaps this line for the
-        // ADR-0004 call and deletes the twin in ClusterDetailView.
-        let pathOrder = pack.stages.flatMap(\.concepts) + pack.sideQuestConcepts
-        let orderedName = pathOrder.first(where: frontierNames.contains)
-            ?? frontierNames.sorted().first!
-        guard let concept = concepts.first(where: { $0.name == orderedName }) else { return nil }
+        // ADR-0004: authored Stages first, then the rest in Dependency order.
+        // Alphabetical is gone — it recommended the deepest Concept as readily
+        // as the first one.
+        let pathOrder = pack.pathOrder(dependencies: dependencies)
+        guard let orderedName = pathOrder.first(where: frontierNames.contains),
+              let concept = concepts.first(where: { $0.name == orderedName })
+        else { return nil }
 
         let litNames = Set(concepts.filter(isLit).map(\.name))
         let prereqs = dependencies.filter { $0.dependent == concept.name }
@@ -119,7 +117,7 @@ enum KnowledgePathEngine {
     /// Learning path (design 4d): per-stage completion; "you are here" is the
     /// first incomplete stage.
     static func stageProgress(concepts: [Concept],
-                              pack: ActivePack = .current) -> [StageProgress] {
+                              pack: ActivePack = .inUse) -> [StageProgress] {
         let byName = Dictionary(concepts.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         return pack.stages.map { stage in
             let members = stage.concepts.compactMap { byName[$0] }
@@ -130,7 +128,7 @@ enum KnowledgePathEngine {
     }
 
     static func sideQuestProgress(concepts: [Concept],
-                                  pack: ActivePack = .current) -> (lit: Int, total: Int) {
+                                  pack: ActivePack = .inUse) -> (lit: Int, total: Int) {
         let byName = Dictionary(concepts.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         let members = pack.sideQuestConcepts.compactMap { byName[$0] }
         return (members.filter(isLit).count, pack.sideQuestConcepts.count)
