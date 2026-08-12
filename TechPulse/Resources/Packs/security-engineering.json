@@ -1,0 +1,629 @@
+{
+  "clusterOrder" : [
+    "Foundations",
+    "Web & AppSec",
+    "Offensive Security",
+    "Detection & Response",
+    "Cloud & Infrastructure",
+    "Governance & Risk",
+    "AI Security"
+  ],
+  "concepts" : [
+    {
+      "cluster" : "Foundations",
+      "definition" : "Working out what can go wrong before you build it, not after.",
+      "dependencies" : [
+
+      ],
+      "name" : "Threat Modeling"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "One-way fingerprints: the same input always gives the same digest, and there is no way back.",
+      "dependencies" : [
+
+      ],
+      "name" : "Cryptographic Hashing"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "One shared key both locks and unlocks — fast, and only as safe as the key.",
+      "dependencies" : [
+
+      ],
+      "name" : "Symmetric Encryption"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Two keys, one of them public: how strangers agree on a secret in the open.",
+      "dependencies" : [
+        "Symmetric Encryption"
+      ],
+      "name" : "Public-Key Cryptography"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "How a browser gets a private, authenticated channel to a server it has never met.",
+      "dependencies" : [
+        "Public-Key Cryptography"
+      ],
+      "name" : "TLS & Certificates"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Establishing who is making the request — passwords, passkeys, MFA.",
+      "dependencies" : [
+        "Cryptographic Hashing"
+      ],
+      "name" : "Authentication"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Salted, deliberately slow hashes: the difference between a breach and a catastrophe.",
+      "dependencies" : [
+        "Cryptographic Hashing",
+        "Authentication"
+      ],
+      "name" : "Password Storage"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "What an authenticated identity is allowed to do once it is through the door.",
+      "dependencies" : [
+        "Authentication"
+      ],
+      "name" : "Authorization"
+    },
+    {
+      "cluster" : "Foundations",
+      "definition" : "Every account and process gets the smallest set of rights that still works.",
+      "dependencies" : [
+        "Authorization"
+      ],
+      "name" : "Least Privilege"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "The field's shared list of the ways web applications actually get broken.",
+      "dependencies" : [
+        "Threat Modeling"
+      ],
+      "name" : "OWASP Top Ten"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "Cookies, tokens and expiry — where a login is kept after the password is gone.",
+      "dependencies" : [
+        "Authentication"
+      ],
+      "name" : "Session Management"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "Untrusted input reaching the database as code rather than as data.",
+      "dependencies" : [
+        "OWASP Top Ten"
+      ],
+      "name" : "SQL Injection"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "Attacker script running in your user's browser with your site's privileges.",
+      "dependencies" : [
+        "OWASP Top Ten"
+      ],
+      "name" : "Cross-Site Scripting"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "Another site making your user's already-authenticated browser act on your behalf.",
+      "dependencies" : [
+        "OWASP Top Ten",
+        "Session Management"
+      ],
+      "name" : "Cross-Site Request Forgery"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "Persuading the server to fetch a URL the attacker chose, from inside your network.",
+      "dependencies" : [
+        "OWASP Top Ten"
+      ],
+      "name" : "Server-Side Request Forgery"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "The browser rule that keeps sites apart, and the header that relaxes it on purpose.",
+      "dependencies" : [
+        "Session Management"
+      ],
+      "name" : "Same-Origin Policy & CORS"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "Telling the browser exactly what it is allowed to load and run.",
+      "dependencies" : [
+        "Cross-Site Scripting"
+      ],
+      "name" : "Content Security Policy"
+    },
+    {
+      "cluster" : "Web & AppSec",
+      "definition" : "Decide what is acceptable on the way in; escape it for its destination on the way out.",
+      "dependencies" : [
+        "SQL Injection",
+        "Cross-Site Scripting"
+      ],
+      "name" : "Input Validation & Output Encoding"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "Mapping a target's attack surface before touching any of it.",
+      "dependencies" : [
+        "Threat Modeling"
+      ],
+      "name" : "Reconnaissance"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "Attacking the human layer — phishing is still how most intrusions start.",
+      "dependencies" : [
+        "Reconnaissance"
+      ],
+      "name" : "Social Engineering"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "Automated sweeps for known weaknesses: breadth, not depth.",
+      "dependencies" : [
+        "Reconnaissance"
+      ],
+      "name" : "Vulnerability Scanning"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "A scoped, authorized attempt to actually get in, and a report of how.",
+      "dependencies" : [
+        "Vulnerability Scanning"
+      ],
+      "name" : "Penetration Testing"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "Buffer overflows and use-after-free: what happens when code trusts a length.",
+      "dependencies" : [
+
+      ],
+      "name" : "Memory Corruption"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "Throwing malformed input at software until it misbehaves, then keeping the input that did.",
+      "dependencies" : [
+        "Memory Corruption"
+      ],
+      "name" : "Fuzzing"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "Turning a crash into controlled execution.",
+      "dependencies" : [
+        "Memory Corruption",
+        "Fuzzing"
+      ],
+      "name" : "Exploit Development"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "Turning the foothold you have into the access you wanted.",
+      "dependencies" : [
+        "Least Privilege",
+        "Penetration Testing"
+      ],
+      "name" : "Privilege Escalation"
+    },
+    {
+      "cluster" : "Offensive Security",
+      "definition" : "An adversarial exercise against the whole organization, defenders included.",
+      "dependencies" : [
+        "Penetration Testing",
+        "Social Engineering"
+      ],
+      "name" : "Red-Teaming"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "You can only detect what something bothered to record.",
+      "dependencies" : [
+
+      ],
+      "name" : "Logging & Telemetry"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "Seeing what a running system is doing from the outside, without shipping a new build.",
+      "dependencies" : [
+        "Logging & Telemetry"
+      ],
+      "name" : "Observability"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "A shared vocabulary for what attackers actually do, technique by technique.",
+      "dependencies" : [
+
+      ],
+      "name" : "MITRE ATT&CK"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "One place every log lands, where rules and queries run across all of it.",
+      "dependencies" : [
+        "Logging & Telemetry"
+      ],
+      "name" : "SIEM"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "Knowing which adversaries are aimed at you, and how they operate.",
+      "dependencies" : [
+        "MITRE ATT&CK"
+      ],
+      "name" : "Threat Intelligence"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "Writing and tuning the rules that turn telemetry into alerts worth waking someone for.",
+      "dependencies" : [
+        "SIEM",
+        "MITRE ATT&CK"
+      ],
+      "name" : "Detection Engineering"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "The rehearsed sequence from alert to containment to recovery.",
+      "dependencies" : [
+        "Detection Engineering"
+      ],
+      "name" : "Incident Response"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "Reconstructing what happened from disk, memory and logs the attacker left behind.",
+      "dependencies" : [
+        "Incident Response"
+      ],
+      "name" : "Digital Forensics"
+    },
+    {
+      "cluster" : "Detection & Response",
+      "definition" : "Static and dynamic examination of hostile code to learn what it does.",
+      "dependencies" : [
+        "Digital Forensics"
+      ],
+      "name" : "Malware Analysis"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "Cloud accounts, roles and policies — identity is the perimeter now.",
+      "dependencies" : [
+        "Authorization"
+      ],
+      "name" : "Identity & Access Management"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "Blast-radius control: a breach in one segment does not reach the rest.",
+      "dependencies" : [
+        "Least Privilege"
+      ],
+      "name" : "Network Segmentation"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "No network location is trusted; every request authenticates and authorizes on its own.",
+      "dependencies" : [
+        "Identity & Access Management",
+        "Network Segmentation"
+      ],
+      "name" : "Zero Trust"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "Keys and tokens out of source control and into something that can rotate them.",
+      "dependencies" : [
+        "Identity & Access Management"
+      ],
+      "name" : "Secrets Management"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "What is inside the image, where it came from, and what the runtime can reach.",
+      "dependencies" : [
+        "Least Privilege"
+      ],
+      "name" : "Container Security"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "RBAC, network policy and admission control on a cluster that will schedule anything.",
+      "dependencies" : [
+        "Container Security",
+        "Identity & Access Management"
+      ],
+      "name" : "Kubernetes Security"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "Reviewing infrastructure the way you review code — before any of it exists.",
+      "dependencies" : [
+        "Container Security"
+      ],
+      "name" : "Infrastructure as Code Security"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "Everything you did not write but ship anyway: dependencies, images, build systems.",
+      "dependencies" : [
+        "Infrastructure as Code Security"
+      ],
+      "name" : "Supply Chain Security"
+    },
+    {
+      "cluster" : "Cloud & Infrastructure",
+      "definition" : "A bill of materials for software, so “are we affected?” has an answer today.",
+      "dependencies" : [
+        "Supply Chain Security"
+      ],
+      "name" : "SBOM"
+    },
+    {
+      "cluster" : "Governance & Risk",
+      "definition" : "Ranking what to fix by what it would actually cost you.",
+      "dependencies" : [
+        "Threat Modeling"
+      ],
+      "name" : "Risk Assessment"
+    },
+    {
+      "cluster" : "Governance & Risk",
+      "definition" : "The loop from discovery to patch, with owners and dates attached.",
+      "dependencies" : [
+        "Vulnerability Scanning",
+        "Risk Assessment"
+      ],
+      "name" : "Vulnerability Management"
+    },
+    {
+      "cluster" : "Governance & Risk",
+      "definition" : "The shared identifier for a known flaw, and the score everyone argues about.",
+      "dependencies" : [
+        "Vulnerability Management"
+      ],
+      "name" : "CVE & CVSS"
+    },
+    {
+      "cluster" : "Governance & Risk",
+      "definition" : "SOC 2, ISO 27001, PCI DSS — controls somebody else will audit you against.",
+      "dependencies" : [
+        "Risk Assessment"
+      ],
+      "name" : "Compliance Frameworks"
+    },
+    {
+      "cluster" : "Governance & Risk",
+      "definition" : "Obligations to collect less, keep it shorter, and guard what is left.",
+      "dependencies" : [
+        "Compliance Frameworks"
+      ],
+      "name" : "Privacy & Data Protection"
+    },
+    {
+      "cluster" : "AI Security",
+      "definition" : "Untrusted text reaching a model that can act: injection, for the LLM era.",
+      "dependencies" : [
+        "Input Validation & Output Encoding"
+      ],
+      "name" : "Prompt Injection Defense"
+    },
+    {
+      "cluster" : "AI Security",
+      "definition" : "Policy checks around a model's inputs and outputs, outside the model itself.",
+      "dependencies" : [
+        "Prompt Injection Defense"
+      ],
+      "name" : "Guardrails"
+    },
+    {
+      "cluster" : "AI Security",
+      "definition" : "Inputs perturbed just enough to flip a model's answer while looking unchanged.",
+      "dependencies" : [
+
+      ],
+      "name" : "Adversarial Examples"
+    },
+    {
+      "cluster" : "AI Security",
+      "definition" : "Corrupting training data so the model learns the attacker's rule as if it were yours.",
+      "dependencies" : [
+
+      ],
+      "name" : "Data Poisoning"
+    },
+    {
+      "cluster" : "AI Security",
+      "definition" : "Rebuilding a model you do not own, one query at a time.",
+      "dependencies" : [
+
+      ],
+      "name" : "Model Extraction"
+    },
+    {
+      "cluster" : "AI Security",
+      "definition" : "Weights, datasets and inference stacks you did not build and cannot fully inspect.",
+      "dependencies" : [
+        "Supply Chain Security"
+      ],
+      "name" : "AI Supply Chain"
+    }
+  ],
+  "field" : "Security Engineering",
+  "formatVersion" : 1,
+  "specialtyCluster" : "AI Security",
+  "stages" : [
+    {
+      "concepts" : [
+        "Threat Modeling",
+        "Cryptographic Hashing",
+        "Symmetric Encryption",
+        "Public-Key Cryptography",
+        "TLS & Certificates",
+        "Authentication",
+        "Password Storage",
+        "Authorization",
+        "Least Privilege"
+      ],
+      "subtitle" : "Crypto, identity and least privilege",
+      "title" : "Stage 1 · Security foundations"
+    },
+    {
+      "concepts" : [
+        "OWASP Top Ten",
+        "Session Management",
+        "SQL Injection",
+        "Cross-Site Scripting",
+        "Cross-Site Request Forgery",
+        "Server-Side Request Forgery",
+        "Same-Origin Policy & CORS",
+        "Content Security Policy",
+        "Input Validation & Output Encoding"
+      ],
+      "subtitle" : "The OWASP classics, and the fixes",
+      "title" : "Stage 2 · Breaking web apps"
+    },
+    {
+      "concepts" : [
+        "Reconnaissance",
+        "Social Engineering",
+        "Vulnerability Scanning",
+        "Penetration Testing",
+        "Memory Corruption",
+        "Fuzzing",
+        "Exploit Development",
+        "Privilege Escalation",
+        "Red-Teaming"
+      ],
+      "subtitle" : "Recon through exploitation, with permission",
+      "title" : "Stage 3 · Offense"
+    },
+    {
+      "concepts" : [
+        "Logging & Telemetry",
+        "Observability",
+        "MITRE ATT&CK",
+        "SIEM",
+        "Threat Intelligence",
+        "Detection Engineering",
+        "Incident Response",
+        "Digital Forensics",
+        "Malware Analysis"
+      ],
+      "subtitle" : "Telemetry, alerts, and the day it happens",
+      "title" : "Stage 4 · Detection and response"
+    },
+    {
+      "concepts" : [
+        "Identity & Access Management",
+        "Network Segmentation",
+        "Zero Trust",
+        "Secrets Management",
+        "Container Security",
+        "Kubernetes Security",
+        "Infrastructure as Code Security",
+        "Supply Chain Security",
+        "SBOM"
+      ],
+      "subtitle" : "Identity as the perimeter, and what you ship",
+      "title" : "Stage 5 · Cloud and supply chain"
+    },
+    {
+      "concepts" : [
+        "Risk Assessment",
+        "Vulnerability Management",
+        "CVE & CVSS",
+        "Compliance Frameworks",
+        "Privacy & Data Protection"
+      ],
+      "subtitle" : "Ranking, patching and proving it",
+      "title" : "Stage 6 · Risk and the business"
+    }
+  ],
+  "suggestedSources" : [
+    {
+      "category" : "Research",
+      "name" : "arXiv cs.CR",
+      "url" : "https://export.arxiv.org/rss/cs.CR"
+    },
+    {
+      "category" : "Research",
+      "name" : "Google Project Zero",
+      "url" : "https://googleprojectzero.blogspot.com/feeds/posts/default"
+    },
+    {
+      "category" : "Research",
+      "name" : "Google Online Security Blog",
+      "url" : "https://security.googleblog.com/feeds/posts/default"
+    },
+    {
+      "category" : "Research",
+      "name" : "Trail of Bits Blog",
+      "url" : "https://blog.trailofbits.com/feed/"
+    },
+    {
+      "category" : "AppSec",
+      "name" : "PortSwigger Research",
+      "url" : "https://portswigger.net/research/rss"
+    },
+    {
+      "category" : "AppSec",
+      "name" : "Zero Day Initiative",
+      "url" : "https://www.zerodayinitiative.com/blog?format=rss"
+    },
+    {
+      "category" : "Industry",
+      "name" : "Krebs on Security",
+      "url" : "https://krebsonsecurity.com/feed/"
+    },
+    {
+      "category" : "Industry",
+      "name" : "Schneier on Security",
+      "url" : "https://www.schneier.com/feed/atom/"
+    },
+    {
+      "category" : "Industry",
+      "name" : "The Record",
+      "url" : "https://therecord.media/feed/"
+    },
+    {
+      "category" : "Industry",
+      "name" : "The Hacker News",
+      "url" : "https://feeds.feedburner.com/TheHackersNews"
+    },
+    {
+      "category" : "Threat Intel",
+      "name" : "SANS Internet Storm Center",
+      "url" : "https://isc.sans.edu/rssfeed_full.xml"
+    },
+    {
+      "category" : "Threat Intel",
+      "name" : "Rapid7 Blog",
+      "url" : "https://www.rapid7.com/blog/rss/"
+    },
+    {
+      "category" : "Advisories",
+      "name" : "CISA Advisories",
+      "url" : "https://www.cisa.gov/cybersecurity-advisories/all.xml"
+    }
+  ]
+}

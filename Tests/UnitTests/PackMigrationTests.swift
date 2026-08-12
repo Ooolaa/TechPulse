@@ -168,6 +168,42 @@ struct PackMigrationTests {
         #expect(!ActivePack.inUse.conceptNames.contains("Some Article Term"))
     }
 
+    // MARK: - A Pack the reader chose
+
+    @Test("launch leaves a Pack the reader chose alone, even when the built-in moves on")
+    func chosenPackSurvivesLaunch() throws {
+        let context = try makeContext()
+        let chosen = try BuiltinPacks.load(BuiltinPacks.securityEngineeringFileName)
+        try PackInstaller.install(chosen, origin: .imported, context: context)
+        // As if the app had shipped a new version of its built-in Pack.
+        UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        // The flagship must not have installed itself over the reader's choice.
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == chosen.field)
+        #expect(active.origin == .imported)
+        #expect(try context.fetch(FetchDescriptor<Concept>()).count == chosen.concepts.count)
+    }
+
+    @Test("the built-in Pack that gets refreshed is the one the reader is actually on")
+    func refreshFollowsTheActiveBuiltin() throws {
+        let context = try makeContext()
+        let chosen = try BuiltinPacks.load(BuiltinPacks.securityEngineeringFileName)
+        try PackInstaller.install(chosen, origin: .builtin, context: context)
+        UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        #expect(ActivePack.load(context: context)?.field == chosen.field)
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).filter(\.isActive).count == 1)
+        // Refreshed from its file rather than skipped: the version is recorded,
+        // so the next launch has nothing to do.
+        #expect(UserDefaults.standard.integer(forKey: "builtinPackVersion")
+                == PackMigration.builtinPackVersion)
+    }
+
     // MARK: - The engines now read the installed Pack
 
     @Test("after migration the engines read the installed Pack, not the compiled one")

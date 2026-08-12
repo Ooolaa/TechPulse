@@ -305,7 +305,8 @@ extension ActivePack {
                 .init(name: $0.name, url: $0.url, category: $0.category)
             },
             conceptNames: KnowledgePack.concepts.map(\.name),
-            sideQuestConcepts: KnowledgePack.sideQuestConcepts
+            sideQuestConcepts: KnowledgePack.sideQuestConcepts,
+            origin: .builtin
         )
     }
 }

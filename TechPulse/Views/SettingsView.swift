@@ -3,6 +3,7 @@ import SwiftData
 
 struct SettingsView: View {
     @Query(sort: \FeedSource.name) private var sources: [FeedSource]
+    @Query(filter: #Predicate<InstalledPack> { $0.isActive }) private var activePacks: [InstalledPack]
     @Environment(\.modelContext) private var modelContext
     @State private var isSyncing = false
     @AppStorage("articleTextSize") private var textSize = "Medium"
@@ -13,6 +14,10 @@ struct SettingsView: View {
     private var lastSynced: Date? {
         sources.compactMap(\.lastFetched).max()
     }
+
+    /// The Pack the map is of, named here so the reader can see it without
+    /// opening the chooser.
+    private var activePack: InstalledPack? { activePacks.first }
 
     /// SwiftData store size on disk (design 2f "Storage used").
     private var storageUsed: String {
@@ -30,6 +35,18 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    NavigationLink {
+                        PackLibraryView()
+                    } label: {
+                        LabeledContent("Pack", value: activePack?.field ?? "None")
+                    }
+                    .accessibilityIdentifier("packRow")
+                } header: {
+                    SettingsHeader("Map")
+                } footer: {
+                    Text("The Pack is the field your map covers. Switch to another built-in Pack, or import one you were given — what you have learned comes with you.")
+                }
                 ForEach(grouped, id: \.category) { group in
                     Section {
                         ForEach(group.sources) { source in

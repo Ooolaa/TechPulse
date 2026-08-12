@@ -180,6 +180,98 @@ final class TechPulseUITests: XCTestCase {
         snap(app, "9b-settings-footers")
     }
 
+    /// Choosing what the map covers: see the active Pack, switch to the other
+    /// built-in one, take up its suggested Sources, and switch back.
+    ///
+    /// Runs after the core journey, so the app already has a map; it ends on
+    /// the Pack it started on so it leaves nothing behind for the next test.
+    func testPackSelectionJourney() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-hasOnboarded", "YES"]
+        app.launch()
+
+        app.buttons["Settings"].tap()
+        let packRow = app.buttons["packRow"].firstMatch
+        XCTAssertTrue(packRow.waitForExistence(timeout: 10), "Settings has no Pack row")
+        snap(app, "10-settings-pack-row")
+        packRow.tap()
+        sleep(1)
+        snap(app, "10a-pack-library")
+
+        // Both built-in Packs are on offer, and one of them is marked active.
+        let builtins = app.buttons.matching(identifier: "builtinPack")
+        XCTAssertTrue(builtins.element(boundBy: 0).waitForExistence(timeout: 5),
+                      "no built-in packs listed")
+        XCTAssertGreaterThan(builtins.count, 1, "only one built-in pack to choose from")
+        XCTAssertTrue(app.staticTexts["AI Engineering"].firstMatch.exists,
+                      "the active Pack is not named")
+
+        // Importing: the entry point opens the system file picker. What a bad
+        // file does is covered by unit tests; this only proves the door opens.
+        app.buttons["importPack"].firstMatch.tap()
+        sleep(2)
+        snap(app, "10b-import-picker")
+        let cancel = app.buttons["Cancel"].firstMatch
+        if cancel.waitForExistence(timeout: 3) {
+            cancel.tap()
+        } else {
+            app.swipeDown(velocity: .fast)
+        }
+        sleep(1)
+
+        // Switch to the other built-in Pack: its suggested Sources are offered.
+        // The offer is only ever the Sources the reader has not got, so on a
+        // simulator that ran this journey before there is nothing left to
+        // offer — the end state is asserted below either way.
+        builtins.element(boundBy: 1).tap()
+        sleep(2)
+        let accept = app.buttons["acceptSources"].firstMatch
+        if accept.waitForExistence(timeout: 5) {
+            snap(app, "10c-source-offer")
+            accept.tap()
+            sleep(2)
+        }
+
+        // The map is now the other Pack's.
+        XCTAssertTrue(app.staticTexts["Security Engineering"].firstMatch
+            .waitForExistence(timeout: 5), "the Pack did not switch")
+        snap(app, "10d-pack-switched")
+
+        app.navigationBars.buttons.firstMatch.tap()   // back to Settings
+        sleep(1)
+        app.buttons["Knowledge"].tap()
+        sleep(2)
+        snap(app, "10e-knowledge-after-switch")
+
+        // Switch back, so the flagship Pack is what the next launch opens on.
+        app.buttons["Settings"].tap()
+        packRow.tap()
+        sleep(1)
+        app.buttons.matching(identifier: "builtinPack").element(boundBy: 0).tap()
+        sleep(2)
+        if app.buttons["declineSources"].firstMatch.exists {
+            app.buttons["declineSources"].firstMatch.tap()
+            sleep(1)
+        }
+        XCTAssertTrue(app.staticTexts["AI Engineering"].firstMatch
+            .waitForExistence(timeout: 5), "switching back did not restore the flagship Pack")
+        snap(app, "10f-pack-switched-back")
+
+        // The Security Pack's suggestions are now the reader's own Sources,
+        // and they survived switching back — a Source is chosen, not owned by
+        // the Pack that suggested it.
+        app.navigationBars.buttons.firstMatch.tap()   // back to Settings
+        sleep(1)
+        let fromPack = app.staticTexts["Krebs on Security"].firstMatch
+        var scrolls = 0
+        while !fromPack.exists, scrolls < 10 {
+            app.swipeUp()
+            scrolls += 1
+        }
+        XCTAssertTrue(fromPack.exists, "the Pack's suggested Sources never reached Settings")
+        snap(app, "10g-sources-from-pack")
+    }
+
     /// Usability guards: every tab reachable, primary controls hittable.
     func testTabsAndTargets() throws {
         let app = XCUIApplication()

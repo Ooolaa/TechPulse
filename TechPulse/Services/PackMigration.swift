@@ -14,7 +14,7 @@ enum PackMigration {
 
     /// Ensures the reader has an active Pack.
     ///
-    /// Runs on every launch and is idempotent. Three cases, one code path:
+    /// Runs on every launch and is idempotent. Three cases:
     ///
     /// - **Fresh install** — no Concepts, no Pack. Installing creates the map.
     /// - **Existing install from before Packs were data** — Concepts exist with
@@ -25,24 +25,37 @@ enum PackMigration {
     ///   touched, so history and Streak survive untouched.
     /// - **Already migrated** — an active Pack of the current version. Nothing
     ///   happens.
+    ///
+    /// A reader who chose a Pack of their own keeps it. Launch only ever
+    /// refreshes the built-in Pack they are actually on: replacing a chosen
+    /// Pack with the flagship because the flagship's file moved on would take
+    /// the map out from under them.
     static func ensureBuiltinInstalled(context: ModelContext) {
         // `install` refreshes, but the common launch installs nothing at all
         // and must still end up with the engines pointed at the stored Pack.
         defer { ActivePack.refresh(context: context) }
 
-        let installed = UserDefaults.standard.integer(forKey: installedVersionKey)
-        let hasActivePack = ActivePack.load(context: context) != nil
-        guard !hasActivePack || installed < builtinPackVersion else { return }
-
         do {
-            try PackInstaller.install(try BuiltinPacks.aiEngineer(),
-                                      origin: "builtin", context: context)
-            UserDefaults.standard.set(builtinPackVersion, forKey: installedVersionKey)
+            guard let active = ActivePack.load(context: context) else {
+                return try install(BuiltinPacks.aiEngineer(), context: context)
+            }
+            // Only the built-in Pack the reader is on is refreshed, and a
+            // built-in is found by its field: two of them never cover one.
+            let installed = UserDefaults.standard.integer(forKey: installedVersionKey)
+            guard installed < builtinPackVersion, active.origin == .builtin,
+                  let current = BuiltinPacks.all.first(where: { $0.pack.field == active.field })
+            else { return }
+            try install(current.pack, context: context)
         } catch {
             // A broken built-in Pack is a broken build, but crashing a
             // returning reader's launch over it would be worse than opening
             // on the map they already have.
             assertionFailure("built-in pack failed to install: \(error)")
         }
+    }
+
+    private static func install(_ pack: PackFile, context: ModelContext) throws {
+        try PackInstaller.install(pack, origin: .builtin, context: context)
+        UserDefaults.standard.set(builtinPackVersion, forKey: installedVersionKey)
     }
 }

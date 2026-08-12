@@ -1,8 +1,8 @@
 import SwiftUI
 import SwiftData
 
-/// Knowledge tab (design 4a): the map of a professional AI engineer as
-/// cluster cards — lit vs dim — with a GAP badge and the specialty lane.
+/// Knowledge tab (design 4a): the active Pack's field as cluster cards —
+/// lit vs dim — with a GAP badge and the specialty lane.
 struct KnowledgeMapView: View {
     @Query private var concepts: [Concept]
     @State private var searchText = ""
@@ -52,7 +52,9 @@ struct KnowledgeMapView: View {
                             .background(Theme.card, in: Capsule())
                             .overlay(Capsule().strokeBorder(Theme.cardBorder, lineWidth: 1))
                     }
-                    Text("The map of a professional AI engineer. Light it up.")
+                    // Named from the active Pack: the reader can switch fields,
+                    // and the map must say which one it is drawing.
+                    Text("The map of \(ActivePack.inUse.field). Light it up.")
                         .font(.system(size: 12.5))
                         .foregroundStyle(Theme.textTertiary)
                         .padding(.top, 4)

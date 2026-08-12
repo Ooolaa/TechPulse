@@ -1,6 +1,24 @@
 import SwiftData
 import Foundation
 
+/// Where a Pack came from, and what the reader is told about it.
+///
+/// Stored as its raw value rather than as itself, because the store predates
+/// this type and a record written by an older build must still read.
+enum PackOrigin: String, Codable, Sendable, CaseIterable {
+    case builtin
+    case generated
+    case imported
+
+    var label: String {
+        switch self {
+        case .builtin: "Built-in"
+        case .generated: "Generated"
+        case .imported: "Imported"
+        }
+    }
+}
+
 /// A Pack that has been installed, remembered across launches.
 ///
 /// The Concepts, Dependencies and Sources a Pack creates live in their own
@@ -25,14 +43,18 @@ final class InstalledPack {
     /// rather than recomputed, because it needs each Concept's Cluster and the
     /// record does not carry those.
     var sideQuestConcepts: [String] = []
-    /// Where the Pack came from: "builtin", "generated" or "imported".
+    /// Where the Pack came from, as a `PackOrigin` raw value.
     var origin: String
     var isActive: Bool
     var installedAt: Date
 
+    /// The Pack's origin, or `.imported` for a raw value no build understands
+    /// — an unknown origin is at least not the app's own.
+    var packOrigin: PackOrigin { PackOrigin(rawValue: origin) ?? .imported }
+
     init(field: String, specialtyCluster: String?, clusterOrder: [String],
          stages: [PackFile.PackStage], suggestedSources: [PackFile.PackSource],
-         conceptNames: [String], sideQuestConcepts: [String], origin: String) {
+         conceptNames: [String], sideQuestConcepts: [String], origin: PackOrigin) {
         self.field = field
         self.specialtyCluster = specialtyCluster
         self.clusterOrder = clusterOrder
@@ -40,7 +62,7 @@ final class InstalledPack {
         self.suggestedSourcesData = (try? JSONEncoder().encode(suggestedSources)) ?? Data()
         self.conceptNames = conceptNames
         self.sideQuestConcepts = sideQuestConcepts
-        self.origin = origin
+        self.origin = origin.rawValue
         self.isActive = true
         self.installedAt = .now
     }

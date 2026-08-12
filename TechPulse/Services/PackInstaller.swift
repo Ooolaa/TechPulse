@@ -23,10 +23,14 @@ struct ActivePack {
     /// The specialty Cluster's Concepts, in authored order — the "side quest"
     /// lane, reported separately from the staged path.
     let sideQuestConcepts: [String]
+    /// Where this Pack came from. The reader is told, and launch uses it to
+    /// leave a Pack they chose themselves alone.
+    let origin: PackOrigin
 
     init(field: String, specialtyCluster: String?, clusterOrder: [String],
          stages: [PackFile.PackStage], suggestedSources: [PackFile.PackSource],
-         conceptNames: [String], sideQuestConcepts: [String]) {
+         conceptNames: [String], sideQuestConcepts: [String],
+         origin: PackOrigin) {
         self.field = field
         self.specialtyCluster = specialtyCluster
         self.clusterOrder = clusterOrder
@@ -34,6 +38,7 @@ struct ActivePack {
         self.suggestedSources = suggestedSources
         self.conceptNames = conceptNames
         self.sideQuestConcepts = sideQuestConcepts
+        self.origin = origin
     }
 
     init(record: InstalledPack) {
@@ -43,7 +48,8 @@ struct ActivePack {
                   stages: record.stages,
                   suggestedSources: record.suggestedSources,
                   conceptNames: record.conceptNames,
-                  sideQuestConcepts: record.sideQuestConcepts)
+                  sideQuestConcepts: record.sideQuestConcepts,
+                  origin: record.packOrigin)
     }
 
     private static var cached: ActivePack?
@@ -149,7 +155,7 @@ enum PackInstaller {
     /// Pack's corrected definition and Cluster. A Concept the new Pack drops is
     /// left alone entirely — it stops being part of the Pack, it is not deleted.
     @discardableResult
-    static func install(_ pack: PackFile, origin: String,
+    static func install(_ pack: PackFile, origin: PackOrigin,
                         context: ModelContext) throws -> InstalledPack {
         try PackValidator.validate(pack)
 

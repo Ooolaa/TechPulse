@@ -25,7 +25,8 @@ struct PackDrivenPathTests {
             stages: stages,
             suggestedSources: [],
             conceptNames: ["Flour", "Dough", "Sourdough Starter"],
-            sideQuestConcepts: sideQuests
+            sideQuestConcepts: sideQuests,
+            origin: .imported
         )
     }
 

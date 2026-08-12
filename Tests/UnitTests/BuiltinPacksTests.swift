@@ -166,7 +166,7 @@ struct BuiltinPacksTests {
         let context = ModelContext(container)
 
         let pack = try aiEngineer()
-        try PackInstaller.install(pack, origin: "builtin", context: context)
+        try PackInstaller.install(pack, origin: .builtin, context: context)
 
         #expect(try context.fetch(FetchDescriptor<Concept>()).count
                 == KnowledgePack.concepts.count)
@@ -191,7 +191,7 @@ struct BuiltinPacksTests {
             configurations: config)
         let context = ModelContext(container)
 
-        try PackInstaller.install(try aiEngineer(), origin: "builtin", context: context)
+        try PackInstaller.install(try aiEngineer(), origin: .builtin, context: context)
         let exported = try #require(PackInstaller.exportActivePack(context: context))
 
         try PackValidator.validate(exported)

@@ -83,7 +83,7 @@ struct PackInstallerTests {
     @Test("installing a Pack creates its Concepts in its Clusters, dim")
     func installCreatesConcepts() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         let concepts = try context.fetch(FetchDescriptor<Concept>())
         #expect(concepts.count == 3)
@@ -98,7 +98,7 @@ struct PackInstallerTests {
     @Test("installing a Pack creates its authored Dependencies")
     func installCreatesDependencies() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         let deps = try context.fetch(FetchDescriptor<ConceptDependency>())
         let edges = Set(deps.map { "\($0.prerequisite)→\($0.dependent)" })
@@ -108,7 +108,7 @@ struct PackInstallerTests {
     @Test("a Dependency is not mirrored as a Co-read Link — the two mean different things")
     func installDoesNotFabricateCoreadLinks() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         // ADR-0002: a Co-read Link records what you actually read. Installing a
         // Pack is not reading, so it must not manufacture one.
@@ -121,7 +121,7 @@ struct PackInstallerTests {
         try PackInstaller.install(aiPack(suggestedSources: [
             .init(name: "Import AI", url: "https://jack-clark.net/feed", category: "LLMs"),
             .init(name: "arXiv cs.AI", url: "https://arxiv.org/rss/cs.AI", category: "Research"),
-        ]), origin: "builtin", context: context)
+        ]), origin: .builtin, context: context)
 
         // A Source is chosen by the reader. Installing a Pack must not sign
         // them up to anything.
@@ -140,7 +140,7 @@ struct PackInstallerTests {
         ], stages: [])
 
         #expect(throws: PackValidationError.self) {
-            try PackInstaller.install(broken, origin: "imported", context: context)
+            try PackInstaller.install(broken, origin: .imported, context: context)
         }
         #expect(try context.fetch(FetchDescriptor<Concept>()).isEmpty)
         #expect(try context.fetch(FetchDescriptor<InstalledPack>()).isEmpty)
@@ -151,7 +151,7 @@ struct PackInstallerTests {
     @Test("the installed Pack is readable through one load point")
     func activePackIsReadable() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         let active = try #require(ActivePack.load(context: context))
         #expect(active.field == "AI Engineering")
@@ -170,8 +170,8 @@ struct PackInstallerTests {
     @Test("installing a different Pack retires the previous one — exactly one is active")
     func installingRetiresPrevious() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
-        try PackInstaller.install(aiPack(field: "Data Science"), origin: "imported",
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
+        try PackInstaller.install(aiPack(field: "Data Science"), origin: .imported,
                                   context: context)
 
         let records = try context.fetch(FetchDescriptor<InstalledPack>())
@@ -185,7 +185,7 @@ struct PackInstallerTests {
     @Test("reinstalling preserves Mastery, Lit state and learning history")
     func reinstallPreservesProgress() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         let rag = try #require(try concept("RAG", in: context))
         rag.masteryLevel = 0.7
@@ -194,7 +194,7 @@ struct PackInstallerTests {
         context.insert(LearningEvent(kind: "read", conceptName: "RAG", masteryDelta: 0.1))
         try context.save()
 
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         let after = try #require(try concept("RAG", in: context))
         #expect(after.masteryLevel == 0.7)
@@ -208,7 +208,7 @@ struct PackInstallerTests {
     @Test("reinstalling a corrected Pack adopts its new definitions and Cluster moves")
     func reinstallAdoptsCorrections() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         try PackInstaller.install(aiPack(concepts: [
             .init(name: "Embeddings", cluster: "Foundations",
@@ -216,7 +216,7 @@ struct PackInstallerTests {
             .init(name: "RAG", cluster: "Foundations",          // moved cluster
                   definition: "Retrieval-augmented generation.", // corrected text
                   dependencies: ["Embeddings"]),
-        ], stages: []), origin: "builtin", context: context)
+        ], stages: []), origin: .builtin, context: context)
 
         let rag = try #require(try concept("RAG", in: context))
         #expect(rag.conceptDefinition == "Retrieval-augmented generation.")
@@ -233,7 +233,7 @@ struct PackInstallerTests {
         context.insert(LearningEvent(kind: "read", conceptName: "rag", masteryDelta: 0.1))
         try context.save()
 
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         // One row, not twins, and its Mastery survived.
         let matches = try context.fetch(FetchDescriptor<Concept>())
@@ -257,7 +257,7 @@ struct PackInstallerTests {
     @Test("reinstalling a Pack that drops a Dependency does not leave the old edge behind")
     func reinstallRebuildsDependencies() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         // The corrected Pack reverses Embeddings → RAG. Keeping both edges
         // would be a cycle, and no Frontier can advance past one.
@@ -266,7 +266,7 @@ struct PackInstallerTests {
                   definition: "Meaning as vectors.", dependencies: ["RAG"]),
             .init(name: "RAG", cluster: "Agents",
                   definition: "Ground answers in your data.", dependencies: []),
-        ], stages: []), origin: "builtin", context: context)
+        ], stages: []), origin: .builtin, context: context)
 
         let edges = try context.fetch(FetchDescriptor<ConceptDependency>())
             .map { "\($0.prerequisite)→\($0.dependent)" }
@@ -279,7 +279,7 @@ struct PackInstallerTests {
     @Test("a Pack that drops a Concept does not destroy that Concept or its history")
     func droppedConceptKeepsHistory() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
 
         let memory = try #require(try concept("Agent Memory", in: context))
         memory.masteryLevel = 0.6
@@ -293,7 +293,7 @@ struct PackInstallerTests {
                   definition: "Meaning as vectors.", dependencies: []),
             .init(name: "RAG", cluster: "Agents",
                   definition: "Ground answers in your data.", dependencies: ["Embeddings"]),
-        ], stages: []), origin: "builtin", context: context)
+        ], stages: []), origin: .builtin, context: context)
 
         let survivor = try #require(try concept("Agent Memory", in: context))
         #expect(survivor.masteryLevel == 0.6)
@@ -317,7 +317,7 @@ struct PackInstallerTests {
             .init(name: "Agent Memory", cluster: "Agents", definition: "Scratchpads.",
                   dependencies: ["RAG", "Embeddings"]),
         ], stages: [])
-        try PackInstaller.install(original, origin: "builtin", context: context)
+        try PackInstaller.install(original, origin: .builtin, context: context)
 
         let exported = try #require(PackInstaller.exportActivePack(context: context))
         #expect(normalized(exported) == normalized(original))
@@ -327,10 +327,10 @@ struct PackInstallerTests {
     @Test("exporting what was just installed is a fixed point")
     func exportIsAFixedPoint() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
         let first = try #require(PackInstaller.exportActivePack(context: context))
 
-        try PackInstaller.install(first, origin: "imported", context: context)
+        try PackInstaller.install(first, origin: .imported, context: context)
         let second = try #require(PackInstaller.exportActivePack(context: context))
 
         #expect(second == first)
@@ -339,7 +339,7 @@ struct PackInstallerTests {
     @Test("export carries the Pack's own suggested Sources, not the reader's subscriptions")
     func exportDoesNotLeakSubscriptions() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
         context.insert(FeedSource(name: "My private newsletter",
                                   url: URL(string: "https://example.com/secret")!,
                                   category: "Personal"))
@@ -352,7 +352,7 @@ struct PackInstallerTests {
     @Test("export excludes Concepts the reader's own reading discovered")
     func exportExcludesStrayConcepts() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
         context.insert(Concept(name: "Some Stray Term", category: "Foundations", definition: "d"))
         try context.save()
 
@@ -371,7 +371,7 @@ struct PackInstallerTests {
     @Test("path order follows the authored Stages first")
     func pathOrderFollowsStages() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
         let active = try #require(ActivePack.load(context: context))
         let deps = try context.fetch(FetchDescriptor<ConceptDependency>())
 
@@ -383,7 +383,7 @@ struct PackInstallerTests {
         let context = try makeContext()
         // Alphabetically this is Agent Memory, Embeddings, RAG — which would
         // recommend the deepest Concept first. Dependency order must win.
-        try PackInstaller.install(aiPack(stages: []), origin: "generated", context: context)
+        try PackInstaller.install(aiPack(stages: []), origin: .generated, context: context)
         let active = try #require(ActivePack.load(context: context))
         let deps = try context.fetch(FetchDescriptor<ConceptDependency>())
 
@@ -395,7 +395,7 @@ struct PackInstallerTests {
         let context = try makeContext()
         try PackInstaller.install(aiPack(stages: [
             .init(title: "Stage 1", subtitle: "s", concepts: ["Agent Memory"]),
-        ]), origin: "builtin", context: context)
+        ]), origin: .builtin, context: context)
         let active = try #require(ActivePack.load(context: context))
         let deps = try context.fetch(FetchDescriptor<ConceptDependency>())
 
@@ -406,7 +406,7 @@ struct PackInstallerTests {
     @Test("path order covers every Concept in the Pack exactly once")
     func pathOrderIsATotalOrder() throws {
         let context = try makeContext()
-        try PackInstaller.install(aiPack(), origin: "builtin", context: context)
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
         let active = try #require(ActivePack.load(context: context))
         let deps = try context.fetch(FetchDescriptor<ConceptDependency>())
 

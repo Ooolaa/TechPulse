@@ -15,8 +15,33 @@ enum BuiltinPacks {
     /// The flagship: the AI Engineer map the app shipped with.
     static let aiEngineerFileName = "ai-engineer"
 
-    /// Every Pack file shipped in the app, by file name.
-    static let fileNames = [aiEngineerFileName]
+    /// The second field the app covers out of the box.
+    static let securityEngineeringFileName = "security-engineering"
+
+    /// Every Pack file shipped in the app, by file name, in the order they are
+    /// offered to the reader. The flagship comes first.
+    static let fileNames = [aiEngineerFileName, securityEngineeringFileName]
+
+    /// A Pack file shipped in the app, read and checked, ready to install.
+    struct Builtin: Equatable, Sendable {
+        let fileName: String
+        let pack: PackFile
+    }
+
+    /// Every built-in Pack, in offer order.
+    ///
+    /// Loaded once: the Pack chooser reads this from a view body, and a decode
+    /// per redraw would be paid for nothing. A file that fails to load is left
+    /// out rather than taking the rest down — one broken Pack in a build
+    /// should not cost the reader the Packs that are fine.
+    static let all: [Builtin] = fileNames.compactMap { fileName in
+        do {
+            return Builtin(fileName: fileName, pack: try load(fileName))
+        } catch {
+            assertionFailure("built-in pack “\(fileName)” failed to load: \(error)")
+            return nil
+        }
+    }
 
     /// Reads and validates a built-in Pack.
     ///

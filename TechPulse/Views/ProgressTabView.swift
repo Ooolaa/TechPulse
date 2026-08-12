@@ -86,16 +86,18 @@ struct ProgressTabView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.cardBorder, lineWidth: 1))
     }
 
-    // MARK: AI engineer path (design 4d)
+    // MARK: The active Pack's staged path (design 4d)
 
     private var learningPathCard: some View {
         let stages = KnowledgePathEngine.stageProgress(concepts: concepts)
         let currentIndex = stages.firstIndex { !$0.isComplete } ?? stages.count - 1
         return VStack(alignment: .leading, spacing: 2) {
-            Text("AI engineer path")
+            // The Stages are the active Pack's, so the ladder is named after
+            // the field the reader chose rather than the one we shipped.
+            Text("\(ActivePack.inUse.field) path")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Theme.textPrimary)
-            Text("Dependency-ordered · from the knowledge pack")
+            Text("Dependency-ordered · from the active Pack")
                 .font(.system(size: 11.5))
                 .foregroundStyle(Theme.textTertiary)
 
