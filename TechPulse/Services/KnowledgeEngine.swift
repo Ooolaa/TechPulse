@@ -87,26 +87,42 @@ enum KnowledgeEngine {
         try? context.save()
     }
 
-    /// Pairwise co-occurrence links between concepts that appeared together
-    /// (same article, or same project when seeding from the resume).
-    static func linkCooccurring(_ concepts: [Concept], context: ModelContext) {
-        guard concepts.count > 1 else { return }
-        let links = (try? context.fetch(FetchDescriptor<ConceptLink>())) ?? []
-        var byPair = Dictionary(links.map { ([$0.conceptA, $0.conceptB].sorted().joined(separator: "|"), $0) },
-                                uniquingKeysWith: { first, _ in first })
-        let names = concepts.map(\.name).sorted()
-        for i in names.indices {
-            for j in names.indices where j > i {
-                let key = "\(names[i])|\(names[j])"
-                if let link = byPair[key] {
-                    link.weight += 1
-                } else {
-                    let link = ConceptLink(conceptA: names[i], conceptB: names[j])
-                    context.insert(link)
-                    byPair[key] = link
-                }
-            }
+    /// Rebuilds every Co-read Link from the readings that justify them.
+    ///
+    /// Derived rather than accumulated, which is what makes ADR-0002's pruning
+    /// safe: the reading record — the Concepts an Article carries, the Concepts
+    /// a project used — is the truth, and the links are a scored view of it.
+    /// Dropping a weak link therefore throws no evidence away, so a pair that
+    /// goes on being read together earns its way back. A counter that pruned
+    /// itself could not: every prune would reset the count that was meant to
+    /// prove the pair mattered.
+    ///
+    /// Idempotent, and cheap enough to run at launch — which is also how a
+    /// store written before scoring existed gets recomputed rather than left
+    /// half-scored.
+    static func rebuildCoreadLinks(context: ModelContext) {
+        let known = Set(((try? context.fetch(FetchDescriptor<Concept>())) ?? []).map(\.name))
+
+        // A reading is a group of Concepts met together. Filtered against the
+        // store, so a group can never name a Concept no fetch would find.
+        var readings: [[String]] = []
+        for article in (try? context.fetch(FetchDescriptor<Article>())) ?? [] {
+            let names = article.concepts.map(\.name).filter(known.contains)
+            if names.count > 1 { readings.append(names) }
         }
+        for project in SeedData.resumeCoreadGroups {
+            let names = project.filter(known.contains)
+            if names.count > 1 { readings.append(names) }
+        }
+
+        for link in (try? context.fetch(FetchDescriptor<ConceptLink>())) ?? [] {
+            context.delete(link)
+        }
+        for edge in CoreadScoring.score(readings) {
+            context.insert(ConceptLink(conceptA: edge.conceptA, conceptB: edge.conceptB,
+                                       weight: edge.readings, strength: edge.strength))
+        }
+        try? context.save()
     }
 
     static func markKnown(_ concept: Concept, context: ModelContext) {

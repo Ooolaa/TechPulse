@@ -47,15 +47,21 @@ private struct ConceptDetail: View {
     @State private var findingArticles = false
     @State private var foundCount: Int?
 
-    /// Concepts linked to this one, heaviest edges first (design 2d).
+    /// Concepts linked to this one, most strongly associated first (design 2d).
+    /// Ordered by strength of association rather than raw co-occurrence, so a
+    /// Concept that merely turns up everywhere doesn't head every list.
     private var relatedConcepts: [Concept] {
-        let neighborWeights = allLinks.reduce(into: [String: Int]()) { acc, link in
-            if link.conceptA == concept.name { acc[link.conceptB, default: 0] += link.weight }
-            if link.conceptB == concept.name { acc[link.conceptA, default: 0] += link.weight }
+        let neighborStrength = allLinks.reduce(into: [String: Double]()) { acc, link in
+            if link.conceptA == concept.name {
+                acc[link.conceptB] = max(acc[link.conceptB] ?? 0, link.strength)
+            }
+            if link.conceptB == concept.name {
+                acc[link.conceptA] = max(acc[link.conceptA] ?? 0, link.strength)
+            }
         }
         return allConcepts
-            .filter { neighborWeights[$0.name] != nil }
-            .sorted { neighborWeights[$0.name, default: 0] > neighborWeights[$1.name, default: 0] }
+            .filter { neighborStrength[$0.name] != nil }
+            .sorted { neighborStrength[$0.name, default: 0] > neighborStrength[$1.name, default: 0] }
     }
 
     private var stateColor: Color {

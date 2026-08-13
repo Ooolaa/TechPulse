@@ -261,17 +261,28 @@ enum KnowledgePack {
 
         let existingDeps = (try? context.fetch(FetchDescriptor<ConceptDependency>())) ?? []
         var depKeys = Set(existingDeps.map { "\($0.prerequisite)→\($0.dependent)" })
+        var legacyLinkKeys = Set(((try? context.fetch(FetchDescriptor<ConceptLink>())) ?? [])
+            .map { "\($0.conceptA)|\($0.conceptB)" })
         for pack in packConcepts {
             for prerequisite in pack.prerequisites {
                 let key = "\(prerequisite)→\(pack.name)"
                 guard !depKeys.contains(key) else { continue }
                 context.insert(ConceptDependency(prerequisite: prerequisite, dependent: pack.name))
                 depKeys.insert(key)
-                // Mirror as an undirected link so related-concepts and the
-                // co-occurrence net stay connected.
+                // Mirrored as an undirected link, which is what compiled
+                // seeding used to do. ADR-0002 forbids it — installing is not
+                // reading — and nothing in the app seeds this way any more.
+                // It stays because `PackMigrationTests` uses this to build a
+                // store as it existed *before* Packs were data, unscored
+                // mirror links and all, which is exactly what the rebuild has
+                // to clean up.
                 if let a = byLowerName[prerequisite.lowercased()],
                    let b = byLowerName[pack.name.lowercased()] {
-                    KnowledgeEngine.linkCooccurring([a, b], context: context)
+                    let pair = [a.name, b.name].sorted()
+                    let key = "\(pair[0])|\(pair[1])"
+                    if legacyLinkKeys.insert(key).inserted {
+                        context.insert(ConceptLink(conceptA: pair[0], conceptB: pair[1]))
+                    }
                 }
             }
         }

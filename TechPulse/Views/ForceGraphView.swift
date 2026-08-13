@@ -78,7 +78,7 @@ final class GraphSimulation {
         if dependencies.isEmpty {
             edges = links.compactMap { link in
                 guard let a = index[link.conceptA], let b = index[link.conceptB], a != b else { return nil }
-                return Edge(a: a, b: b, width: min(3, 0.8 + CGFloat(link.weight) * 0.5))
+                return Edge(a: a, b: b, width: 0.8 + CGFloat(link.strength) * 2.2)
             }
         } else {
             // Dependency mode (cluster detail): arrows only, prerequisite → dependent.

@@ -66,6 +66,9 @@ enum IntelligenceService {
             apply(analysis, to: article, context: context)
             try? context.save()
         }
+        // Once, for the whole batch: scoring is over every reading at once, so
+        // there is nothing to gain from rebuilding after each article.
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
     }
 
     private static func analyze(_ article: Article,
@@ -92,6 +95,8 @@ enum IntelligenceService {
         let analysis = await analyze(article, vocabulary: vocabulary)
         apply(analysis, to: article, context: context)
         try? context.save()
+        // This article's Concepts changed, so the readings behind the map did.
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
     }
 
     // MARK: "Go deeper" — grow the map outward from a concept (pull direction)
@@ -228,7 +233,11 @@ enum IntelligenceService {
             if KnowledgeEngine.isNewlyCreated(child, priorConcepts: allConcepts) {
                 child.masteryLevel = 0.0        // brand-new dots arrive dim
             }
-            KnowledgeEngine.linkCooccurring([concept, child], context: context)
+            // No Co-read Link is written between parent and child. ADR-0002:
+            // a Co-read Link records what you actually read together, and a
+            // sub-concept the model just invented is not that. The child joins
+            // the map through the reading that turns it up — the same rule
+            // that stopped Dependencies being mirrored as Co-read Links in #4.
             added.append(child)
         }
         try? context.save()
@@ -254,9 +263,10 @@ enum IntelligenceService {
                 attached.append(concept)
             }
         }
+        // Attaching the Concepts *is* recording the reading: Co-read Links are
+        // derived from this relationship, and rebuilt once the batch is done
+        // rather than edge-by-edge as each article lands.
         article.concepts = attached
-
-        KnowledgeEngine.linkCooccurring(attached, context: context)
     }
 
     // MARK: Fallback (no Apple Intelligence): vocabulary matching

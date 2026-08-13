@@ -49,6 +49,15 @@ enum SeedData {
         // anything already known (Fine-Tuning, PyTorch) stays green and
         // everything joins its Cluster. The map now comes from a Pack file.
         PackMigration.ensureBuiltinInstalled(context: context)
+        // Co-read Links are derived, so launch is what recomputes them —
+        // including for a store written before they were scored at all.
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+    }
+
+    /// The resume's projects as co-read groups: Concepts used on the same
+    /// project were met together, the same way an article's Concepts were.
+    static var resumeCoreadGroups: [[String]] {
+        resumeProjects.map { $0.concepts.map(\.name) }
     }
 
     // MARK: Resume-based knowledge base
@@ -139,8 +148,10 @@ enum SeedData {
         var byLowerName = Dictionary(existing.map { ($0.name.lowercased(), $0) },
                                      uniquingKeysWith: { first, _ in first })
 
+        // No links are written here. The projects are readings like any other,
+        // and `rebuildCoreadLinks` scores them from `resumeCoreadGroups`
+        // alongside the articles.
         for (_, resumeConcepts) in resumeProjects {
-            var projectConcepts: [Concept] = []
             for item in resumeConcepts {
                 let concept: Concept
                 if let found = byLowerName[item.name.lowercased()] {
@@ -153,9 +164,7 @@ enum SeedData {
                 }
                 concept.isMarkedKnown = true
                 concept.masteryLevel = 1.0
-                projectConcepts.append(concept)
             }
-            KnowledgeEngine.linkCooccurring(projectConcepts, context: context)
         }
         try? context.save()
         UserDefaults.standard.set(true, forKey: "resumeKnowledgeSeeded")

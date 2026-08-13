@@ -119,20 +119,97 @@ struct KnowledgeEngineTests {
         #expect(known.masteryLevel >= 0.8)                 // floor for known
     }
 
-    @Test("co-occurrence links: created once, weight increments on repeat")
+    @Test("Co-read Links are rebuilt from the readings, once per pair")
     func links() throws {
         let context = try makeContext()
         let a = Concept(name: "A", category: "LLMs", definition: "")
         let b = Concept(name: "B", category: "LLMs", definition: "")
         context.insert(a)
         context.insert(b)
+        for index in 0..<2 {
+            let article = Article(guid: "g\(index)", title: "t", content: "c",
+                                  publishedAt: .now, sourceName: "s")
+            article.concepts = [a, b]
+            context.insert(article)
+        }
+        try context.save()
 
-        KnowledgeEngine.linkCooccurring([a, b], context: context)
-        KnowledgeEngine.linkCooccurring([a, b], context: context)
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
 
         let links = try context.fetch(FetchDescriptor<ConceptLink>())
         #expect(links.count == 1)
-        #expect(links[0].weight == 2)
+        #expect(links[0].weight == 2)               // two readings joined them
+        #expect(links[0].strength > 0)
+    }
+
+    @Test("rebuilding twice leaves one scored link, not two")
+    func rebuildIsIdempotent() throws {
+        let context = try makeContext()
+        let a = Concept(name: "A", category: "LLMs", definition: "")
+        let b = Concept(name: "B", category: "LLMs", definition: "")
+        context.insert(a)
+        context.insert(b)
+        let article = Article(guid: "g", title: "t", content: "c",
+                              publishedAt: .now, sourceName: "s")
+        article.concepts = [a, b]
+        context.insert(article)
+        try context.save()
+
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+        let first = try context.fetch(FetchDescriptor<ConceptLink>())
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+        let second = try context.fetch(FetchDescriptor<ConceptLink>())
+
+        #expect(first.count == 1)
+        #expect(second.count == 1)
+        #expect(first[0].strength == second[0].strength)
+    }
+
+    @Test("a store scored before association existed is recomputed, never left half-scored")
+    func staleLinksAreRescored() throws {
+        let context = try makeContext()
+        let a = Concept(name: "A", category: "LLMs", definition: "")
+        let b = Concept(name: "B", category: "LLMs", definition: "")
+        let c = Concept(name: "C", category: "LLMs", definition: "")
+        for concept in [a, b, c] { context.insert(concept) }
+        let article = Article(guid: "g", title: "t", content: "c",
+                              publishedAt: .now, sourceName: "s")
+        article.concepts = [a, b]
+        context.insert(article)
+        // What the old raw counter left behind: unscored, and naming a pair no
+        // reading supports.
+        context.insert(ConceptLink(conceptA: "A", conceptB: "C", weight: 9))
+        try context.save()
+
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+
+        let links = try context.fetch(FetchDescriptor<ConceptLink>())
+        #expect(links.allSatisfy { $0.strength > 0 })
+        #expect(!links.contains { $0.conceptB == "C" || $0.conceptA == "C" })
+    }
+
+    @Test("a Concept no longer in the store leaves no link behind")
+    func linksNeverNameMissingConcepts() throws {
+        let context = try makeContext()
+        let a = Concept(name: "A", category: "LLMs", definition: "")
+        let b = Concept(name: "B", category: "LLMs", definition: "")
+        context.insert(a)
+        context.insert(b)
+        let article = Article(guid: "g", title: "t", content: "c",
+                              publishedAt: .now, sourceName: "s")
+        article.concepts = [a, b]
+        context.insert(article)
+        try context.save()
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+        #expect(try context.fetch(FetchDescriptor<ConceptLink>()).count == 1)
+
+        context.delete(b)
+        try context.save()
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+
+        let stored = Set(try context.fetch(FetchDescriptor<Concept>()).map(\.name))
+        let links = try context.fetch(FetchDescriptor<ConceptLink>())
+        #expect(links.allSatisfy { stored.contains($0.conceptA) && stored.contains($0.conceptB) })
     }
 
     @Test("resume seed populates mastered concepts with links, and only once")
@@ -142,10 +219,14 @@ struct KnowledgeEngineTests {
 
         SeedData.seedResumeKnowledgeIfNeeded(context: context)
         let concepts = try context.fetch(FetchDescriptor<Concept>())
-        let links = try context.fetch(FetchDescriptor<ConceptLink>())
         #expect(concepts.count > 15)
         #expect(concepts.allSatisfy { $0.isMarkedKnown && $0.masteryLevel == 1.0 })
-        #expect(!links.isEmpty)
+
+        // Seeding records the projects; the rebuild is what scores them. A
+        // project's Concepts were met together, so they join up.
+        #expect(try context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+        #expect(try !context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
 
         // Idempotent: second call must not duplicate.
         SeedData.seedResumeKnowledgeIfNeeded(context: context)

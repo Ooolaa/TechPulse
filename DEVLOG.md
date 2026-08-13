@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-08-13 — Co-read Links stop being a hairball (#8)
+
+**Built**
+- **`CoreadScoring`** — pure, no store. Turns *readings* (groups of Concepts
+  met together) into scored edges. Each of ADR-0002's three grievances against
+  the old raw counter became one rule and one test:
+  - every pair was linked → pairs form among a reading's **5 principal
+    Concepts**, so an 8-Concept article emits 10 edges, not 28;
+  - `weight` climbed forever unnormalised → strength is an **association**
+    (Dice, tempered by how much reading is behind it), so a Concept that
+    appears in everything scores near zero against each partner;
+  - the weight was invisible anyway → strength keeps climbing instead of
+    saturating at the old width formula's weight ≈ 4.4.
+- **Mutual top-6**, the same shape #9 used, so no Concept keeps more than its
+  strongest few and a hub can't reassemble itself out of other Concepts'
+  shortlists.
+- **Co-read Links became derived.** `KnowledgeEngine.rebuildCoreadLinks`
+  recomputes the whole table from the reading record — `Article.concepts` plus
+  the resume's projects — replacing incremental `linkCooccurring`.
+
+**Why derived, and not just a better counter.** This was the load-bearing
+decision. A counter that prunes itself cannot work: pruning a weak pair throws
+away the very count that would later prove the pair mattered, so a pair read
+together every few weeks would be pruned at weight 1 forever and could never
+accumulate. Deriving from the reading record makes pruning free — the evidence
+is the articles, which are untouched — so a pair that goes on being read
+together earns its way back. It also gets AC 6 for nothing: a store written
+before scoring existed is simply recomputed at launch.
+
+**Verified** 189 unit tests pass (176 before). Mutation-tested all three
+rules. The density test initially passed *with the group cap removed* — it was
+asserting against the very constant it was meant to pin, and mutual top-K was
+quietly masking it. Rewritten to assert the exact edge count (10) and that a
+reading's trailing Concepts stay unlinked; it now fails at 21 edges without
+the cap.
+
+**Learned** A test that references the constant under test can't fail. The
+mutation caught it; the green suite never would have. Worth checking any test
+whose expected value is computed from production code rather than written out.
+
+**Accepted regression** `IntelligenceService.deepen` no longer fabricates a
+Co-read Link between a Concept and the sub-Concepts it generates. ADR-0002 is
+explicit that a Co-read Link records what you actually read, and an invented
+sub-concept is not that — the same call #4 made when it stopped mirroring
+Dependencies. A deepened child now joins the map through the reading that
+turns it up. Giving generated Concepts a proper derived edge belongs with #11
+or #13.
+
+---
+
 ## 2026-08-13 — Semantic Links: the map means something on day one (#9)
 
 **Built**
