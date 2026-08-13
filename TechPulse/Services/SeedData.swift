@@ -49,8 +49,9 @@ enum SeedData {
         // anything already known (Fine-Tuning, PyTorch) stays green and
         // everything joins its Cluster. The map now comes from a Pack file.
         PackMigration.ensureBuiltinInstalled(context: context)
-        // Co-read Links are derived, so launch is what recomputes them —
-        // including for a store written before they were scored at all.
+        // Both kinds of derived edge are settled at launch, so a store written
+        // before either existed opens on the same map a fresh install would.
+        PackMigration.ensureSemanticLinks(context: context)
         KnowledgeEngine.rebuildCoreadLinks(context: context)
     }
 

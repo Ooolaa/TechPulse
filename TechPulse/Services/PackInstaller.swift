@@ -229,15 +229,11 @@ enum PackInstaller {
             // edge can never point at a name no fetch would find. Only the
             // Pack's own Concepts take part: what the reader's reading turned
             // up is theirs, and is not part of the map the Pack draws.
-            let linkable = pack.concepts.compactMap { packConcept in
+            rebuildSemanticLinks(for: pack.concepts.compactMap { packConcept in
                 resolved[packConcept.name].map {
                     LinkableConcept(name: $0.name, definition: packConcept.definition)
                 }
-            }
-            for edge in SemanticLinker.link(linkable, vector: vector) {
-                context.insert(SemanticLink(conceptA: edge.conceptA, conceptB: edge.conceptB,
-                                            strength: edge.strength))
-            }
+            }, context: context, vector: vector)
 
             // No Co-read Link is manufactured here. ADR-0002: a Dependency is a
             // claim about learning order, a Semantic Link is a claim about what
@@ -277,6 +273,25 @@ enum PackInstaller {
             // `ActivePack.load` would report it as installed.
             context.rollback()
             throw error
+        }
+    }
+
+    /// Replaces every Semantic Link with the ones these Concepts support.
+    ///
+    /// Shared by install and by the launch backfill, so a Pack that arrived
+    /// before Semantic Links existed ends up with exactly the map it would
+    /// have got had it been installed today. Does not save — the caller owns
+    /// the transaction.
+    static func rebuildSemanticLinks(
+        for concepts: [LinkableConcept], context: ModelContext,
+        vector: @MainActor (String) -> [Double]? = SemanticLinker.embed
+    ) {
+        for link in (try? context.fetch(FetchDescriptor<SemanticLink>())) ?? [] {
+            context.delete(link)
+        }
+        for edge in SemanticLinker.link(concepts, vector: vector) {
+            context.insert(SemanticLink(conceptA: edge.conceptA, conceptB: edge.conceptB,
+                                        strength: edge.strength))
         }
     }
 

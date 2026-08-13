@@ -40,9 +40,16 @@ enum Theme {
     static let textLabel = Color(light: 0x4B5563, dark: 0xAEB6C1)
 
     /// Knowledge-graph strokes (drawn in Canvas on Theme.card).
-    static let graphEdge = Color(light: 0xDDE3EA, dark: 0x323843)
-    static let graphEdgeDirected = Color(light: 0xD5DBE3, dark: 0x3A414C)
-    static let graphArrow = Color(light: 0xC9D0D9, dark: 0x4C5460)
+    ///
+    /// The map draws three kinds of connection (ADR-0002) and they have to be
+    /// told apart at a glance, so each carries two cues rather than one: a
+    /// Co-read Link is a plain line, a Semantic Link is dashed and cooler, a
+    /// Dependency is warmer and carries an arrowhead. The dash and the arrow
+    /// survive both themes — and colour blindness — on their own.
+    static let graphEdge = Color(light: 0xC8D1DC, dark: 0x3C4450)
+    static let graphEdgeSemantic = Color(light: 0xB6C6DD, dark: 0x41506A)
+    static let graphEdgeDirected = Color(light: 0xC6C2D6, dark: 0x4A4560)
+    static let graphArrow = Color(light: 0xA9A3C2, dark: 0x6C6490)
 
     /// Drop shadows stay dark in both modes (a light shadow reads as a glow).
     static let shadow = Color(hex: 0x17181A)

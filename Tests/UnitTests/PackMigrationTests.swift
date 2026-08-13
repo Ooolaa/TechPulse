@@ -82,6 +82,49 @@ struct PackMigrationTests {
         #expect(isolated.isEmpty, "isolated Concepts on a fresh install: \(isolated)")
     }
 
+    @Test("a reader already on the current Pack still gets Semantic Links")
+    func semanticLinksReachExistingInstalls() throws {
+        let context = try makeContext()
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        // Exactly the shape of an upgrade from a build before #9: the Pack is
+        // installed and current, so launch installs nothing — and Semantic
+        // Links are only ever computed *at install*. Without a backfill the map
+        // opens as the dust the feature was meant to end, and only switching
+        // Packs would ever fix it.
+        for link in try context.fetch(FetchDescriptor<SemanticLink>()) { context.delete(link) }
+        try context.save()
+        #expect(try context.fetch(FetchDescriptor<SemanticLink>()).isEmpty)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+        PackMigration.ensureSemanticLinks(context: context)
+
+        let links = try context.fetch(FetchDescriptor<SemanticLink>())
+        #expect(!links.isEmpty)
+        // The same map installing would have produced: nothing isolated.
+        var degree: [String: Int] = [:]
+        for link in links {
+            degree[link.conceptA, default: 0] += 1
+            degree[link.conceptB, default: 0] += 1
+        }
+        let packConcepts = try #require(ActivePack.load(context: context)).conceptNames
+        #expect(packConcepts.allSatisfy { (degree[$0] ?? 0) > 0 })
+    }
+
+    @Test("the backfill leaves an install that already has its links alone")
+    func semanticBackfillIsOneShot() throws {
+        let context = try makeContext()
+        PackMigration.ensureBuiltinInstalled(context: context)
+        let installed = try context.fetch(FetchDescriptor<SemanticLink>())
+            .map { "\($0.conceptA)|\($0.conceptB)" }.sorted()
+
+        PackMigration.ensureSemanticLinks(context: context)
+
+        let after = try context.fetch(FetchDescriptor<SemanticLink>())
+            .map { "\($0.conceptA)|\($0.conceptB)" }.sorted()
+        #expect(after == installed)
+    }
+
     @Test("running migration twice changes nothing")
     func migrationIsIdempotent() throws {
         let context = try makeContext()

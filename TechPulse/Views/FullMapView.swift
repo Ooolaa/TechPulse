@@ -8,6 +8,7 @@ struct FullMapRoute: Hashable {}
 struct FullMapView: View {
     @Query(sort: \Concept.masteryLevel, order: .reverse) private var concepts: [Concept]
     @Query private var links: [ConceptLink]
+    @Query private var semanticLinks: [SemanticLink]
     @Query private var dependencies: [ConceptDependency]
     @State private var selectedConcept: Concept?   // drives the glossary strip
     @State private var detailConcept: Concept?     // drives the full sheet
@@ -38,6 +39,8 @@ struct FullMapView: View {
                 .fill(Theme.card)
                 .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.cardBorder, lineWidth: 1))
             ForceGraphView(concepts: concepts, links: links,
+                           semanticLinks: semanticLinks,
+                           dependencies: dependencies,
                            frontier: frontierNames,
                            recent: recentNames,
                            clusterAnchored: true) { name in
@@ -129,14 +132,24 @@ struct FullMapView: View {
     private var legend: some View {
         VStack {
             Spacer()
-            HStack(spacing: 12) {
-                legendDot(Theme.stateNew, "New")
-                legendDot(Theme.stateLearning, "Learning")
-                legendDot(Theme.stateKnown, "Known")
-                Spacer()
-                Text("pinch to zoom")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textTertiary)
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 12) {
+                    legendDot(Theme.stateNew, "New")
+                    legendDot(Theme.stateLearning, "Learning")
+                    legendDot(Theme.stateKnown, "Known")
+                    Spacer()
+                    Text("pinch to zoom")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                // Three kinds of connection (ADR-0002), keyed so the map can
+                // actually be read rather than merely looked at.
+                HStack(spacing: 12) {
+                    legendEdge(.dependency, "Learn first")
+                    legendEdge(.semantic, "Related")
+                    legendEdge(.coread, "Read together")
+                    Spacer()
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
@@ -144,11 +157,38 @@ struct FullMapView: View {
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.cardBorder, lineWidth: 1))
             .padding(12)
         }
+        .accessibilityIdentifier("mapLegend")
     }
 
     private func legendDot(_ color: Color, _ label: String) -> some View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 8, height: 8)
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    /// A sample of the real line, drawn from the same colour the map uses —
+    /// the key and the map cannot drift apart.
+    private func legendEdge(_ kind: GraphSimulation.Edge.Kind, _ label: String) -> some View {
+        let color = ForceGraphView.edgeColor(kind)
+        return HStack(spacing: 5) {
+            HStack(spacing: kind == .semantic ? 2 : 0) {
+                if kind == .semantic {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Capsule().fill(color).frame(width: 4, height: 2)
+                    }
+                } else {
+                    Capsule().fill(color).frame(width: 16, height: 2)
+                }
+                if kind == .dependency {
+                    Image(systemName: "arrowtriangle.right.fill")
+                        .font(.system(size: 7))
+                        .foregroundStyle(Theme.graphArrow)
+                }
+            }
+            .frame(width: 22, alignment: .leading)
             Text(label)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.textSecondary)

@@ -140,6 +140,33 @@ final class TechPulseUITests: XCTestCase {
         fullMap.tap()
         sleep(3)
         snap(app, "5c-full-map")
+
+        // Three kinds of connection have to be told apart on the map, and the
+        // only way to know they are is to look at both themes. The strokes are
+        // drawn in a Canvas over Theme.card, which is exactly the combination
+        // that shipped a dark-mode readability bug on Settings once.
+        for key in ["Learn first", "Related", "Read together"] {
+            XCTAssertTrue(app.staticTexts[key].firstMatch.waitForExistence(timeout: 5),
+                          "map legend has no key for “\(key)” — the edge kinds are unexplained")
+        }
+        XCUIDevice.shared.appearance = .light
+        sleep(2)
+        snap(app, "5c1-full-map-light")
+        XCUIDevice.shared.appearance = .dark
+        sleep(2)
+        snap(app, "5c2-full-map-dark")
+
+        // Zoomed in, where a dash and an arrowhead are actually resolvable: at
+        // overview scale a 141-dot map is dense enough that any line looks like
+        // any other, so the screenshot gate would prove nothing about whether
+        // the three kinds are told apart.
+        app.otherElements["knowledgeGraph"].firstMatch.pinch(withScale: 3, velocity: 1)
+        sleep(2)
+        snap(app, "5c3-full-map-dark-zoomed")
+        XCUIDevice.shared.appearance = .light
+        sleep(2)
+        snap(app, "5c4-full-map-light-zoomed")
+
         app.navigationBars.buttons.firstMatch.tap()
         sleep(1)
 

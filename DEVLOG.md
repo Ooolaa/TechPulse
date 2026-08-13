@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-08-13 — Three kinds of edge, and strength that moves the dots (#10)
+
+**Built**
+- **Each connection is drawn as its own kind of thing.** A Dependency is
+  solid with an arrowhead, a Semantic Link is dashed and cooler, a Co-read
+  Link is a plain line. Two cues each, not one — the dash and the arrow survive
+  dark mode and colour blindness on their own, which colour alone would not.
+- **Strength moves the dots.** The spring's rest length and stiffness now come
+  from the edge, so strongly connected Concepts settle closer together.
+  ADR-0002's complaint was that `weight` drove neither line width past 5 nor
+  layout distance *at all*; a pair now settles between ~85pt and ~61pt across
+  the strength range.
+- **One line per pair.** A pair claimed by several kinds is drawn once, by the
+  strongest claim — what someone asserted beats what you did, which beats what
+  the words resemble. Two lines between the same two dots land exactly on top
+  of each other and read as one thicker line, not as two facts.
+- **The map has a key**, so the three kinds can be read rather than merely
+  looked at, drawn from the same colours the Canvas uses.
+
+**The bug the screenshots caught.** The first light/dark capture had no dashed
+lines anywhere. Semantic Links are computed **at Pack install** — and the common
+launch installs nothing, because the reader is already on the current Pack
+version. So every store written before #9 would never receive them, and the map
+would open as exactly the dust the feature existed to end. Only switching Packs
+would have fixed it. `PackMigration.ensureSemanticLinks` backfills once, and a
+test now reproduces the upgrade path directly. **This would have shipped**: the
+unit suite was green, because every test installed a Pack first.
+
+**Verified** 201 unit tests and all three UI journeys pass. Settling measured
+before and after: both reach the same frame (238, just inside the existing
+240-frame cap), so no regression. Journey captures the map in light and dark,
+and at 3× zoom — at overview scale a 141-dot map is dense enough that any line
+looks like any other, so a 1× screenshot would have proved nothing about
+distinguishability.
+
+**Learned** The second bad test of the day, same shape as #8's: `strengthMoves
+TheDots` passed with the strength-driven spring reverted, because under the old
+constant spring the two pairs settle **0.001pt** apart and `<` was a coin flip
+on where the random start put them. Asserting a *meaningful* gap (>15pt) is what
+makes it a test. Both times the mutation found it and the green suite did not.
+
+---
+
 ## 2026-08-13 — Co-read Links stop being a hairball (#8)
 
 **Built**

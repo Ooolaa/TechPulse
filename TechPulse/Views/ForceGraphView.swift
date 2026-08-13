@@ -11,11 +11,56 @@ final class GraphSimulation {
         var radius: CGFloat = 5
         var state: Concept.MasteryState = .new
     }
+    /// One connection between two dots. The kind says what is being claimed;
+    /// the strength says how strongly, and drives the layout as well as the
+    /// line — ADR-0002's complaint was that weight drove neither.
     struct Edge {
         let a: Int
         let b: Int
-        let width: CGFloat
-        var directed = false      // prerequisite arrows (a → b)
+        let kind: Kind
+        let strength: Double      // 0...1
+
+        enum Kind {
+            /// Authored: learn A before B. Drawn with an arrowhead.
+            case dependency
+            /// Derived from what the Concepts mean. Drawn dashed.
+            case semantic
+            /// Observed: you met these in the same reading. Drawn plain.
+            case coread
+        }
+
+        var directed: Bool { kind == .dependency }
+
+        /// Co-read spans the widest range: it is the one that goes on growing
+        /// as you read, and the old rendering saturated it at weight ≈ 4.4.
+        var width: CGFloat {
+            switch kind {
+            case .dependency: 1.4
+            case .semantic: 0.7 + 1.1 * CGFloat(strength)
+            case .coread: 0.9 + 2.6 * CGFloat(strength)
+            }
+        }
+
+        /// How far apart the spring wants the two dots. Strongly connected
+        /// Concepts settle closer together, so proximity on the map means
+        /// something on its own — you can read the grouping without tracing
+        /// individual lines.
+        var restLength: CGFloat {
+            switch kind {
+            case .dependency: 78            // authored; strength says nothing
+            case .semantic, .coread: 116 - 56 * CGFloat(strength)
+            }
+        }
+
+        /// How hard it pulls. Kept within the old constant's ballpark at the
+        /// top end so damping still settles the net rather than ringing.
+        var stiffness: CGFloat {
+            switch kind {
+            case .dependency: 0.02
+            case .semantic: 0.012 + 0.016 * CGFloat(strength)
+            case .coread: 0.014 + 0.026 * CGFloat(strength)
+            }
+        }
     }
 
     private(set) var nodes: [Node] = []
@@ -34,6 +79,7 @@ final class GraphSimulation {
     private var priorityCacheFrontier: Set<String> = []
 
     func configure(concepts: [Concept], links: [ConceptLink],
+                   semanticLinks: [SemanticLink] = [],
                    dependencies: [ConceptDependency] = [],
                    clusterAnchored: Bool = false, in size: CGSize) {
         // Keep positions of existing nodes so re-configuration doesn't scatter the net.
@@ -75,18 +121,32 @@ final class GraphSimulation {
             })
             : [:]
         let index = Dictionary(uniqueKeysWithValues: nodes.enumerated().map { ($0.element.name, $0.offset) })
-        if dependencies.isEmpty {
-            edges = links.compactMap { link in
-                guard let a = index[link.conceptA], let b = index[link.conceptB], a != b else { return nil }
-                return Edge(a: a, b: b, width: 0.8 + CGFloat(link.strength) * 2.2)
-            }
-        } else {
-            // Dependency mode (cluster detail): arrows only, prerequisite → dependent.
-            edges = dependencies.compactMap { dep in
-                guard let a = index[dep.prerequisite], let b = index[dep.dependent], a != b else { return nil }
-                return Edge(a: a, b: b, width: 1.4, directed: true)
-            }
+
+        // One line per pair, whichever kind makes the strongest claim about it.
+        // Two lines between the same two dots would land exactly on top of each
+        // other and read as one thicker line, not as two separate facts — so
+        // the kinds are offered weakest-claim first and the last one wins:
+        // what someone asserted beats what you did, which beats what the words
+        // resemble.
+        var byPair: [String: Edge] = [:]
+        func pairKey(_ a: Int, _ b: Int) -> String { a < b ? "\(a)|\(b)" : "\(b)|\(a)" }
+
+        for link in semanticLinks {
+            guard let a = index[link.conceptA], let b = index[link.conceptB], a != b else { continue }
+            byPair[pairKey(a, b)] = Edge(a: a, b: b, kind: .semantic, strength: link.strength)
         }
+        for link in links {
+            guard let a = index[link.conceptA], let b = index[link.conceptB], a != b else { continue }
+            byPair[pairKey(a, b)] = Edge(a: a, b: b, kind: .coread, strength: link.strength)
+        }
+        for dependency in dependencies {
+            guard let a = index[dependency.prerequisite], let b = index[dependency.dependent],
+                  a != b else { continue }
+            byPair[pairKey(a, b)] = Edge(a: a, b: b, kind: .dependency, strength: 1)
+        }
+        // Sorted: a dictionary has no order, and the draw order decides which
+        // line lands on top of which.
+        edges = byPair.values.sorted { ($0.a, $0.b) < ($1.a, $1.b) }
         settledFrames = 0
         framesSinceConfigure = 0
         priorityCache = []      // node set / radii changed — rebuild draw order
@@ -156,7 +216,10 @@ final class GraphSimulation {
             let dx = nodes[edge.b].position.x - nodes[edge.a].position.x
             let dy = nodes[edge.b].position.y - nodes[edge.a].position.y
             let distance = max(1, sqrt(dx * dx + dy * dy))
-            let attraction = (distance - 72) * 0.02
+            // Strength sets both how close the spring wants them and how
+            // insistently it pulls, so layout distance carries the information
+            // rather than line width carrying all of it.
+            let attraction = (distance - edge.restLength) * edge.stiffness
             forces[edge.a].dx += dx / distance * attraction
             forces[edge.a].dy += dy / distance * attraction
             forces[edge.b].dx -= dx / distance * attraction
@@ -198,6 +261,7 @@ final class GraphSimulation {
 struct ForceGraphView: View {
     let concepts: [Concept]
     let links: [ConceptLink]
+    var semanticLinks: [SemanticLink] = []
     var dependencies: [ConceptDependency] = []
     var frontier: Set<String> = []        // dashed "ready to learn" rings
     var recent: Set<String> = []          // pulsing glow: dots added by recent reading
@@ -215,6 +279,15 @@ struct ForceGraphView: View {
         case .new: Theme.stateNew
         case .learning: Theme.stateLearning
         case .known: Theme.stateKnown
+        }
+    }
+
+    /// Shared with the map's legend, so the key can never drift from the map.
+    static func edgeColor(_ kind: GraphSimulation.Edge.Kind) -> Color {
+        switch kind {
+        case .dependency: Theme.graphEdgeDirected
+        case .semantic: Theme.graphEdgeSemantic
+        case .coread: Theme.graphEdge
         }
     }
 
@@ -252,8 +325,13 @@ struct ForceGraphView: View {
                         var path = Path()
                         path.move(to: from)
                         path.addLine(to: to)
-                        ctx.stroke(path, with: .color(edge.directed ? Theme.graphEdgeDirected : Theme.graphEdge),
-                                   lineWidth: edge.width / s)
+                        // Dash and arrowhead are shape cues, so the three kinds
+                        // stay apart in dark mode and in greyscale, not only by
+                        // hue.
+                        ctx.stroke(path, with: .color(Self.edgeColor(edge.kind)),
+                                   style: StrokeStyle(
+                                       lineWidth: edge.width / s,
+                                       dash: edge.kind == .semantic ? [5 / s, 4 / s] : []))
                         if edge.directed {
                             // Arrowhead just outside the target node's radius.
                             let angle = atan2(to.y - from.y, to.x - from.x)
@@ -342,16 +420,19 @@ struct ForceGraphView: View {
             )
             .onAppear {
                 sim.configure(concepts: concepts, links: links,
+                              semanticLinks: semanticLinks,
                               dependencies: dependencies,
                               clusterAnchored: clusterAnchored, in: geo.size)
             }
             .onChange(of: concepts.count) {
                 sim.configure(concepts: concepts, links: links,
+                              semanticLinks: semanticLinks,
                               dependencies: dependencies,
                               clusterAnchored: clusterAnchored, in: geo.size)
             }
             .onChange(of: links.count) {
                 sim.configure(concepts: concepts, links: links,
+                              semanticLinks: semanticLinks,
                               dependencies: dependencies,
                               clusterAnchored: clusterAnchored, in: geo.size)
             }
