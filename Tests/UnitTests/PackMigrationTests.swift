@@ -14,7 +14,8 @@ struct PackMigrationTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
             for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self, InstalledPack.self,
+            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
+            SemanticLink.self, InstalledPack.self,
             configurations: config)
         UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
         // The cache is process-global; a previous test's Pack must not leak in.
@@ -52,22 +53,33 @@ struct PackMigrationTests {
         #expect(concepts.allSatisfy { $0.masteryState == .new })
     }
 
-    @Test("a fresh install starts with no Co-read Links — the map opens as dust until #9")
+    @Test("a fresh install opens on a connected map, with no Co-read Links")
     func freshInstallHasNoLinks() throws {
         let context = try makeContext()
         PackMigration.ensureBuiltinInstalled(context: context)
 
         // Compiled seeding used to mirror every Dependency into a Co-read Link,
         // so a brand-new map had structure. ADR-0002 forbids that — a Co-read
-        // Link records what you actually read — so installing creates none, and
-        // "related concepts" is empty until Semantic Links land in #9.
-        //
-        // This is a real regression against "behaves as the app does today",
-        // accepted deliberately rather than by oversight. ADR-0002 names
-        // Semantic Links as the fix and sets them first in the build order.
+        // Link records what you actually read, and a launch is not reading.
         #expect(try context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
         // The Dependency spine is there, so the map is not structureless.
         #expect(try !context.fetch(FetchDescriptor<ConceptDependency>()).isEmpty)
+
+        // And #9's Semantic Links close the gap that left behind: the reader
+        // reaches the map through this launch path, so it is where "opens
+        // connected, not as dust" has to be true. Every Concept the built-in
+        // Pack installs is joined to something before a word has been read.
+        let semantic = try context.fetch(FetchDescriptor<SemanticLink>())
+        #expect(!semantic.isEmpty)
+
+        var degree: [String: Int] = [:]
+        for link in semantic {
+            degree[link.conceptA, default: 0] += 1
+            degree[link.conceptB, default: 0] += 1
+        }
+        let packConcepts = try #require(ActivePack.load(context: context)).conceptNames
+        let isolated = packConcepts.filter { (degree[$0] ?? 0) == 0 }
+        #expect(isolated.isEmpty, "isolated Concepts on a fresh install: \(isolated)")
     }
 
     @Test("running migration twice changes nothing")

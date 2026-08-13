@@ -14,7 +14,7 @@ struct TechPulseApp: App {
             container = try ModelContainer(
                 for: FeedSource.self, Article.self, Concept.self,
                 LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-                InstalledPack.self
+                SemanticLink.self, InstalledPack.self
             )
             SeedData.seedIfNeeded(context: container.mainContext)
             KnowledgeEngine.applyTimeDecay(context: container.mainContext)

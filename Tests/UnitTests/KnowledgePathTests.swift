@@ -11,7 +11,7 @@ struct KnowledgePathTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try! ModelContainer(
             for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
+            LearningEvent.self, ConceptLink.self, ConceptDependency.self, SemanticLink.self,
             configurations: config
         )
     }()

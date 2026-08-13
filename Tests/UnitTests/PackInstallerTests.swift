@@ -15,7 +15,7 @@ struct PackInstallerTests {
         return try! ModelContainer(
             for: FeedSource.self, Article.self, Concept.self,
             LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-            InstalledPack.self,
+            SemanticLink.self, InstalledPack.self,
             configurations: config
         )
     }()
@@ -26,6 +26,7 @@ struct PackInstallerTests {
         for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
         for link in try context.fetch(FetchDescriptor<ConceptLink>()) { context.delete(link) }
         for dep in try context.fetch(FetchDescriptor<ConceptDependency>()) { context.delete(dep) }
+        for link in try context.fetch(FetchDescriptor<SemanticLink>()) { context.delete(link) }
         for event in try context.fetch(FetchDescriptor<LearningEvent>()) { context.delete(event) }
         for source in try context.fetch(FetchDescriptor<FeedSource>()) { context.delete(source) }
         for pack in try context.fetch(FetchDescriptor<InstalledPack>()) { context.delete(pack) }
@@ -113,6 +114,125 @@ struct PackInstallerTests {
         // ADR-0002: a Co-read Link records what you actually read. Installing a
         // Pack is not reading, so it must not manufacture one.
         #expect(try context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
+    }
+
+    // MARK: - Semantic Links (ADR-0002)
+
+    @Test("installing a Pack joins related Concepts with no reading history present")
+    func installComputesSemanticLinks() throws {
+        let context = try makeContext()
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
+
+        // The point of the whole feature: a map that means something before
+        // the reader has read a single article.
+        let links = try context.fetch(FetchDescriptor<SemanticLink>())
+        #expect(!links.isEmpty)
+        #expect(try context.fetch(FetchDescriptor<LearningEvent>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
+    }
+
+    @Test("Semantic Links are stored apart from Co-read Links and authored Dependencies")
+    func semanticLinksAreStoredDistinctly() throws {
+        let context = try makeContext()
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
+
+        // Three kinds of edge, three stores. A Semantic Link must not show up
+        // as either of the other two, or the map cannot draw them differently.
+        #expect(!(try context.fetch(FetchDescriptor<SemanticLink>())).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<ConceptDependency>()).count == 2)
+    }
+
+    @Test("a Semantic Link names Concepts that really exist, undirected and once each")
+    func semanticLinksAreWellFormed() throws {
+        let context = try makeContext()
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
+
+        let stored = Set(try context.fetch(FetchDescriptor<Concept>()).map(\.name))
+        let links = try context.fetch(FetchDescriptor<SemanticLink>())
+        for link in links {
+            #expect(stored.contains(link.conceptA))
+            #expect(stored.contains(link.conceptB))
+            #expect(link.conceptA < link.conceptB)      // sorted, so undirected
+            #expect(link.strength >= 0 && link.strength <= 1)
+        }
+        let pairs = links.map { "\($0.conceptA)|\($0.conceptB)" }
+        #expect(Set(pairs).count == pairs.count)        // no duplicate edge
+    }
+
+    @Test("reinstalling rebuilds Semantic Links rather than piling more on")
+    func reinstallRebuildsSemanticLinks() throws {
+        let context = try makeContext()
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
+        let first = try context.fetch(FetchDescriptor<SemanticLink>()).count
+
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
+
+        // Derived from the Pack, so the Pack owns them outright — the same
+        // rule Dependencies follow, and nothing of the reader's is lost by it.
+        #expect(try context.fetch(FetchDescriptor<SemanticLink>()).count == first)
+    }
+
+    @Test("a Semantic Link to a dropped Concept does not survive the Pack that dropped it")
+    func reinstallDropsLinksToRemovedConcepts() throws {
+        let context = try makeContext()
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
+
+        try PackInstaller.install(aiPack(concepts: [
+            .init(name: "Embeddings", cluster: "Foundations",
+                  definition: "Meaning as vectors.", dependencies: []),
+            .init(name: "RAG", cluster: "Agents",
+                  definition: "Ground answers in your data.", dependencies: ["Embeddings"]),
+        ], stages: []), origin: .builtin, context: context)
+
+        // "Agent Memory" keeps its Mastery and history, but it is no longer
+        // part of the map this Pack draws.
+        let links = try context.fetch(FetchDescriptor<SemanticLink>())
+        #expect(!links.contains { $0.conceptA == "Agent Memory" || $0.conceptB == "Agent Memory" })
+    }
+
+    @Test("a Concept the reader's own reading discovered is not wired into the Pack's map")
+    func semanticLinksCoverOnlyThePacksConcepts() throws {
+        let context = try makeContext()
+        context.insert(Concept(name: "Some Stray Term", category: "Foundations",
+                               definition: "Something an article mentioned once."))
+        try context.save()
+
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context)
+
+        // Semantic Links are computed from the Pack's own definitions. What the
+        // reader's reading turned up is theirs, and is not part of the Pack.
+        let links = try context.fetch(FetchDescriptor<SemanticLink>())
+        #expect(!links.contains { $0.conceptA == "Some Stray Term" || $0.conceptB == "Some Stray Term" })
+    }
+
+    @Test("installing a Pack whose Concepts cannot be embedded still installs")
+    func installSurvivesWithoutAnEmbedding() throws {
+        let context = try makeContext()
+        // Hardware without the embedding model: a poorer map, not a failed
+        // install. Nothing here depends on Apple Intelligence either way.
+        try PackInstaller.install(aiPack(), origin: .builtin, context: context,
+                                  vector: { _ in nil })
+
+        #expect(try context.fetch(FetchDescriptor<Concept>()).count == 3)
+        #expect(try context.fetch(FetchDescriptor<SemanticLink>()).isEmpty)
+        #expect(ActivePack.load(context: context)?.field == "AI Engineering")
+    }
+
+    @Test("installing a Pack of realistic size does not hold the reader up")
+    func installOfRealisticPackIsPrompt() throws {
+        let context = try makeContext()
+        let flagship = try BuiltinPacks.aiEngineer()
+
+        let started = Date.now
+        try PackInstaller.install(flagship, origin: .builtin, context: context)
+        let elapsed = Date.now.timeIntervalSince(started)
+
+        // 68 Concepts, the flagship's real size. Generous against a debug
+        // simulator build — a regression guard on the shape of the work, not a
+        // benchmark. Measured at ~0.5s, nearly all of it the embedding calls.
+        #expect(elapsed < 5, "installing \(flagship.concepts.count) Concepts took \(elapsed)s")
+        #expect(!(try context.fetch(FetchDescriptor<SemanticLink>())).isEmpty)
     }
 
     @Test("a Pack's suggested Sources are kept to offer, not subscribed to")

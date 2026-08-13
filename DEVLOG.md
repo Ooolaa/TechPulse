@@ -6,6 +6,69 @@
 
 ---
 
+## 2026-08-13 — Semantic Links: the map means something on day one (#9)
+
+**Built**
+- **`SemanticLink`, its own model.** ADR-0002's second edge kind, stored apart
+  from `ConceptLink` (Co-read) and `ConceptDependency`. Separate rather than a
+  flag on `ConceptLink` for one concrete reason: Semantic Links are *derived*
+  and get rebuilt on every install, Co-read Links are a record of what the
+  reader actually read and must never be thrown away. One table would make
+  "recompute the derived ones" impossible to express safely.
+- **`SemanticLinker`** — pure, on device, offline, no Apple Intelligence. Uses
+  the `NLEmbedding` sentence embedding already present for Concept dedupe. The
+  vector source is a parameter, so the graph rules are tested against
+  coordinates a test chooses rather than against whatever Apple's model
+  believes about AI jargon.
+- **`PackInstaller.install` rebuilds the links** the same way it rebuilds
+  Dependencies — the Pack owns its derived edges. Links are computed over the
+  Concepts *as the store names them*, so an edge can never point at a name no
+  fetch would find (the case-sensitivity trap #4 fell into).
+
+**The measurement that changed the design.** The plan was a similarity
+threshold. Probing the real Pack first killed it: raw cosine over 68 real
+definitions gives a median pair of 0.47, same-Cluster pairs 0.52, and
+"Sourdough Bread Baking" scores **0.46** against an AI Pack. There is no
+threshold that both connects the map and excludes bread — generous (0.5) gave
+909 links with one Concept joined to 53 others, ADR-0002's hairball; strict
+(0.65) left 33 of 68 Concepts alone, ADR-0002's dust. Every English sentence is
+a bit like every other, and that common component swamps the signal.
+
+What works is judging relatedness two ways at once:
+- **rank** on *centred* vectors (each Concept minus the Pack's mean meaning) —
+  what makes this Concept distinctive, which ranks neighbours sensibly but has
+  no absolute scale;
+- **gate** on *raw* cosine, which does have a scale, so a foreign Concept is
+  refused;
+- **mutual top-5**, which is what actually delivers the readability criterion:
+  no Concept can exceed 5 links, whatever the Pack looks like.
+
+Result on the flagship: 119 links, nothing isolated, one connected component,
+and all three foreign Concepts left unlinked.
+
+**Verified** 176 unit tests pass (155 before). Both new guards were
+mutation-tested rather than trusted: dropping the floor to 0.0 linked all three
+outsiders and broke 3 tests; ranking on raw instead of centred vectors
+fractured the flagship into 14 islands with 11 isolated dots. `vDSP` over
+pre-normalised vectors made the similarity pass 130× faster than the scalar
+version (0.86 ms vs 112 ms at N=68), which left the per-Concept embedding call
+(~6 ms) as the entire cost: ~0.4 s for the flagship, once per install.
+
+**Learned** Measuring the embedding *before* designing around it was the whole
+ticket. The ticket, the ADR and my own first instinct all said "threshold"; 20
+minutes of probing showed a threshold cannot satisfy two of the acceptance
+criteria simultaneously, and pointed at the fix. Also worth knowing: the CI
+simulator has no Apple Intelligence at all (`modelcatalog` errors in every run),
+which makes it accidental but genuine proof of the "works without Apple
+Intelligence" criterion.
+
+**Not in this ticket** Nothing *draws* these links yet — `FullMapView` and
+`ForceGraphView` still query `ConceptLink` only. Rendering three distinguishable
+edge kinds with strength driving layout is #10, which ADR-0002 sequences after
+this.
+
+---
+
 ## 2026-07-31 — Agent skills configured; the tracker gets a vocabulary
 
 **Built**

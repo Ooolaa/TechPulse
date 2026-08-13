@@ -147,16 +147,21 @@ struct ActivePack {
 @MainActor
 enum PackInstaller {
 
-    /// Creates the Pack's Concepts, Clusters and Dependencies, and offers its
-    /// suggested Sources.
+    /// Creates the Pack's Concepts, Clusters, Dependencies and Semantic Links,
+    /// and offers its suggested Sources.
     ///
     /// Installing again over the top is the update path: a Concept that still
     /// exists keeps its Mastery, its Lit state and its history, and adopts the
     /// Pack's corrected definition and Cluster. A Concept the new Pack drops is
     /// left alone entirely — it stops being part of the Pack, it is not deleted.
+    ///
+    /// `vector` exists so tests can install a Pack without Apple's embedding
+    /// having an opinion; production always uses the default.
     @discardableResult
     static func install(_ pack: PackFile, origin: PackOrigin,
-                        context: ModelContext) throws -> InstalledPack {
+                        context: ModelContext,
+                        vector: @MainActor (String) -> [Double]? = SemanticLinker.embed
+    ) throws -> InstalledPack {
         try PackValidator.validate(pack)
 
         do {
@@ -212,8 +217,31 @@ enum PackInstaller {
                                                      dependent: dependent.name))
                 }
             }
+            // Semantic Links are derived from the Pack's own definitions, so
+            // the Pack owns them the way it owns its Dependencies: rebuild,
+            // rather than let every past install's edges accumulate. Nothing of
+            // the reader's is lost by this — a Semantic Link records what two
+            // Concepts mean, never anything they did.
+            for link in (try? context.fetch(FetchDescriptor<SemanticLink>())) ?? [] {
+                context.delete(link)
+            }
+            // Computed over the Concepts as the store now names them, so an
+            // edge can never point at a name no fetch would find. Only the
+            // Pack's own Concepts take part: what the reader's reading turned
+            // up is theirs, and is not part of the map the Pack draws.
+            let linkable = pack.concepts.compactMap { packConcept in
+                resolved[packConcept.name].map {
+                    LinkableConcept(name: $0.name, definition: packConcept.definition)
+                }
+            }
+            for edge in SemanticLinker.link(linkable, vector: vector) {
+                context.insert(SemanticLink(conceptA: edge.conceptA, conceptB: edge.conceptB,
+                                            strength: edge.strength))
+            }
+
             // No Co-read Link is manufactured here. ADR-0002: a Dependency is a
-            // claim about learning order, a Co-read Link is a record of what you
+            // claim about learning order, a Semantic Link is a claim about what
+            // two Concepts mean, and a Co-read Link is a record of what you
             // actually read together. Installing a Pack is not reading.
             //
             // Nor is the reader subscribed to the Pack's suggested Sources. A

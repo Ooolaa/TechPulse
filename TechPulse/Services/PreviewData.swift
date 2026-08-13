@@ -8,7 +8,7 @@ enum PreviewData {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(
             for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
+            LearningEvent.self, ConceptLink.self, ConceptDependency.self, SemanticLink.self,
             InstalledPack.self,
             configurations: config
         )
