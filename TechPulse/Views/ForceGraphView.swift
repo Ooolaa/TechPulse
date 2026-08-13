@@ -282,6 +282,34 @@ struct ForceGraphView: View {
         }
     }
 
+    /// What the drawn edges actually depend on.
+    ///
+    /// Counting links is not enough: Co-read Links are rebuilt by deleting and
+    /// reinserting the whole table, which routinely lands on the same count
+    /// with different pairs and different strengths — so a map on screen while
+    /// a background analysis pass finished would go on drawing the old edges.
+    /// Semantic Links have the same problem the first time a launch backfills
+    /// them. O(edges) per body evaluation, against a canvas already redrawing
+    /// at 30fps.
+    private var edgeSignature: Int {
+        var hasher = Hasher()
+        hasher.combine(links.count)
+        for link in links {
+            hasher.combine(link.conceptA); hasher.combine(link.conceptB)
+            hasher.combine(link.strength)
+        }
+        hasher.combine(semanticLinks.count)
+        for link in semanticLinks {
+            hasher.combine(link.conceptA); hasher.combine(link.conceptB)
+            hasher.combine(link.strength)
+        }
+        hasher.combine(dependencies.count)
+        for dependency in dependencies {
+            hasher.combine(dependency.prerequisite); hasher.combine(dependency.dependent)
+        }
+        return hasher.finalize()
+    }
+
     /// Shared with the map's legend, so the key can never drift from the map.
     static func edgeColor(_ kind: GraphSimulation.Edge.Kind) -> Color {
         switch kind {
@@ -430,7 +458,7 @@ struct ForceGraphView: View {
                               dependencies: dependencies,
                               clusterAnchored: clusterAnchored, in: geo.size)
             }
-            .onChange(of: links.count) {
+            .onChange(of: edgeSignature) {
                 sim.configure(concepts: concepts, links: links,
                               semanticLinks: semanticLinks,
                               dependencies: dependencies,
