@@ -130,6 +130,7 @@ struct KnowledgeEngineTests {
             let article = Article(guid: "g\(index)", title: "t", content: "c",
                                   publishedAt: .now, sourceName: "s")
             article.concepts = [a, b]
+            article.isRead = true          // a reading is an article you opened
             context.insert(article)
         }
         try context.save()
@@ -142,6 +143,66 @@ struct KnowledgeEngineTests {
         #expect(links[0].strength > 0)
     }
 
+    @Test("an article sitting unopened in the cache is not a reading")
+    func unreadArticlesAreNotReadings() throws {
+        let context = try makeContext()
+        let a = Concept(name: "A", category: "LLMs", definition: "")
+        let b = Concept(name: "B", category: "LLMs", definition: "")
+        context.insert(a)
+        context.insert(b)
+        // Analysis attaches Concepts to every cached article, read or not. Only
+        // opening one makes it a reading — the same signal Mastery, Lit state
+        // and the Streak already use.
+        let unopened = Article(guid: "g", title: "t", content: "c",
+                               publishedAt: .now, sourceName: "s")
+        unopened.concepts = [a, b]
+        context.insert(unopened)
+        try context.save()
+
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+        #expect(try context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
+
+        // Reading it is what joins them.
+        KnowledgeEngine.recordRead(unopened, context: context)
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+        #expect(try context.fetch(FetchDescriptor<ConceptLink>()).count == 1)
+    }
+
+    @Test("the rebuild stays quick as reading history grows")
+    func rebuildStaysQuickAtScale() throws {
+        // This runs on the main actor in `TechPulseApp.init`, before the first
+        // frame, on *every* launch — so its cost has to stay tied to what the
+        // reader read, not to how much the app has cached. Measured at ~44ms
+        // for this store; the guard is generous, against a debug build.
+        let context = try makeContext()
+        var concepts: [Concept] = []
+        for index in 0..<200 {
+            let concept = Concept(name: "C\(index)", category: "Cluster", definition: "d")
+            context.insert(concept)
+            concepts.append(concept)
+        }
+        for index in 0..<1200 {
+            let article = Article(guid: "g\(index)", title: "t", content: "c",
+                                  publishedAt: .now, sourceName: "s")
+            var attached: [Concept] = []
+            for slot in 0..<8 {
+                let pick: Int = (index * 7 + slot * 13) % 200
+                attached.append(concepts[pick])
+            }
+            article.concepts = attached
+            article.isRead = index < 500        // 60 days of a heavy reader
+            context.insert(article)
+        }
+        try context.save()
+
+        let started = Date.now
+        KnowledgeEngine.rebuildCoreadLinks(context: context)
+        let elapsed = Date.now.timeIntervalSince(started)
+
+        #expect(elapsed < 1, "rebuild over 500 readings took \(elapsed)s")
+        #expect(try !context.fetch(FetchDescriptor<ConceptLink>()).isEmpty)
+    }
+
     @Test("rebuilding twice leaves one scored link, not two")
     func rebuildIsIdempotent() throws {
         let context = try makeContext()
@@ -152,6 +213,7 @@ struct KnowledgeEngineTests {
         let article = Article(guid: "g", title: "t", content: "c",
                               publishedAt: .now, sourceName: "s")
         article.concepts = [a, b]
+        article.isRead = true          // a reading is an article you opened
         context.insert(article)
         try context.save()
 
@@ -175,6 +237,7 @@ struct KnowledgeEngineTests {
         let article = Article(guid: "g", title: "t", content: "c",
                               publishedAt: .now, sourceName: "s")
         article.concepts = [a, b]
+        article.isRead = true          // a reading is an article you opened
         context.insert(article)
         // What the old raw counter left behind: unscored, and naming a pair no
         // reading supports.
@@ -198,6 +261,7 @@ struct KnowledgeEngineTests {
         let article = Article(guid: "g", title: "t", content: "c",
                               publishedAt: .now, sourceName: "s")
         article.concepts = [a, b]
+        article.isRead = true          // a reading is an article you opened
         context.insert(article)
         try context.save()
         KnowledgeEngine.rebuildCoreadLinks(context: context)

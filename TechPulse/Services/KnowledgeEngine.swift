@@ -105,8 +105,17 @@ enum KnowledgeEngine {
 
         // A reading is a group of Concepts met together. Filtered against the
         // store, so a group can never name a Concept no fetch would find.
+        //
+        // Only articles the reader actually opened count. Analysis attaches
+        // Concepts to every *cached* article, so counting those would wire the
+        // map from a feed nobody read — and `isRead` is already the app's
+        // definition of reading, the one Mastery, Lit state and the Streak use.
+        // Semantic Links are what made this affordable: before them, a reader
+        // on day one would have been left with the unconnected dust ADR-0002
+        // set out to end.
         var readings: [[String]] = []
-        for article in (try? context.fetch(FetchDescriptor<Article>())) ?? [] {
+        let articles = FetchDescriptor<Article>(predicate: #Predicate { $0.isRead })
+        for article in (try? context.fetch(articles)) ?? [] {
             let names = article.concepts.map(\.name).filter(known.contains)
             if names.count > 1 { readings.append(names) }
         }

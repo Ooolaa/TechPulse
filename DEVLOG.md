@@ -6,6 +6,45 @@
 
 ---
 
+## 2026-08-14 — Acting on the review: a Co-read Link now means what the glossary says
+
+**Built**
+- **Co-read Links come from articles you actually opened.** `rebuildCoreadLinks`
+  had no `isRead` filter, so it wired the map from every *cached* article —
+  and analysis attaches Concepts to all of them, read or not. `CONTEXT.md` has
+  always said "Concepts you have met together in the same **reading**", and
+  `isRead` is already the app's definition of reading: the same signal Mastery,
+  Lit state and the Streak use. Only Co-read Links ignored it. #10 then put
+  "Read together" on the map, which made the wrong semantics user-visible.
+- **Not a regression — an inherited one.** The old `linkCooccurring` ran from
+  `analyzePending`, which never looked at read state either. What changed is
+  that #9 made the fix affordable: before Semantic Links, filtering to
+  read-only would have left a new reader looking at dust. Now Semantic Links
+  carry day one, so Co-read can afford to mean what it says.
+- **The map on screen now redraws when edges change**, not when their *count*
+  does. `rebuildCoreadLinks` deletes and reinserts the whole table, which
+  routinely lands on the same count with different pairs — so a map open during
+  a background analysis pass kept drawing stale edges. Keyed on a hash of the
+  endpoints and strengths instead.
+
+**Measured, rather than assumed.** The review also flagged the launch path as
+blocking: `rebuildCoreadLinks` runs on the main actor in `TechPulseApp.init`
+before the first frame. Measured across three store sizes, it costs **29ms at
+300 cached / 100 read, and 44ms at 1200 / 500** — sub-linear, because the
+`isRead` predicate filters in SQLite rather than in Swift. That does not justify
+an async refactor, and deferring it would open a window where the engines read
+an empty map at launch. Pinned with a budget test instead. The genuinely
+expensive steps are both one-offs: installing a Pack, and the one upgrade
+launch that backfills Semantic Links (~0.4s each).
+
+**Learned** Three of the review's nine findings were in code from this session;
+one of those (stale edges) was a real bug my tests could not have caught,
+because every one of them called `configure` directly and never went through
+SwiftUI's update path. Worth remembering that a unit-tested view model proves
+nothing about when the view asks it for anything.
+
+---
+
 ## 2026-08-13 — Three kinds of edge, and strength that moves the dots (#10)
 
 **Built**
