@@ -16,6 +16,11 @@ struct TechPulseApp: App {
                 LearningEvent.self, ConceptLink.self, ConceptDependency.self,
                 SemanticLink.self, InstalledPack.self
             )
+            #if DEBUG
+            // Before seeding, so a journey that asked for a clean store gets
+            // seeded from scratch rather than on top of the last run (#26).
+            UITestSupport.resetStoreIfRequested(context: container.mainContext)
+            #endif
             SeedData.seedIfNeeded(context: container.mainContext)
             KnowledgeEngine.applyTimeDecay(context: container.mainContext)
             // Seed the widget on first launch, and let decay/day-rollover land

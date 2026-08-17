@@ -10,6 +10,60 @@
 
 ---
 
+## 2026-08-17 — The journey's verdict came from leftover data, not from the code (#26)
+
+**Built**
+- **`UITestSupport`** (`#if DEBUG` only) — a `-uitest-reset-store` launch argument
+  that empties every model type and clears the seeding defaults before the first
+  frame, so a journey starts from a known install. This had to come *first*: the
+  bug could not be diagnosed without it, because the diagnostic loop kept
+  mutating the state it depended on. Deletes row by row, not with
+  `delete(model:)` — a batch delete does not maintain inverse relationships.
+- **The core journey dismisses the Concept sheet through the affordance built for
+  it** (`closeSheet`), not `app.swipeDown`. All four journeys now start from a
+  wiped store, and the journey asserts the sheet closed and the tab became
+  selected, so a swallowed tap names its own step.
+- **A new guard, `testConceptSheetDismissesWhileScrolled`** — scrolls the sheet,
+  then dismisses it, and checks the tab bar is live afterwards. It locks the
+  invariant the fixed journey now leans on, and it asserts the sheet *did* scroll,
+  so it cannot pass by not exercising the case.
+
+**How it was actually found.** The reported cause — `swipeDown` absorbed by the
+sheet's inner `ScrollView` — turned out to be **half right, and the missing half
+was the whole bug**. A 15-second probe against a frontier Concept's sheet showed
+`swipeDown` dismissing it perfectly. Only after scrolling the sheet first did the
+probe go red, with the journey's exact symptom:
+`sheetWasScrollable=true sheetStillOpenAfterSwipeDown=true knowledgeTabReached=false`.
+So the gesture is *conditional*: it dismisses a sheet at scroll-top and merely
+scrolls one that is not. Which is why the journey's fate depended on data — a
+Concept with 17 Articles fills the sheet, XCUITest scrolls a row into view to tap
+it, and the drill-through leaves the offset non-zero by the time line 81 swipes.
+
+Then the loop broke the same way the journey had: the probe that was red twice
+came back **skipped**, because an earlier probe had opened an Article, marked it
+read, bumped Mastery and consumed the cluster's Frontier. Diagnosing a
+state-dependent test with a state-dependent loop does not work, and that is what
+forced the reset hook to be built before the fix rather than after.
+
+**Verified** The full journey suite twice back to back, four tests green both
+times (~193s each) — consecutive runs agreeing is the actual claim, since a
+single green run is what this bug always produced. 211 unit tests still pass, and
+Release still builds with the hook compiled out. Proof the wipe really wipes:
+`10c-source-offer.png` now gets written, meaning the Pack-switch journey finally
+exercises its source-offer branch instead of finding nothing left to offer.
+
+**Learned** A gesture that competes with a scroll view is not a dismissal, it is
+a coin flip weighted by content height. And the deeper one, filed as **#30**:
+this suite has **15 branches guarded by `if element.exists`**, each of which
+skips its own assertions and leaves the test green. That is how
+`4-marked-known.png` went stale on 2026-08-13 and stayed unnoticed for four days
+— the journey was passing while a documented step had silently stopped running.
+Three defects today were the same shape: a test that could not fail. The stale
+screenshot was the clue that cracked #26, and it was only found by comparing file
+timestamps by hand.
+
+---
+
 ## 2026-08-17 — CareerPulse is retired, and the port is closed (#16)
 
 **Built**

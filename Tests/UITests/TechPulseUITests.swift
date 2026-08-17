@@ -6,6 +6,11 @@ final class TechPulseUITests: XCTestCase {
 
     private let shotDir = "/tmp/techpulse_uitest"
 
+    /// Mirrors `UITestSupport.resetStoreArgument`. Spelled out rather than
+    /// referenced: the UI test bundle does not link the app target, so the
+    /// constant cannot be shared. If one changes, change both.
+    private let uiTestResetStore = "-uitest-reset-store"
+
     private func snap(_ app: XCUIApplication, _ name: String) {
         let png = app.screenshot().pngRepresentation
         try? FileManager.default.createDirectory(atPath: shotDir, withIntermediateDirectories: true)
@@ -14,6 +19,11 @@ final class TechPulseUITests: XCTestCase {
 
     func testCoreJourney() throws {
         let app = XCUIApplication()
+        // Start from a wiped store. Until this existed the journey ran against
+        // whatever previous runs left behind, so its verdict depended on how
+        // many Articles a Concept had collected and whether an earlier run had
+        // already marked it known — data, not the code under test (#26).
+        app.launchArguments += [uiTestResetStore]
         app.launch()
 
         // First run shows onboarding (design 3a): topics preselected, continue.
@@ -78,12 +88,31 @@ final class TechPulseUITests: XCTestCase {
                 sleep(1)
                 snap(app, "4-marked-known")
             }
-            app.swipeDown(velocity: .fast)   // dismiss sheet
+
+            // Dismiss through the affordance built for it, not `swipeDown`.
+            // A downward drag competes with the sheet's inner `ScrollView`: it
+            // dismisses only while the scroll sits at the top, and otherwise
+            // just scrolls the content back up while the sheet stays put (#26).
+            // The drill-through above is what scrolls it — XCUITest scrolls a
+            // row into view to reach it — so by this line the gesture is
+            // unreliable exactly when the Concept has enough Articles to fill
+            // the sheet.
+            let close = app.buttons["closeSheet"].firstMatch
+            XCTAssertTrue(close.waitForExistence(timeout: 5),
+                          "concept sheet has no close button")
+            close.tap()
             sleep(1)
+            XCTAssertFalse(close.exists, "concept sheet did not dismiss")
         }
 
-        app.buttons["Knowledge"].tap()
+        // Assert the tab actually changed. A sheet left open swallows this tap,
+        // and without the assertion the failure surfaces three steps later as
+        // "no cluster cards" — which is what #26 was reported as.
+        let knowledgeTab = app.buttons["Knowledge"]
+        knowledgeTab.tap()
         sleep(1)
+        XCTAssertTrue(knowledgeTab.isSelected,
+                      "Knowledge tab never became selected — a modal likely swallowed the tap")
         snap(app, "5-cluster-overview")
 
         // Drill into the first cluster's dependency graph (design 4b).
@@ -210,11 +239,13 @@ final class TechPulseUITests: XCTestCase {
     /// Choosing what the map covers: see the active Pack, switch to the other
     /// built-in one, take up its suggested Sources, and switch back.
     ///
-    /// Runs after the core journey, so the app already has a map; it ends on
-    /// the Pack it started on so it leaves nothing behind for the next test.
+    /// Starts from a wiped store, so "the Pack's suggested Sources are offered"
+    /// is a real assertion rather than one that quietly passes because a
+    /// previous run already took the offer up (#26). It ends on the Pack it
+    /// started on, so it leaves nothing behind either.
     func testPackSelectionJourney() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["-hasOnboarded", "YES"]
+        app.launchArguments += [uiTestResetStore, "-hasOnboarded", "YES"]
         app.launch()
 
         app.buttons["Settings"].tap()
@@ -299,10 +330,61 @@ final class TechPulseUITests: XCTestCase {
         snap(app, "10g-sources-from-pack")
     }
 
+    /// The Concept sheet must be dismissable **whatever its scroll position** —
+    /// the invariant the core journey now leans on, so it gets its own guard.
+    ///
+    /// #26 was a journey that dismissed the sheet by `swipeDown`, which works
+    /// only while the inner `ScrollView` sits at the top. This drives the case
+    /// that broke it: scroll the sheet, then dismiss. It goes red if the close
+    /// affordance is removed, stops being hittable while scrolled, or the sheet
+    /// gains a layout where the button scrolls away with the content.
+    func testConceptSheetDismissesWhileScrolled() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [uiTestResetStore, "-hasOnboarded", "YES"]
+        app.launch()
+
+        app.buttons["Knowledge"].tap()
+        let cluster = app.buttons["clusterCard"].firstMatch
+        XCTAssertTrue(cluster.waitForExistence(timeout: 10), "no cluster cards")
+        cluster.tap()
+        sleep(2)
+
+        let frontier = app.buttons["frontierCard"].firstMatch
+        XCTAssertTrue(frontier.waitForExistence(timeout: 5),
+                      "a freshly seeded cluster must have a frontier card")
+        frontier.tap()
+        sleep(1)
+
+        let close = app.buttons["closeSheet"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "concept sheet never opened")
+
+        // Scroll away from the top — the state in which a swipe-to-dismiss
+        // silently stops working.
+        let beforeScroll = app.screenshot().pngRepresentation
+        app.swipeUp(velocity: .fast)
+        sleep(1)
+        XCTAssertNotEqual(beforeScroll, app.screenshot().pngRepresentation,
+                          "sheet did not scroll, so this test is not exercising the #26 case")
+
+        XCTAssertTrue(close.isHittable, "close button not reachable once the sheet is scrolled")
+        close.tap()
+        sleep(1)
+        XCTAssertFalse(close.exists, "scrolled concept sheet did not dismiss")
+
+        // And the tab bar is live again, which is what the journey needs next.
+        let progress = app.buttons["Progress"]
+        progress.tap()
+        sleep(1)
+        XCTAssertTrue(progress.isSelected, "tab tap still swallowed after dismissal")
+    }
+
     /// Usability guards: every tab reachable, primary controls hittable.
     func testTabsAndTargets() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["-hasOnboarded", "YES"]   // onboarding covered by core journey
+        // Onboarding covered by the core journey; the wipe keeps "every tab
+        // reachable" a statement about a known install rather than about
+        // whatever the last run left (#26).
+        app.launchArguments += [uiTestResetStore, "-hasOnboarded", "YES"]
         app.launch()
         for tab in ["Feed", "Knowledge", "Progress", "Settings"] {
             let button = app.buttons[tab].firstMatch
