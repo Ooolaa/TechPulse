@@ -1,8 +1,68 @@
 # TechPulse — Development Log
 
 > Daily record of the development process. Newest first. Each entry: what was
-> built, what was verified, and what was learned. Sibling project:
-> [CareerPulse](../CareerPulse/DEVLOG.md) (the career-agnostic spin-off).
+> built, what was verified, and what was learned.
+>
+> Entries before 2026-08-17 refer to CareerPulse as an active sibling project.
+> It is retired — one app, Packs are runtime data in it. See
+> [ADR-0005](docs/adr/0005-careerpulse-is-retired-and-what-came-across.md) for
+> what came across and what did not.
+
+---
+
+## 2026-08-17 — CareerPulse is retired, and the port is closed (#16)
+
+**Built**
+- **ADR-0005 accounts for CareerPulse file by file.** ADR-0001 decided the
+  retirement two and a half weeks ago but never took the inventory, so "retired"
+  and "abandoned mid-port" were indistinguishable from this repo. Taken against
+  `af8ab0c` by comparing tracked files: thirteen existed only there, and each is
+  now *brought across*, *tracked*, or *dropped* with a reason.
+- **The security tests came across, and they were the thing that mattered.**
+  `KeychainStore` and `AnthropicClient` were back-ported on 2026-07-14 **without
+  their tests**, and the XXE hardening landed the same day the same way — three
+  shipped security-relevant behaviours whose only coverage sat in the repo being
+  retired, against this repo's own standing testing gate. Now
+  `Tests/UnitTests/ByoKeyTests.swift` (Keychain round trip, Anthropic request
+  shape, 401, and a 200 carrying no text block) plus one test in
+  `RSSParserTests`.
+- **`PRIVACY.md` was rewritten, not copied.** The original described a product
+  that generates Packs, probes suggested feed URLs and shows a regulated-fields
+  banner. This app does none of those, so those claims came out rather than
+  being inherited, and what is left was checked line by line against the code —
+  which is how the missing `TopicSearchService` cap turned into a filed issue
+  rather than a sentence that was almost true.
+- **ROADMAP Horizon 5 item 16 said the wrong thing** — it described exporting
+  the Pack so two apps could coexist, the option ADR-0001 rejected. Rewritten,
+  along with item 17 ("validate in CareerPulse first" — there is nowhere to
+  validate but here now). The dropped theme palettes are pointed at from
+  Horizon 4 item 12 so they are findable rather than lost.
+- **Two issues filed for what the inventory turned up.** **#27**: `PackDraft`
+  and `PackGenerator` were on ADR-0001's port list and never ported, with no
+  ticket covering them — the one place the port was genuinely incomplete rather
+  than deliberately narrowed. **#28**: `TopicSearchService` still has no
+  response size cap, unlike both its siblings.
+
+**Verified** 211 unit tests in 18 suites pass (206 + 5 new). The two ported
+suites were **mutation-checked** rather than trusted for being green: removing
+`SecItemUpdate` from the Keychain save path turns the round trip red, and
+renaming the `x-api-key` header turns the request-shape test red. The Keychain
+suite really does run here — the simulator's Keychain is reachable, so its
+entitlement guard is not silently skipping the whole test.
+
+**Learned** A test can be green from the day it is written and never have been
+able to fail. The ported XXE test asserts that an entity payload yields no file
+contents — but flipping `shouldResolveExternalEntities` to `true` leaves it
+green, because a `Data`-backed `XMLParser` never fetches the external resource
+either way (checked against an external-DTD payload too; the flag only gates the
+declaration callback). Worse, it asserted only through `allSatisfy` over an array
+that is empty for this input — vacuously true twice over. Kept as a regression
+guard on the outcome, with the limit written down instead of implied, and an
+`isEmpty` assertion that can actually fail.
+
+The general shape: **a retirement is an inventory, not an announcement.** Every
+item on the dropped list was easy to justify once written down, and impossible to
+find while it wasn't.
 
 ---
 

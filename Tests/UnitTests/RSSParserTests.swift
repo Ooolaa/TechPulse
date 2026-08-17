@@ -96,4 +96,40 @@ struct RSSParserTests {
         #expect("<p>A &amp; B</p>".strippingHTML == "A & B")
         #expect("Plain".strippingHTML == "Plain")
     }
+
+    /// Feed XML is attacker-controlled — anyone whose feed the reader enabled
+    /// chooses these bytes — so an XXE payload must not turn into content.
+    ///
+    /// **What this pins, and what it does not.** Brought across from the retired
+    /// CareerPulse repo (#16), where it was the only test over the 2026-07-14
+    /// hardening. It does not prove that `shouldResolveExternalEntities = false`
+    /// is doing the work: flipping that line to `true` and rerunning leaves this
+    /// green, because a `Data`-backed `XMLParser` never fetches the external
+    /// resource either way (verified by mutation, and against an external-DTD
+    /// payload too — the flag only gates the declaration callback). The flag is
+    /// belt-and-braces, and the test earns its place as the regression guard on
+    /// the *outcome*: it goes red if the parser is ever switched to a
+    /// URL-backed `XMLParser`, or grows a delegate that resolves entities.
+    @Test("an XXE payload yields no file contents and no forged item")
+    func externalEntityIsNotResolved() {
+        let xml = """
+        <?xml version="1.0"?>
+        <!DOCTYPE r [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+        <rss><channel><item>
+          <title>&xxe;safe</title>
+          <link>https://example.com/xxe</link>
+        </item></channel></rss>
+        """
+        let items = RSSParser.parse(Data(xml.utf8))
+
+        // The unresolved reference takes the whole title with it, and a
+        // titleless item is skipped — so the hostile item reaches nobody.
+        // Asserting emptiness rather than only `allSatisfy` matters: over an
+        // empty array every `allSatisfy` is vacuously true, which is how the
+        // CareerPulse original managed to assert nothing at all.
+        #expect(items.isEmpty)
+        // `/etc/passwd` opens with a `root:` line on every Darwin box, so its
+        // absence is what "no file contents" means here.
+        #expect(items.allSatisfy { !$0.title.contains("root:") && !$0.content.contains("root:") })
+    }
 }

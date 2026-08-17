@@ -3,8 +3,10 @@
 > Prioritized backlog of what to build next and why. Companion to
 > [DEVLOG.md](DEVLOG.md) (what was built) and
 > [CareerPulse-Template.md](CareerPulse-Template.md) §9 (the validated bets
-> this list draws from). Ordered within each horizon; check items off or move
-> them into DEVLOG entries as they land.
+> this list draws from — a spec document that lives on in this repo; the app
+> it named is retired, see [ADR-0005](docs/adr/0005-careerpulse-is-retired-and-what-came-across.md)).
+> Ordered within each horizon; check items off or move them into DEVLOG entries
+> as they land.
 
 **Where the app stands:** M1–M6 complete, Knowledge Pack shipped (58 concepts
 in 8 clusters, now including Data Science / Kaggle), habit system + "Go
@@ -115,6 +117,10 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
     is the single source of color truth now. Ocean (current) + Plum / Forest
     / Sunset / Mono per template §7; onboarding step + Settings row; mastery
     lightness ordering must survive every palette (color-blind safety).
+    The five accent hues were built in CareerPulse (`Views/Theme.swift` at
+    `af8ab0c`) and are a **reference, not a patch** — they are light-only, and
+    every token here is a light/dark pair, so each palette needs a dark half
+    that was never designed (ADR-0005).
 
 13. **iPad / Mac layout.** The graph deserves a big canvas; NavigationSplitView
     + the same Canvas scales naturally.
@@ -128,12 +134,31 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
 
 ## Horizon 5 — Product line (background)
 
-16. **Pack format + universal mode.** CareerPulse template §10 defines the
-    runtime-generated pack JSON; TechPulse should be able to *export* its
-    AI-engineer pack in that format (it doubles as the marketplace format).
+16. ~~**Pack format + universal mode.**~~ **Superseded, and the old wording was
+    wrong.** This item used to say TechPulse should *export* its AI-engineer pack
+    in CareerPulse's format so the two apps could coexist — the option
+    [ADR-0001](docs/adr/0001-one-app-packs-become-runtime-data.md) rejected,
+    because it preserves the hand re-sync tax it was meant to avoid. There is one
+    app. Packs are runtime data in it, the AI Engineer Pack is a built-in Pack
+    file rather than a Swift `enum`, and `PackInstaller.exportActivePack` already
+    emits the format — which is the marketplace format, so nothing here was lost
+    but the two-app plan.
 
-17. **Mock-exam mode + expert packs** — the business engine per template §5;
-    validate with one exam-pressure career in CareerPulse first.
+    CareerPulse is retired. What came across, what is still tracked (#27) and
+    what was dropped is recorded file by file in
+    [ADR-0005](docs/adr/0005-careerpulse-is-retired-and-what-came-across.md).
+    The repo stays as history; nothing new is built there.
+
+    *Still open from the original intent:* a **Pack marketplace** — Packs
+    installable from somewhere other than a file someone sent you. Explicitly out
+    of scope for the pack-driven epic, and it needs the trust questions answered
+    first (who authored a Pack, what a generated one may claim), so it is a
+    conversation before it is a ticket.
+
+17. **Mock-exam mode + expert packs** — the business engine per template §5, and
+    the strongest willingness-to-pay feature in it. Validate with one
+    exam-pressure field as a Pack in this app: with Packs as runtime data, that
+    is authoring a Pack file, not forking an app.
 
 ---
 
