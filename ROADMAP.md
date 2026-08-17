@@ -164,9 +164,14 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
 
 ## Standing constraints (unchanged by anything above)
 
-- **Privacy:** on-device by default; the only network egress is public feed
-  fetch + the opt-in BYO-key path (concept name/definition only, user's own
-  key, no first-party server). Every new feature is measured against this.
+- **Privacy:** on-device by default, no first-party server, and every outbound
+  connection enumerated in [PRIVACY.md](PRIVACY.md). This bullet used to claim
+  the BYO-key path sends "concept name/definition only" — it does not: the
+  Explain path also sends ~220 characters of surrounding article text, and
+  topic search sends a Concept name to arXiv. Both were undisclosed until the
+  #16 audit; #29 decides whether the excerpt should be sent at all. Every new
+  feature is measured against the stance, and against saying what it actually
+  does.
 - **Zero third-party dependencies** — still a feature.
 - **Fallback-first:** every AI feature must work (degraded is fine) on
   hardware without Apple Intelligence — the reference device guarantees it.

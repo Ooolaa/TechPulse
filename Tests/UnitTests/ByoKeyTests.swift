@@ -3,9 +3,10 @@ import Foundation
 @testable import TechPulse
 
 // Coverage for the BYO-key path — the one place anything leaves the device
-// besides a public feed fetch. `KeychainStore` and `AnthropicClient` were
-// back-ported from CareerPulse on 2026-07-14 without their tests; these are
-// those tests, brought across as CareerPulse retires (#16).
+// besides a feed fetch and the arXiv topic search. `KeychainStore` and
+// `AnthropicClient` were back-ported from CareerPulse on 2026-07-14 without
+// their tests; these are those tests, brought across as CareerPulse retires
+// (#16).
 
 // MARK: - Keychain
 
@@ -20,11 +21,18 @@ struct KeychainStoreTests {
         KeychainStore.delete(account: account)
 
         // Unsigned simulator test hosts can't reach the Keychain at all
-        // (errSecMissingEntitlement, -34018). That's an environment limit, not
-        // a code bug — the real app runs signed — so skip on exactly that
-        // status rather than weakening the assertions for everyone.
+        // (errSecMissingEntitlement, -34018) — an environment limit, not a code
+        // bug, since the real app runs signed. Bail on exactly that status, but
+        // assert the one thing that must hold when we do: an unreachable
+        // Keychain reads as empty. Otherwise this early return would be a way
+        // for the whole test to pass having checked nothing, which is the
+        // failure mode #16 found in the XXE test next door.
         let status = KeychainStore.saveStatus("sk-ant-test-1", account: account)
-        guard status != errSecMissingEntitlement else { return }
+        guard status != errSecMissingEntitlement else {
+            #expect(KeychainStore.read(account: account) == nil,
+                    "Keychain unreachable here, so the round trip did not run")
+            return
+        }
         #expect(status == errSecSuccess)
         #expect(KeychainStore.read(account: account) == "sk-ant-test-1")
 
@@ -41,17 +49,25 @@ struct KeychainStoreTests {
 
 // MARK: - Anthropic client
 
-/// Captures the request and replays a canned 200, so the request shape can be
-/// asserted without a key or a network call.
+/// Captures the request and replays a canned response, so the request shape can
+/// be asserted without a key or a network call. One class rather than one per
+/// status code: the status and body are the only things that vary.
 final class StubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var lastRequest: URLRequest?
+    nonisolated(unsafe) static var status = 200
     nonisolated(unsafe) static var responseBody = Data()
+    nonisolated(unsafe) static var lastRequest: URLRequest?
+
+    static func stub(status: Int, body: String) {
+        Self.status = status
+        Self.responseBody = Data(body.utf8)
+        Self.lastRequest = nil
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.lastRequest = request
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200,
+        let response = HTTPURLResponse(url: request.url!, statusCode: Self.status,
                                        httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Self.responseBody)
@@ -60,35 +76,21 @@ final class StubURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-/// Replays a 401 — a rejected key, the failure a reader is most likely to hit.
-final class UnauthorizedURLProtocol: URLProtocol {
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-    override func startLoading() {
-        let response = HTTPURLResponse(url: request.url!, statusCode: 401,
-                                       httpVersion: nil, headerFields: nil)!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(#"{"error":{"message":"invalid x-api-key"}}"#.utf8))
-        client?.urlProtocolDidFinishLoading(self)
-    }
-    override func stopLoading() {}
-}
-
 @Suite("Anthropic client", .serialized)
 struct AnthropicClientTests {
 
-    private func client(stubbing protocolClass: URLProtocol.Type) -> AnthropicClient {
+    private var stubbedClient: AnthropicClient {
         let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [protocolClass]
+        config.protocolClasses = [StubURLProtocol.self]
         return AnthropicClient(session: URLSession(configuration: config))
     }
 
     @Test("sends the key and version headers to Anthropic, and extracts the text")
     func requestShape() async throws {
-        StubURLProtocol.responseBody = Data(#"{"content":[{"type":"text","text":"hello"}]}"#.utf8)
+        StubURLProtocol.stub(status: 200, body: #"{"content":[{"type":"text","text":"hello"}]}"#)
 
-        let text = try await client(stubbing: StubURLProtocol.self)
-            .complete(system: "sys", user: "usr", apiKey: "sk-ant-unit")
+        let text = try await stubbedClient.complete(system: "sys", user: "usr",
+                                                    apiKey: "sk-ant-unit")
         #expect(text == "hello")
 
         let request = try #require(StubURLProtocol.lastRequest)
@@ -100,7 +102,7 @@ struct AnthropicClientTests {
         #expect(request.value(forHTTPHeaderField: "anthropic-version") == "2023-06-01")
 
         let body = try #require(Self.body(of: request))
-        let decoded = try #require(try? JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let decoded = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(decoded["model"] as? String == AnthropicClient.model)
         #expect(decoded["system"] as? String == "sys")
         let messages = try #require(decoded["messages"] as? [[String: Any]])
@@ -111,15 +113,11 @@ struct AnthropicClientTests {
 
     @Test("a rejected key surfaces the status and a message naming the key")
     func unauthorized() async throws {
-        let thrown: (any Error)? = await {
-            do {
-                _ = try await client(stubbing: UnauthorizedURLProtocol.self)
-                    .complete(system: "s", user: "u", apiKey: "bad")
-                return nil
-            } catch { return error }
-        }()
+        StubURLProtocol.stub(status: 401, body: #"{"error":{"message":"invalid x-api-key"}}"#)
 
-        let error = try #require(thrown as? AnthropicClient.ClientError)
+        let error = try #require(await #expect(throws: AnthropicClient.ClientError.self) {
+            _ = try await stubbedClient.complete(system: "s", user: "u", apiKey: "bad")
+        })
         guard case .badStatus(let code, _) = error else {
             Issue.record("expected badStatus, got \(error)")
             return
@@ -134,17 +132,11 @@ struct AnthropicClientTests {
         // Anthropic answers 200 with a `content` array that need not hold a
         // text block. Returning "" here would render as a blank explanation
         // rather than as the failure it is.
-        StubURLProtocol.responseBody = Data(#"{"content":[]}"#.utf8)
+        StubURLProtocol.stub(status: 200, body: #"{"content":[]}"#)
 
-        let thrown: (any Error)? = await {
-            do {
-                _ = try await client(stubbing: StubURLProtocol.self)
-                    .complete(system: "s", user: "u", apiKey: "sk-ant-unit")
-                return nil
-            } catch { return error }
-        }()
-
-        let error = try #require(thrown as? AnthropicClient.ClientError)
+        let error = try #require(await #expect(throws: AnthropicClient.ClientError.self) {
+            _ = try await stubbedClient.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
+        })
         guard case .emptyResponse = error else {
             Issue.record("expected emptyResponse, got \(error)")
             return

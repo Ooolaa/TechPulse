@@ -26,22 +26,34 @@
   `Tests/UnitTests/ByoKeyTests.swift` (Keychain round trip, Anthropic request
   shape, 401, and a 200 carrying no text block) plus one test in
   `RSSParserTests`.
-- **`PRIVACY.md` was rewritten, not copied.** The original described a product
-  that generates Packs, probes suggested feed URLs and shows a regulated-fields
-  banner. This app does none of those, so those claims came out rather than
-  being inherited, and what is left was checked line by line against the code —
-  which is how the missing `TopicSearchService` cap turned into a filed issue
-  rather than a sentence that was almost true.
+- **`PRIVACY.md` was rewritten, not copied** — and then rewritten again, because
+  the first draft was wrong in the same way its predecessors were. The original
+  described a product that generates Packs, probes suggested feed URLs and shows
+  a regulated-fields banner, so those claims came out. But the draft then
+  repeated what `README.md` and `ROADMAP.md` both said: that the BYO-key path
+  sends a Concept's name and definition and **never article text**.
+  `/code-review`'s Standards axis read the claim against the source instead of
+  against the other documents, and `IntelligenceService.define` sends a
+  ±220-character window of article prose on exactly that path — has done since
+  Explain started using the same client. Also undisclosed: `TopicSearchService`
+  sends a Concept name to `export.arxiv.org`, a third outbound host. Both are now
+  described; **#29** carries the decision of whether the excerpt should be sent
+  at all, and the README and ROADMAP claims were corrected to stop asserting
+  something false in the meantime.
+- **Three issues filed, not two.** The privacy finding became #29 because it is
+  not a wording call: either Explain stops sending the excerpt, or "nothing
+  leaves the phone" acquires a caveat. That is a product decision and belongs in
+  an ADR.
 - **ROADMAP Horizon 5 item 16 said the wrong thing** — it described exporting
   the Pack so two apps could coexist, the option ADR-0001 rejected. Rewritten,
   along with item 17 ("validate in CareerPulse first" — there is nowhere to
   validate but here now). The dropped theme palettes are pointed at from
   Horizon 4 item 12 so they are findable rather than lost.
-- **Two issues filed for what the inventory turned up.** **#27**: `PackDraft`
-  and `PackGenerator` were on ADR-0001's port list and never ported, with no
-  ticket covering them — the one place the port was genuinely incomplete rather
-  than deliberately narrowed. **#28**: `TopicSearchService` still has no
-  response size cap, unlike both its siblings.
+- **What the inventory turned up, as tickets.** **#27**: `PackDraft` and
+  `PackGenerator` were on ADR-0001's port list and never ported, with no ticket
+  covering them — the one place the port was genuinely incomplete rather than
+  deliberately narrowed. **#28**: `TopicSearchService` still has no response size
+  cap, unlike both its siblings. **#29**: the privacy claim above.
 
 **Verified** 211 unit tests in 18 suites pass (206 + 5 new). The two ported
 suites were **mutation-checked** rather than trusted for being green: removing
@@ -59,6 +71,13 @@ declaration callback). Worse, it asserted only through `allSatisfy` over an arra
 that is empty for this input — vacuously true twice over. Kept as a regression
 guard on the outcome, with the limit written down instead of implied, and an
 `isEmpty` assertion that can actually fail.
+
+And the sharper version of the same lesson, from #29: **three documents agreeing
+with each other look like corroboration and are one source.** README, ROADMAP and
+a DEVLOG entry all said "never article text". Each was written from the one
+before it, none from the code, and the claim was false for weeks in the document
+a reader would trust most. The review caught it only because it was told to check
+prose against source rather than against precedent.
 
 The general shape: **a retirement is an inventory, not an announcement.** Every
 item on the dropped list was easy to justify once written down, and impossible to

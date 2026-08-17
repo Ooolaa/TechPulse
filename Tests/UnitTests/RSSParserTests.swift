@@ -112,24 +112,36 @@ struct RSSParserTests {
     /// URL-backed `XMLParser`, or grows a delegate that resolves entities.
     @Test("an XXE payload yields no file contents and no forged item")
     func externalEntityIsNotResolved() {
-        let xml = """
-        <?xml version="1.0"?>
-        <!DOCTYPE r [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
-        <rss><channel><item>
-          <title>&xxe;safe</title>
-          <link>https://example.com/xxe</link>
-        </item></channel></rss>
-        """
-        let items = RSSParser.parse(Data(xml.utf8))
+        func feed(title: String, doctype: String = "") -> Data {
+            Data("""
+            <?xml version="1.0"?>
+            \(doctype)
+            <rss><channel><item>
+              <title>\(title)</title>
+              <link>https://example.com/x</link>
+            </item></channel></rss>
+            """.utf8)
+        }
+
+        // The control comes first, and it is what stops this test passing for
+        // the wrong reason: the same feed with no entity in it must yield an
+        // item. Without it, "no hostile item" is indistinguishable from a
+        // fixture the parser rejects for some unrelated reason — and asserting
+        // absence over an array that is empty either way is exactly how the
+        // CareerPulse original managed to assert nothing at all.
+        let benign = RSSParser.parse(feed(title: "safe"))
+        #expect(benign.count == 1)
+        #expect(benign.first?.title == "safe")
+
+        let hostile = RSSParser.parse(feed(
+            title: "&xxe;safe",
+            doctype: #"<!DOCTYPE r [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>"#))
 
         // The unresolved reference takes the whole title with it, and a
-        // titleless item is skipped — so the hostile item reaches nobody.
-        // Asserting emptiness rather than only `allSatisfy` matters: over an
-        // empty array every `allSatisfy` is vacuously true, which is how the
-        // CareerPulse original managed to assert nothing at all.
-        #expect(items.isEmpty)
-        // `/etc/passwd` opens with a `root:` line on every Darwin box, so its
-        // absence is what "no file contents" means here.
-        #expect(items.allSatisfy { !$0.title.contains("root:") && !$0.content.contains("root:") })
+        // titleless item is skipped — so the hostile item reaches nobody, and
+        // the file contents it asked for reach nobody either. (`/etc/passwd`
+        // opens with a `root:` line on every Darwin box.)
+        #expect(hostile.isEmpty)
+        #expect(hostile.allSatisfy { !$0.title.contains("root:") && !$0.content.contains("root:") })
     }
 }

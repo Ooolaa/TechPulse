@@ -2,7 +2,7 @@
 
 Offline-first iOS app that aggregates AI/tech news, summarizes articles **on-device** (Foundation Models), and grows a visual knowledge map of concepts you've learned. Full product spec: [TechPulse-Build-Spec.md](TechPulse-Build-Spec.md). UI reference: [design/](design/).
 
-**Privacy:** on-device by default — nothing leaves the phone. The one exception is opt-in: if you add your own Claude API key in Settings → AI engine (which unlocks "Go deeper" on hardware without Apple Intelligence, e.g. iPhone 14 Pro), the concept you expand — its name, definition, and cluster, never article text — goes directly to Anthropic under your key. No server of ours is ever involved, so the "Data Not Collected" App Store label still applies.
+**Privacy:** on-device by default, and no server of ours exists, so the "Data Not Collected" App Store label applies. Full detail — every outbound connection, and exactly what each one carries — is in [PRIVACY.md](PRIVACY.md). The opt-in exception is your own Claude API key (Settings → AI engine), which unlocks "Go deeper" and Explain on hardware without Apple Intelligence: "Go deeper" sends a concept's name, definition and cluster; **Explain also sends ~220 characters of the surrounding article text** to disambiguate the selected word. Whether that excerpt should be sent at all is open — see #29.
 
 ## Status — All milestones (M1–M6) complete ✅
 
