@@ -234,8 +234,27 @@ struct PackFileTests {
         ])
 
         let error = rejection(file)
-        #expect(error == .duplicateConcept("RAG"))
+        #expect(error == .duplicateConcept(first: "RAG", second: "RAG"))
         #expect(error?.errorDescription?.contains("RAG") == true)
+    }
+
+    @Test("two Concepts differing only in case are rejected — install would collapse them")
+    func rejectsCaseDifferingDuplicateConcepts() {
+        // The installer resolves a Pack's names against the store without
+        // regard to case, so “RAG” and “rag” can land on one Concept. Two
+        // names that can become one must not get past the validator.
+        let file = pack(concepts: [
+            .init(name: "RAG", cluster: "Foundations", definition: "d", dependencies: []),
+            .init(name: "rag", cluster: "Agents", definition: "d", dependencies: []),
+        ])
+
+        // Both spellings are named: an author told only about “rag” would
+        // search their file, find one entry, and conclude the error is wrong.
+        let error = rejection(file)
+        #expect(error == .duplicateConcept(first: "RAG", second: "rag"))
+        let reason = error?.errorDescription ?? ""
+        #expect(reason.contains("RAG"))
+        #expect(reason.contains("rag"))
     }
 
     @Test("a Concept in a Cluster the Pack does not list is rejected, naming both")
@@ -381,7 +400,11 @@ struct PackFileTests {
     func everyReasonIsReadable() {
         let reasons: [PackValidationError] = [
             .unsupportedVersion(9), .noConcepts, .tooManyConcepts(999), .badClusterCount(0),
-            .emptyDefinition("A"), .duplicateConcept("A"),
+            .emptyDefinition("A"),
+            // Both readings of one case: the same name twice, and two
+            // spellings of it. They word themselves differently.
+            .duplicateConcept(first: "A", second: "A"),
+            .duplicateConcept(first: "A", second: "a"),
             .danglingDependency(concept: "A", missing: "B"), .tooManyDependencies("A"),
             .dependencyCycle, .unknownStageConcept("A"),
             .conceptInUnknownCluster(concept: "A", cluster: "C"),

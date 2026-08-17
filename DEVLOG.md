@@ -6,6 +6,74 @@
 
 ---
 
+## 2026-08-17 — Two halves that disagreed about case, and a crash loop from a file (#22)
+
+**Built**
+- **The validator now compares Concept names without case**, because the
+  installer always resolved them that way. `PackValidator` rejected duplicates
+  on the exact string, so a Pack declaring both `"RAG"` and `"rag"` passed;
+  `PackInstaller` then resolved both onto one stored row (`byExactName` falling
+  through to `byLowerName`), and wrote `conceptNames` naming that row twice.
+  Two halves of the same rule, disagreeing — the file was valid by one and
+  ambiguous by the other.
+- **`topologicalOrder` tolerates a name it has already seen.** Both its indexes
+  were built with `Dictionary(uniqueKeysWithValues:)`, which *traps* on a
+  repeat. It is reached from `nextDot`, so the trap fired inside the importer
+  and then on every launch that drew the next-dot banner: an unrecoverable
+  crash loop, triggered by an imported file and surviving app restarts. Now
+  both indexes keep the first mention and let the repeat collapse.
+
+- **A stored record is now read as naming each Concept once**, at the point it
+  is read rather than at the one call site that happened to crash.
+  `/code-review` made the case: tolerating the repeat inside `topologicalOrder`
+  fixed the trap and nothing else, so the same repeat still inflated the pack
+  library's "N concepts" and the side-quest total, and `exportActivePack` still
+  emitted it as two identical `PackConcept`s — a share file the *new* validator
+  refuses to import. One `namedOnce` on the way out of the record fixes the
+  ordering, the counts and the export together.
+- **A rejection now names both spellings.** `duplicateConcept` carried only the
+  second, so a file holding `RAG` and `rag` was reported as "two concepts named
+  'rag'" — an author searches, finds one entry, and concludes the error is
+  wrong. It carries both now, and words itself differently when the two are
+  genuinely identical.
+
+**Why both guards, when the first one closes the door.** The validator keeps the
+bad file out from here on; it does nothing for a record already written to a
+reader's store by a build that shipped without it. Those records are read at
+every launch, so every path off one has to degrade rather than take the app
+down — a recovery path, not a redundant check. The reproduction is exact: the
+test crashed with `Fatal error: Duplicate values for key: 'rag'` before the fix.
+
+**Note on what did *not* change.** Case-insensitive *resolution* is deliberate
+and stays — a Concept the reader's own reading created as `rag` keeps its name,
+its Mastery and its history when a Pack calls it `RAG`
+(`installReusesCaseDifferingConcept`). The bug was never that resolution folds
+case; it was that validation did not.
+
+**Verified** 206 unit tests pass, including three new ones: a case-differing
+duplicate is rejected naming both spellings, a record holding a name twice still
+yields a path order, and such a record reports one Concept and exports a Pack
+that re-validates. The review also checked that nothing legitimate is newly
+rejected — no bundled pack, compiled `KnowledgePack` or test fixture contains a
+case-differing pair.
+
+`testCoreJourney` fails at "no cluster cards" — **pre-existing**, confirmed by
+stashing this work and re-running on a clean tree at `b0f4157`. Filed as #26
+with the diagnosis: the concept sheet is never dismissed, because `swipeDown` is
+absorbed by the sheet's inner `ScrollView` and the journey ignores the
+`closeSheet` button that exists for it. The screenshot proves it — the file
+saved as `5-cluster-overview.png` is byte-identical to `3-concept-sheet.png`.
+The deeper fault is that this journey alone runs against accumulated simulator
+state, so what it asserts depends on what previous runs left behind.
+
+**Learned** A validator and its consumer have to agree on what makes two things
+the same thing. Where they disagree, the gap is not merely a bad message — it is
+exactly the input that reaches code trusting a guarantee it never got. And the
+first fix for such a gap is drawn too tight by default: I hardened the line that
+crashed, when the untrusted value needed normalising at the point it is read.
+
+---
+
 ## 2026-08-14 — Acting on the review: a Co-read Link now means what the glossary says
 
 **Built**

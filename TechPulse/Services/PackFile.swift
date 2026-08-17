@@ -70,7 +70,10 @@ enum PackValidationError: LocalizedError, Equatable {
     case tooManyConcepts(Int)
     case badClusterCount(Int)
     case emptyDefinition(String)
-    case duplicateConcept(String)
+    /// Two Concepts the installer would treat as one. Both spellings are
+    /// carried: where they differ only in case, naming one of them sends the
+    /// author looking for a second entry that is not there under that spelling.
+    case duplicateConcept(first: String, second: String)
     case danglingDependency(concept: String, missing: String)
     case tooManyDependencies(String)
     case dependencyCycle
@@ -91,8 +94,10 @@ enum PackValidationError: LocalizedError, Equatable {
             "Packs need 1–\(PackFile.maxClusters) clusters (got \(count))."
         case .emptyDefinition(let name):
             "Concept “\(name)” has no definition."
-        case .duplicateConcept(let name):
-            "The pack contains two concepts named “\(name)”."
+        case .duplicateConcept(let first, let second) where first == second:
+            "The pack contains two concepts named “\(first)”."
+        case .duplicateConcept(let first, let second):
+            "“\(first)” and “\(second)” differ only in case, so the pack names the same concept twice."
         case .danglingDependency(let concept, let missing):
             "“\(concept)” depends on “\(missing)”, which the pack does not contain."
         case .tooManyDependencies(let name):
@@ -154,11 +159,22 @@ enum PackValidator {
 
         // Names must be unique before anything indexes by them — a duplicate
         // would otherwise silently overwrite its twin on install.
+        //
+        // Compared without case, because that is how `PackInstaller` resolves
+        // a Pack's names against the store: "RAG" and "rag" arrive as two
+        // Concepts and can land on one row, leaving the installed record
+        // naming that row twice. Dependencies and stages are still checked
+        // against the names as authored — a Pack must spell its own Concepts
+        // the way it declares them.
         var names: Set<String> = []
+        var spellingOf: [String: String] = [:]
         for concept in pack.concepts {
-            guard names.insert(concept.name).inserted else {
-                throw PackValidationError.duplicateConcept(concept.name)
+            names.insert(concept.name)
+            let casefolded = concept.name.lowercased()
+            if let first = spellingOf[casefolded] {
+                throw PackValidationError.duplicateConcept(first: first, second: concept.name)
             }
+            spellingOf[casefolded] = concept.name
         }
 
         let clusters = Set(pack.clusterOrder)

@@ -534,4 +534,52 @@ struct PackInstallerTests {
         #expect(Set(order) == Set(active.conceptNames))
         #expect(order.count == active.conceptNames.count)
     }
+
+    @Test("a record naming one Concept twice is read as naming it once")
+    func recordNamingOneConceptTwiceIsNormalized() throws {
+        let context = try makeContext()
+        // What a build without the case-folding check could leave behind: the
+        // Pack declared "RAG" and "rag", both resolved onto the one stored row.
+        let rag = Concept(name: "rag", category: "Agents",
+                          definition: "Ground answers in your data.")
+        context.insert(rag)
+        context.insert(InstalledPack(
+            field: "AI Engineering", specialtyCluster: "Agents",
+            clusterOrder: ["Foundations", "Agents"],
+            stages: [], suggestedSources: [],
+            conceptNames: ["rag", "rag"], sideQuestConcepts: ["rag", "rag"],
+            origin: .imported))
+        try context.save()
+
+        // The reader is shown a count, and a Concept counted twice is a Pack
+        // that never finishes: one dot, reported as two.
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.conceptNames == ["rag"])
+        #expect(active.sideQuestConcepts == ["rag"])
+
+        // Sharing it must not produce a file this build would refuse to import.
+        let exported = try #require(PackInstaller.exportActivePack(context: context))
+        #expect(exported.concepts.map(\.name) == ["rag"])
+        try PackValidator.validate(exported)
+    }
+
+    @Test("a record left holding a name twice still orders, rather than killing the app")
+    func pathOrderToleratesRepeatedConceptName() {
+        // A Pack installed before the validator compared names without case
+        // could resolve two of its Concepts onto one stored row, leaving the
+        // record naming it twice. That record is on disk and is read on every
+        // launch, so ordering it has to degrade rather than trap.
+        let active = ActivePack(
+            field: "AI Engineering", specialtyCluster: nil,
+            clusterOrder: ["Foundations"], stages: [], suggestedSources: [],
+            conceptNames: ["rag", "rag", "Embeddings"],
+            sideQuestConcepts: [], origin: .imported)
+
+        let order = active.pathOrder(dependencies: [
+            ConceptDependency(prerequisite: "Embeddings", dependent: "rag"),
+        ])
+
+        // The repeat collapses; the Dependency it carries is still honoured.
+        #expect(order == ["Embeddings", "rag"])
+    }
 }

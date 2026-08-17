@@ -1,6 +1,23 @@
 import Foundation
 import SwiftData
 
+// MARK: - Reading a stored record
+
+private extension [String] {
+    /// The same names, with any later repeat of one dropped.
+    ///
+    /// A stored `InstalledPack` is not trusted to name each Concept once. A Pack
+    /// installed before `PackValidator` compared names without case could
+    /// declare both "RAG" and "rag", which resolve onto a single stored row, and
+    /// the record then names that row twice. Such records exist on readers'
+    /// devices and are read at every launch, so every path off one has to
+    /// tolerate the repeat rather than trust a guarantee it never got.
+    var namedOnce: [String] {
+        var seen: Set<String> = []
+        return filter { seen.insert($0).inserted }
+    }
+}
+
 // MARK: - The active-Pack seam
 
 /// What the rest of the app reads instead of a compiled-in pack: the Pack
@@ -41,14 +58,18 @@ struct ActivePack {
         self.origin = origin
     }
 
+    /// Reads a stored record, which is not trusted to name each Concept once —
+    /// see `[String].namedOnce`. Normalising here rather than at each reader
+    /// keeps one dot from being counted as two everywhere downstream: the
+    /// reading order, the library's Concept count, the side-quest total.
     init(record: InstalledPack) {
         self.init(field: record.field,
                   specialtyCluster: record.specialtyCluster,
                   clusterOrder: record.clusterOrder,
                   stages: record.stages,
                   suggestedSources: record.suggestedSources,
-                  conceptNames: record.conceptNames,
-                  sideQuestConcepts: record.sideQuestConcepts,
+                  conceptNames: record.conceptNames.namedOnce,
+                  sideQuestConcepts: record.sideQuestConcepts.namedOnce,
                   origin: record.packOrigin)
     }
 
@@ -106,14 +127,23 @@ struct ActivePack {
     /// Kahn's algorithm over the Pack's Concepts: a Concept never appears
     /// before one it depends on. Ties break by the Pack's authored order, so
     /// the result is stable rather than arbitrary.
+    ///
+    /// Both indexes keep the first mention of a name and let any repeat
+    /// collapse, rather than trapping on it. `init(record:)` already drops
+    /// repeats, so nothing loaded from the store arrives here with one; this is
+    /// the guard for an `ActivePack` built directly, and for the cost of being
+    /// wrong — it runs behind the next-dot banner on every launch, where a trap
+    /// is not a failed ordering but an app that cannot be opened again.
     private func topologicalOrder(dependencies: [ConceptDependency]) -> [String] {
         let members = Set(conceptNames)
-        let rank = Dictionary(uniqueKeysWithValues: conceptNames.enumerated().map { ($1, $0) })
+        let rank = Dictionary(conceptNames.enumerated().map { ($1, $0) },
+                              uniquingKeysWith: { first, _ in first })
         let edges = dependencies.filter {
             members.contains($0.prerequisite) && members.contains($0.dependent)
         }
 
-        var remaining = Dictionary(uniqueKeysWithValues: conceptNames.map { ($0, 0) })
+        var remaining = Dictionary(conceptNames.map { ($0, 0) },
+                                   uniquingKeysWith: { first, _ in first })
         var dependents: [String: [String]] = [:]
         for edge in edges {
             remaining[edge.dependent, default: 0] += 1
@@ -304,7 +334,11 @@ enum PackInstaller {
             FetchDescriptor<InstalledPack>(predicate: #Predicate { $0.isActive })
         ))?.first else { return nil }
 
-        let members = Set(record.conceptNames)
+        // Read through `namedOnce` for the same reason `ActivePack.init(record:)`
+        // does: a record naming one row twice would otherwise export as two
+        // identical Concepts — a file this very validator refuses to import.
+        let conceptNames = record.conceptNames.namedOnce
+        let members = Set(conceptNames)
         let byName = Dictionary(
             ((try? context.fetch(FetchDescriptor<Concept>())) ?? [])
                 .filter { members.contains($0.name) }
@@ -318,7 +352,7 @@ enum PackInstaller {
 
         // Authored order for Concepts, sorted Dependencies: a store fetch has
         // no inherent order, and export must not depend on one.
-        let concepts = record.conceptNames.compactMap { name -> PackFile.PackConcept? in
+        let concepts = conceptNames.compactMap { name -> PackFile.PackConcept? in
             guard let concept = byName[name] else { return nil }
             return .init(name: concept.name, cluster: concept.category,
                          definition: concept.conceptDefinition,
