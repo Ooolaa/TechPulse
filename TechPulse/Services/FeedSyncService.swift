@@ -11,7 +11,10 @@ enum FeedSyncService {
     /// Daily intake cap across ALL feeds. 30 fresh articles a day is plenty
     /// for a starting reader — an overflowing feed kills the habit
     /// (Atomic Habits: make it easy; an achievable pile gets opened).
-    private static let dailyIntakeLimit = 30
+    static let dailyIntakeLimit = 30
+
+    /// Articles a Source with nothing cached may take OUTSIDE the daily cap.
+    static let newSourceAllowance = 5
 
     /// Descriptive User-Agent: some hosts (notably reddit, which serves the
     /// Kaggle community feed) throttle or 403 default CFNetwork agents.
@@ -57,11 +60,18 @@ enum FeedSyncService {
         // New-source bootstrap: a source with nothing cached may take a few
         // articles OUTSIDE the daily cap — otherwise a source added on a day
         // whose intake is already spent shows an empty tag until tomorrow.
+        //
+        // Keyed by name because an Article names its source, so "has this
+        // source cached anything?" is a name-level question. Names are not
+        // unique — subscription is deduplicated by URL everywhere it happens —
+        // so two sources can land on one key, and the two of them then share a
+        // single ration rather than trapping on the way in (#23).
         let cachedSourceNames = Set(existing.map(\.sourceName))
         var bootstrap: [String: Int] = Dictionary(
-            uniqueKeysWithValues: sources
+            sources
                 .filter { !cachedSourceNames.contains($0.name) }
-                .map { ($0.name, 5) }
+                .map { ($0.name, newSourceAllowance) },
+            uniquingKeysWith: { ration, _ in ration }
         )
 
         // Pool candidates across all feeds, newest first, so the cap keeps the
