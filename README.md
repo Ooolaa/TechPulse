@@ -2,7 +2,7 @@
 
 Offline-first iOS app that aggregates AI/tech news, summarizes articles **on-device** (Foundation Models), and grows a visual knowledge map of concepts you've learned. Full product spec: [TechPulse-Build-Spec.md](TechPulse-Build-Spec.md). UI reference: [design/](design/).
 
-**Privacy:** on-device by default, and no server of ours exists, so the "Data Not Collected" App Store label applies. Every outbound connection, and exactly what each one carries, is enumerated in [PRIVACY.md](PRIVACY.md) — **no article text is on that list**. The opt-in exception is your own Claude API key (Settings → AI engine), which unlocks "Go deeper" and Explain on hardware without Apple Intelligence: "Go deeper" sends a concept's name, definition and cluster; Explain sends the word you selected plus your Pack's field and cluster names, so your own map disambiguates the word instead of the article around it ([ADR-0006](docs/adr/0006-explain-disambiguates-from-your-pack-not-from-the-article.md), #29). On hardware with Apple Intelligence, Explain uses the surrounding sentence and stays on the device.
+**Privacy:** on-device by default, and no server of ours exists, so the "Data Not Collected" App Store label applies. Every outbound connection, and exactly what each one carries, is enumerated in [PRIVACY.md](PRIVACY.md) — **no passage of what you are reading is on that list**, only words you deliberately select. The opt-in exception is your own Claude API key (Settings → AI engine), which unlocks "Go deeper" and Explain on hardware without Apple Intelligence: "Go deeper" sends a concept's name, definition and cluster; Explain sends the word you selected plus your Pack's field and Cluster names, so your own map disambiguates the word instead of the article around it ([ADR-0006](docs/adr/0006-explain-disambiguates-from-your-pack-not-from-the-article.md), #29). On hardware with Apple Intelligence, Explain uses the surrounding sentence and stays on the device.
 
 ## Status — All milestones (M1–M6) complete ✅
 
@@ -22,7 +22,7 @@ Post-M6 (see [DEVLOG.md](DEVLOG.md) for dates):
 - **Atomic Habits reading system** — 30 fresh articles/day intake cap, tiny daily goal card (ring + streak + goal-met celebration), goal picker.
 - **Article concept primer** ("know these before you read"), word-level text selection, original-link storage with Safari/Share buttons.
 - **"Go deeper"** — expands any concept into 3–5 linked sub-concepts on its island; on-device by default, or via your own Claude key on hardware without Apple Intelligence.
-- **Explain** — select a word in an article and it becomes a dot on the map. On-device the surrounding sentence disambiguates it; on the BYO-key path your Pack's field and clusters do, so no article text leaves the device (ADR-0006).
+- **Explain** — select a word in an article and it joins your map as a Concept. On-device the surrounding sentence disambiguates it; on the BYO-key path your Pack's field and Clusters do, so nothing but the word itself leaves the device (ADR-0006).
 - **Full-text fetch** — articles that arrive as feed snippets pull the real story from the publisher page, then regenerate the on-device summary.
 - **Semantic zoom** on the knowledge graph — zooming spreads positions while dots/lines/labels stay constant screen size, so overview overlap always resolves; collision-culled labels; tap-a-dot glossary strip. Cluster (dependency) trees carry the same zoom, with pinch hint + recenter.
 - **Parser hardening** — XXE / external entities disabled; entitlements file for Keychain access (BYO-key storage).

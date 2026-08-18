@@ -166,7 +166,8 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
 
 - **Privacy:** on-device by default, no first-party server, and **Egress** — the
   full list of what leaves the device — enumerated in [PRIVACY.md](PRIVACY.md).
-  No article text is on that list. Every new feature is measured against the
+  No passage of what you are reading is on that list; a word you select is the
+  most of an article that ever leaves. Every new feature is measured against the
   stance, and against saying what it actually does; a feature that adds a line
   to the list is changing the promise, not adding a detail.
 - **Zero third-party dependencies** — still a feature.
@@ -178,7 +179,7 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
   contradict each other unnoticed in the Explain path: the answer is to change
   **what a feature sends**, never to delete the feature on hardware without
   Apple Intelligence. That hardware is the reference device, and it is why the
-  opt-in path exists at all. Any change here needs an ADR, not a commit.
+  opt-in path exists at all.
 - **Testing gate:** nothing ships without unit coverage for engine logic and
   a journey screenshot for every new screen — Settings taught us that the
   uncovered screen is where the shipped bug hides.

@@ -73,13 +73,17 @@ struct ExplainPromptTests {
         #expect(!prompt.user.contains("map"))
     }
 
-    @Test("the Cluster list is capped so a large Pack can't grow the payload")
-    func optInCapsClusters() {
+    /// Not a scenario — `PackValidator` refuses to install a Pack with more than
+    /// `PackFile.maxClusters` Clusters, so this list cannot arrive from a Pack.
+    /// It pins the bound on the function itself, because what the function sends
+    /// is a promise and this is where the promise is built.
+    @Test("the Cluster list is bounded at the same ceiling the validator enforces")
+    func optInBoundsClusters() {
         let many = (1...30).map { "Cluster \($0)" }
         let prompt = ExplainPrompt.optIn(term: "LoRA", field: "AI Engineering", clusters: many)
 
         #expect(prompt.user.contains("Cluster 1"))
-        #expect(!prompt.user.contains("Cluster 30"))
+        #expect(!prompt.user.contains("Cluster \(PackFile.maxClusters + 1)"))
     }
 
     // MARK: Both paths
@@ -103,6 +107,51 @@ struct ExplainPromptTests {
                                          clusters: ["Foundations"])
         #expect(prompt.system.contains("\"name\""))
         #expect(prompt.system.contains("\"definition\""))
+    }
+
+    // MARK: Which prompt each tier gets
+
+    // The prompt builders being right is not enough: #29 was a *call site*
+    // sending the wrong one. `forTier` is where that choice now lives, so these
+    // are the tests that go red if the opt-in tier is ever handed the on-device
+    // prompt.
+
+    @Test("the opt-in tier is handed the excerpt and sends it nowhere")
+    func optInTierIgnoresTheExcerpt() throws {
+        let prompt = try #require(ExplainPrompt.forTier(
+            .optIn, term: "transformer", excerpt: excerpt,
+            field: "AI Engineering", clusters: ["Foundations"]
+        ))
+
+        #expect(prompt == ExplainPrompt.optIn(term: "transformer", field: "AI Engineering",
+                                              clusters: ["Foundations"]))
+        #expect(!prompt.user.contains("Northgate"))
+        #expect(!prompt.user.contains(excerpt))
+    }
+
+    @Test("the on-device tier gets the excerpt, which never leaves the phone")
+    func onDeviceTierGetsTheExcerpt() throws {
+        let prompt = try #require(ExplainPrompt.forTier(
+            .onDevice, term: "transformer", excerpt: excerpt,
+            field: "AI Engineering", clusters: ["Foundations"]
+        ))
+
+        #expect(prompt == ExplainPrompt.onDevice(term: "transformer", excerpt: excerpt))
+        #expect(prompt.user.contains(excerpt))
+    }
+
+    @Test("the unavailable tier has no prompt at all")
+    func unavailableTierSendsNothing() {
+        #expect(ExplainPrompt.forTier(.unavailable, term: "transformer", excerpt: excerpt,
+                                      field: "AI Engineering", clusters: ["Foundations"]) == nil)
+    }
+
+    @Test("on-device wins where both are available, so nothing is sent that need not be")
+    func tierPrefersOnDevice() {
+        #expect(ExplainTier.choose(modelAvailable: true, hasKey: true) == .onDevice)
+        #expect(ExplainTier.choose(modelAvailable: true, hasKey: false) == .onDevice)
+        #expect(ExplainTier.choose(modelAvailable: false, hasKey: true) == .optIn)
+        #expect(ExplainTier.choose(modelAvailable: false, hasKey: false) == .unavailable)
     }
 }
 
@@ -132,12 +181,14 @@ struct ExplainDegradationTests {
 
         // This is the simulator's state and the reference device's state without
         // a key, but not every machine's. Where a path *is* available the call
-        // would reach a model, so assert instead the invariant that made us skip
-        // — rather than returning early having checked nothing, which is the
-        // failure mode #16 found next door in the XXE test.
+        // would reach a model, so assert instead something that is not simply
+        // `canDeepen`'s own definition read back — that the property the UI
+        // gates on and the tier the prompt layer picks agree about this device.
+        // Two expressions that could drift, rather than one restated.
         guard !IntelligenceService.canDeepen else {
-            #expect(IntelligenceService.isModelAvailable || KeychainStore.hasAnthropicKey,
-                    "canDeepen is true with neither a model nor a key behind it")
+            #expect(ExplainTier.choose(modelAvailable: IntelligenceService.isModelAvailable,
+                                       hasKey: KeychainStore.hasAnthropicKey) != .unavailable,
+                    "the UI offers Explain here but the prompt layer would send nothing")
             return
         }
 

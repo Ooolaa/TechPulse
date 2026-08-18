@@ -41,7 +41,13 @@ struct TermDefinition {
 
 /// On-device analysis: summarize + extract concepts via Foundation Models,
 /// falling back to NaturalLanguage keyword extraction when Apple Intelligence
-/// is unavailable (spec §5 rules). Nothing leaves the device.
+/// is unavailable (spec §5 rules).
+///
+/// Summarizing and extracting never leave the device. Two features here do, and
+/// only if the reader added their own Anthropic key: "Go deeper" and Explain,
+/// each described in `PRIVACY.md` and bounded by `Egress`. This comment used to
+/// say "nothing leaves the device" flatly, in the one file where that is not
+/// true — the same drift #29 was about.
 @MainActor
 enum IntelligenceService {
     static var isModelAvailable: Bool {
@@ -127,20 +133,30 @@ enum IntelligenceService {
     /// sent. `ExplainPrompt` builds both, purely, so which is which is a test.
     static func define(term: String, excerpt: String,
                        context: ModelContext) async -> Concept? {
+        // Chosen once, purely, and then followed. The tier picks the prompt and
+        // the transport together, so neither branch can end up holding the
+        // other's payload — the slip that would put article text back on the
+        // wire is now a change to `ExplainTier`/`forTier`, which a test watches.
+        let pack = ActivePack.inUse
+        let tier = ExplainTier.choose(modelAvailable: isModelAvailable,
+                                      hasKey: KeychainStore.hasAnthropicKey)
+        guard let prompt = ExplainPrompt.forTier(tier, term: term, excerpt: excerpt,
+                                                 field: pack.field,
+                                                 clusters: pack.clusterOrder)
+        else { return nil }
+
         var result: (name: String, definition: String)?
 
-        if isModelAvailable {
-            let prompt = ExplainPrompt.onDevice(term: term, excerpt: excerpt)
+        switch tier {
+        case .onDevice:
             let session = LanguageModelSession(instructions: prompt.system)
             guard let response = try? await session.respond(to: prompt.user,
                                                             generating: TermDefinition.self)
             else { return nil }
             result = (response.content.name, response.content.definition)
-        } else if let key = KeychainStore.read() {
-            let pack = ActivePack.inUse
-            let prompt = ExplainPrompt.optIn(term: term, field: pack.field,
-                                             clusters: pack.clusterOrder)
-            guard let text = try? await AnthropicClient().complete(system: prompt.system,
+        case .optIn:
+            guard let key = KeychainStore.read(),
+                  let text = try? await AnthropicClient().complete(system: prompt.system,
                                                                    user: prompt.user,
                                                                    maxTokens: 512, apiKey: key),
                   let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"),
@@ -148,8 +164,8 @@ enum IntelligenceService {
                                                          from: Data(String(text[start...end]).utf8))
             else { return nil }
             result = (parsed.name, parsed.definition)
-        } else {
-            return nil
+        case .unavailable:
+            return nil          // unreachable: `forTier` already returned nil
         }
 
         guard let result, !result.definition.isEmpty else { return nil }

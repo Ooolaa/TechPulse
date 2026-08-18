@@ -37,22 +37,47 @@ asks it for one instead of assembling a string at the call site.
   Pack is data and an imported one need not fill everything in; the model gets
   less signal, not a malformed prompt.
 
-**Verified** 218 unit tests pass. Seven are new, and the one that matters asserts
-the opt-in prompt **equals** a string built from the term, the field and the
-Clusters — not that it lacks article text, which only catches the leak somebody
-already thought of. `optIn` cannot be handed an excerpt at all, so the way article
-text returns is somebody widening the function, and an exact match goes red for
-any widening.
+**What the review changed, which was the interesting half.** The first version
+had pure, well-tested prompt builders and a *call site nothing covered*: swapping
+the opt-in branch to `ExplainPrompt.onDevice` — one line, the exact #29
+regression — left every test green. Tested builders were not the same thing as a
+tested payload. So the tier became a value: `ExplainTier.choose(modelAvailable:hasKey:)`
+and `ExplainPrompt.forTier`, called once in `define`, with the prompt and the
+transport both following from the answer. `.optIn` is deliberately *handed* the
+excerpt and must ignore it, which is what the test asserts. That mutation was then
+run for real: red, three assertions, reverted.
+
+Two more from the same review. The degradation test's skip branch asserted
+`isModelAvailable || hasAnthropicKey` — which is `canDeepen`'s own definition read
+back, so it could never fail; it now cross-checks the property the UI gates on
+against the tier the prompt layer picks, two expressions that can actually drift.
+And `ExplainPrompt.maxClusters = 12` collided with `PackFile.maxClusters = 10`,
+which the validator already enforces — one ceiling now, the validator's.
+
+**Verified** 223 unit tests pass, and the seam was mutation-checked rather than
+assumed.
+
+**The documents overclaimed, and the review caught that too.** "No article text"
+was not true: the word you select *is* article text. Three documents now say what
+is actually true — no *passage* of what you are reading leaves, and a word you
+deliberately select is the most of an article that ever does. Fixing it by
+restating the absolute would have been the #29 failure repeated inside the commit
+that closes #29. `IntelligenceService`'s own file header still read "Nothing
+leaves the device" — in the one file that owns the `AnthropicClient` call — and
+onboarding still promised it unqualified where Settings already qualified it.
+Both corrected.
 
 **Learned** The seam was worth more than the fix. Changing the payload was twenty
 lines; what took the failure off the table was that prompt construction is now a
 pure function over the term and the Pack, so *what leaves the device* is a value
 a test can hold. `AnthropicClient` stays non-injectable deliberately (ADR-0006):
 transport was never what anyone got wrong, and the seam that would have caught
-this is the one that got built. The documents were the other half — `PRIVACY.md`,
-`README.md` and `ROADMAP.md` now say the same thing as the code, and ROADMAP
-records the fallback-first precedence rather than listing two absolutes and
-leaving the collision to be rediscovered.
+this is the one that got built — though the first attempt at it stopped one level
+too shallow, and only a review that asked "what one-line change would this miss?"
+found the gap. The documents were the other half: `PRIVACY.md`, `README.md` and
+`ROADMAP.md` now say the same thing as the code, and ROADMAP records the
+fallback-first precedence rather than listing two absolutes and leaving the
+collision to be rediscovered.
 
 ---
 

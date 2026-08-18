@@ -98,7 +98,11 @@ struct OnboardingView: View {
             .accessibilityIdentifier("onboardingContinue")
             .padding(.top, 14)
 
-            Text("Everything is analyzed on your device — nothing leaves it.")
+            // Qualified rather than absolute: the reader can add their own API
+            // key later, and Settings' footer already says so. An unqualified
+            // promise here is the same drift #29 was about, in the one place a
+            // reader is asked to believe it.
+            Text("Everything is analyzed on your device — nothing leaves it unless you add your own API key.")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textTertiary)
                 .frame(maxWidth: .infinity)

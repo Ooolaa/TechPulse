@@ -2,7 +2,9 @@
 
 TechPulse is built so that **your reading stays on your phone**. There is no
 account and no server of ours. Everything the app sends off the device is listed
-below in full — that list is closed, and **no article text is on it**.
+below in full, and that list is closed. **No passage of what you are reading is
+on it**: the most any entry carries from an article is a single word you chose to
+look up.
 
 ## What we collect
 
@@ -52,7 +54,9 @@ server of ours (there is none).
   field your Pack covers, and the names of its Clusters**. No article text. The
   model is told what you are studying, not what you are reading — "someone
   studying AI Engineering asked what LoRA means" — and that is what tells it
-  which sense of an ambiguous term you meant.
+  which sense of an ambiguous term you meant. Nothing else from the article goes
+  with it: not the sentence around the word, not the title, not the body. The
+  word itself is article text, and it is the only article text there is.
 
 On hardware with Apple Intelligence, Explain runs on-device and uses the sentence
 around the word instead, which is a better clue and costs nothing because it
