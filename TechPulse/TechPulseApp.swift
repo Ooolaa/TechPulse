@@ -22,6 +22,11 @@ struct TechPulseApp: App {
             UITestSupport.resetStoreIfRequested(context: container.mainContext)
             #endif
             SeedData.seedIfNeeded(context: container.mainContext)
+            #if DEBUG
+            // After seeding: the Concepts the planted Article names have to be
+            // on the map before analysis looks for them there.
+            UITestSupport.seedArticleIfRequested(context: container.mainContext)
+            #endif
             KnowledgeEngine.applyTimeDecay(context: container.mainContext)
             // Seed the widget on first launch, and let decay/day-rollover land
             // in it without waiting for the next read.

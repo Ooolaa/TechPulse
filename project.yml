@@ -61,7 +61,10 @@ targets:
   TechPulseUITests:
     type: bundle.ui-testing
     platform: iOS
-    sources: [Tests/UITests]
+    # `Tests/Support` is the journeys' bookkeeping — step ledger and screenshot
+    # freshness. It holds no XCUITest API, so the unit bundle compiles it too
+    # and covers it there, where a failure costs a second rather than a launch.
+    sources: [Tests/UITests, Tests/Support]
     dependencies:
       - target: TechPulse
     settings:
@@ -70,7 +73,7 @@ targets:
   TechPulseTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [Tests/UnitTests]
+    sources: [Tests/UnitTests, Tests/Support]
     dependencies:
       - target: TechPulse
     settings:

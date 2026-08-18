@@ -1,240 +1,378 @@
 import XCTest
 
-/// Drives the core user journey and saves a screenshot at each step:
-/// feed → article → concept sheet → "I know this" → knowledge graph → progress.
+/// The UI journeys. Each one declares its steps to a `Journey`, which fails the
+/// test if a declared step never ran (#30).
+///
+/// Before that, most steps here were wrapped in `if element.exists { … }`: a
+/// step whose element was missing did nothing and left the journey green. Four
+/// of them had stopped running — `3-concept-sheet`, `3b`, `3c` and
+/// `4-marked-known` were between one and five days stale while the suite passed
+/// every time. The few steps still allowed not to run say why in their
+/// declaration, and say so out loud in the run when they don't.
+@MainActor
 final class TechPulseUITests: XCTestCase {
 
-    private let shotDir = "/tmp/techpulse_uitest"
+    /// Why the frontier Concept's sheet may offer nothing to jump to.
+    ///
+    /// The sheet's related Concepts come from Co-read Links only, and a Co-read
+    /// Link needs a reading — the planted Article is one, which is what makes
+    /// the same step *required* on the Article's own sheet, but no reading has
+    /// met the frontier Concept yet.
+    ///
+    /// Worth saying plainly: this contradicts ADR-0002, which computes Semantic
+    /// Links at install precisely so day one is not "unconnected dust". The
+    /// sheet ignores them — a defect in the sheet rather than in this journey,
+    /// filed as #33. When that lands, this step stops being optional.
+    private let noCoreadLinksYet = """
+        the sheet's related Concepts come from Co-read Links, and no reading has \
+        met this frontier Concept yet — the Semantic Links ADR-0002 computes at \
+        install would cover it, but the sheet does not read them
+        """
 
-    /// Mirrors `UITestSupport.resetStoreArgument`. Spelled out rather than
-    /// referenced: the UI test bundle does not link the app target, so the
-    /// constant cannot be shared. If one changes, change both.
-    private let uiTestResetStore = "-uitest-reset-store"
+    // MARK: - Core journey
 
-    private func snap(_ app: XCUIApplication, _ name: String) {
-        let png = app.screenshot().pngRepresentation
-        try? FileManager.default.createDirectory(atPath: shotDir, withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: "\(shotDir)/\(name).png", contents: png)
-    }
-
+    /// Feed → article → concept sheet → "I know this" → knowledge graph →
+    /// progress, with a screenshot proving each step.
     func testCoreJourney() throws {
-        let app = XCUIApplication()
-        // Start from a wiped store. Until this existed the journey ran against
-        // whatever previous runs left behind, so its verdict depended on how
-        // many Articles a Concept had collected and whether an earlier run had
-        // already marked it known — data, not the code under test (#26).
-        app.launchArguments += [uiTestResetStore]
-        app.launch()
+        let journey = Journey("core journey", steps: [
+            .required("0-onboarding"),
+            .required("1-feed"),
+            .required("1b-hot-topics-filter"),
+            .required("2-article"),
+            .required("3-concept-sheet"),
+            .required("3b-related-concept-jump"),
+            .required("3c-article-from-sheet"),
+            .required("4-marked-known"),
+            .required("5-cluster-overview"),
+            .required("5b-cluster-detail"),
+            .required("5b2-concept-sheet"),
+            .optional("5b2b-topic-search",
+                      because: "the arXiv search is only offered to a Concept with fewer than three Articles"),
+            .optional("5b3-article-from-sheet",
+                      because: "arXiv is a network this journey does not control — when it reports no new matches there is no Article row to open"),
+            .optional("5b4-related-concept-jump", because: noCoreadLinksYet),
+            .required("5c-full-map"),
+            .required("5c1-full-map-light"),
+            .required("5c2-full-map-dark"),
+            .required("5c3-full-map-dark-zoomed"),
+            .required("5c4-full-map-light-zoomed"),
+            .required("6-progress-charts"),
+            .required("7-quiz-question"),
+            .required("8-quiz-result"),
+            .required("9-settings"),
+            .required("9b-settings-footers"),
+        ], launchArguments: [UITestLaunch.seedArticle])
+        let app = journey.app
+        journey.start()
 
         // First run shows onboarding (design 3a): topics preselected, continue.
+        // Required rather than conditional — the store is wiped, so this *is* a
+        // first run (#26).
         let continueButton = app.buttons["onboardingContinue"].firstMatch
-        if continueButton.waitForExistence(timeout: 5) {
-            snap(app, "0-onboarding")
-            XCTAssertTrue(continueButton.isEnabled, "Continue disabled despite preselected topics")
-            continueButton.tap()
-            sleep(1)
-        }
+        journey.waitFor(continueButton, "onboarding never appeared on a wiped store", timeout: 20)
+        journey.snap("0-onboarding")
+        XCTAssertTrue(continueButton.isEnabled, "Continue disabled despite preselected topics")
+        continueButton.tap()
+        journey.waitUntilGone(continueButton, "onboarding never dismissed")
 
-        // Allow first sync + on-device analysis to finish.
+        // The first Article means the first Source landed, not that the sync
+        // finished — the header says which, so wait for what it says.
         let firstCard = app.buttons["articleCard"].firstMatch
-        XCTAssertTrue(firstCard.waitForExistence(timeout: 60), "feed never loaded articles")
-        sleep(10)
-        snap(app, "1-feed")
+        journey.waitFor(firstCard, "feed never loaded articles", timeout: 90)
+        journey.waitUntil("the feed never finished syncing", timeout: 120) {
+            !app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Syncing'"))
+                .firstMatch.exists
+        }
+        journey.settle("the feed to stop filling in")
+        journey.snap("1-feed")
 
-        // 🔥 Hot-topics filter: toggling must show a (possibly empty) filtered
-        // list and toggle back cleanly.
+        // 🔥 Hot-topics filter: toggling shows a (possibly empty) filtered list
+        // and toggles back cleanly.
         let hotChip = app.buttons["hotChip"].firstMatch
-        if hotChip.exists {
-            hotChip.tap()
-            sleep(1)
-            snap(app, "1b-hot-topics-filter")
-            hotChip.tap()
-            sleep(1)
-        }
+        journey.waitFor(hotChip, "the feed has no Hot topics chip")
+        journey.tap(hotChip, "Hot topics chip")
+        journey.settle("the filtered feed to draw")
+        journey.snap("1b-hot-topics-filter")
+        journey.tap(hotChip, "Hot topics chip")
+        journey.settle("the unfiltered feed to come back")
 
-        firstCard.tap()
-        sleep(2)
-        snap(app, "2-article")
+        // The Concept sheet, entered from the Article the launch planted —
+        // see `openSeededArticle`.
+        let chip = openSeededArticle(journey)
+        journey.snap("2-article")
+        journey.tap(chip, "concept chip")
+        let closeSheet = app.buttons["closeSheet"].firstMatch
+        journey.waitFor(closeSheet, "the concept sheet never opened")
+        journey.snap("3-concept-sheet")
 
-        // Concept chips exist when analysis found concepts in this article.
-        let chip = app.buttons["conceptChip"].firstMatch
-        if chip.waitForExistence(timeout: 5) {
-            chip.tap()
-            sleep(1)
-            snap(app, "3-concept-sheet")
+        // Drill-through: related concept → sibling page → back. Required: the
+        // planted Article is a reading, so its Concepts are Co-read with each
+        // other by the time this sheet opens.
+        drillThroughRelatedConcept(journey, snapping: "3b-related-concept-jump",
+                                   backTo: closeSheet, required: true)
 
-            // Drill-through: related concept → sibling page → back;
-            // article row → full article → back. Both must be tappable.
-            let related = app.buttons["relatedConceptChip"].firstMatch
-            if related.exists {
-                related.tap()
-                sleep(1)
-                snap(app, "3b-related-concept-jump")
-                app.navigationBars.buttons.firstMatch.tap()
-                sleep(1)
-            }
-            let articleRow = app.buttons["conceptArticleRow"].firstMatch
-            if articleRow.exists {
-                articleRow.tap()
-                sleep(1)
-                snap(app, "3c-article-from-sheet")
-                app.navigationBars.buttons.firstMatch.tap()
-                sleep(1)
-            }
+        // Article row → full article → back. Required: this Concept came from
+        // the Article the journey is reading, so its Article list holds at
+        // least that one.
+        drillThroughArticleRow(journey, snapping: "3c-article-from-sheet", backTo: closeSheet,
+                               missing: "the sheet lists no Article, not even the one this Concept came from")
 
-            let know = app.buttons["knowButton"].firstMatch
-            if know.exists, know.isEnabled {
-                know.tap()
-                sleep(1)
-                snap(app, "4-marked-known")
-            }
+        // "I know this" — an outcome, not a screenshot: the button is offered
+        // before and refused after.
+        let know = app.buttons["knowButton"].firstMatch
+        journey.waitFor(know, "the sheet has no “I know this” button")
+        XCTAssertTrue(know.isEnabled, "“I know this” was already spent on a Concept the journey just met")
+        know.tap()
+        journey.waitUntil("the Concept never became Known") { know.exists && !know.isEnabled }
+        journey.snap("4-marked-known")
 
-            // Dismiss through the affordance built for it, not `swipeDown`.
-            // A downward drag competes with the sheet's inner `ScrollView`: it
-            // dismisses only while the scroll sits at the top, and otherwise
-            // just scrolls the content back up while the sheet stays put (#26).
-            // The drill-through above is what scrolls it — XCUITest scrolls a
-            // row into view to reach it — so by this line the gesture is
-            // unreliable exactly when the Concept has enough Articles to fill
-            // the sheet.
-            let close = app.buttons["closeSheet"].firstMatch
-            XCTAssertTrue(close.waitForExistence(timeout: 5),
-                          "concept sheet has no close button")
-            close.tap()
-            sleep(1)
-            XCTAssertFalse(close.exists, "concept sheet did not dismiss")
-        }
+        // Dismiss through the affordance built for it, not `swipeDown`.
+        // A downward drag competes with the sheet's inner `ScrollView`: it
+        // dismisses only while the scroll sits at the top, and otherwise
+        // just scrolls the content back up while the sheet stays put (#26).
+        // The drill-through above is what scrolls it — XCUITest scrolls a
+        // row into view to reach it — so by this line the gesture is
+        // unreliable exactly when the Concept has enough Articles to fill
+        // the sheet.
+        journey.tap(closeSheet, "close button")
+        journey.waitUntilGone(closeSheet, "concept sheet did not dismiss")
 
         // Assert the tab actually changed. A sheet left open swallows this tap,
         // and without the assertion the failure surfaces three steps later as
         // "no cluster cards" — which is what #26 was reported as.
         let knowledgeTab = app.buttons["Knowledge"]
-        knowledgeTab.tap()
-        sleep(1)
-        XCTAssertTrue(knowledgeTab.isSelected,
-                      "Knowledge tab never became selected — a modal likely swallowed the tap")
-        snap(app, "5-cluster-overview")
+        journey.tap(knowledgeTab, "Knowledge tab")
+        journey.waitUntil("Knowledge tab never became selected — a modal likely swallowed the tap") {
+            knowledgeTab.isSelected
+        }
+        journey.settle("the cluster overview to draw")
+        journey.snap("5-cluster-overview")
 
         // Drill into the first cluster's dependency graph (design 4b).
         let clusterCard = app.buttons["clusterCard"].firstMatch
-        XCTAssertTrue(clusterCard.waitForExistence(timeout: 5), "no cluster cards")
-        clusterCard.tap()
-        sleep(3)                              // let the force layout settle
-        snap(app, "5b-cluster-detail")
+        journey.waitFor(clusterCard, "no cluster cards")
+        journey.tap(clusterCard, "cluster card")
+        journey.settle("the force layout to settle", timeout: 4)
+        journey.snap("5b-cluster-detail")
 
-        // Deterministic concept-sheet entry: the frontier card always exists
-        // while the cluster has unlit pack concepts. Verify sheet drill-through
-        // (article row → ArticleView, related chip → sibling concept).
+        // Deterministic concept-sheet entry: on a wiped store the cluster's
+        // Pack Concepts are all unlit, so the frontier card is there.
         let frontier = app.buttons["frontierCard"].firstMatch
-        if frontier.exists {
-            frontier.tap()
-            sleep(1)
-            snap(app, "5b2-concept-sheet")
+        journey.waitFor(frontier, "a freshly seeded cluster must have a frontier card")
+        journey.tap(frontier, "frontier card")
+        journey.waitFor(closeSheet, "the frontier Concept's sheet never opened")
+        journey.snap("5b2-concept-sheet")
 
-            // Topic search: a frontier concept usually has no articles yet —
-            // pull fresh arXiv matches, which should populate the row list.
-            let find = app.buttons["findArticles"].firstMatch
-            if find.exists {
-                find.tap()
-                sleep(6)
-                snap(app, "5b2b-topic-search")
+        // Topic search: a frontier Concept usually has no Articles yet — pull
+        // fresh arXiv matches, which should populate the row list. Decided once
+        // the sheet has stopped moving, because the offer stands only while the
+        // Concept has fewer than three Articles.
+        journey.settle("the frontier Concept's sheet to finish opening")
+        let find = app.buttons["findArticles"].firstMatch
+        let row = app.buttons["conceptArticleRow"].firstMatch
+        let searchOffered = journey.becomesTrue({ find.exists })
+        XCTAssertTrue(searchOffered || row.exists,
+                      "the frontier Concept offers neither an Article to read nor a search to find one")
+        var foundNothing = false
+        if searchOffered {
+            journey.tap(find, "find-articles button")
+            // The button reports its own result: "Added N fresh articles ✓",
+            // "No new matches right now" — or it goes altogether, because a
+            // Concept holding three Articles is no longer offered a search.
+            // Waiting for it to merely *disable* would catch the search
+            // starting, and screenshot the spinner.
+            journey.waitUntil("the arXiv search never came back", timeout: 45) {
+                !find.exists || find.label.contains("Added") || find.label.contains("No new matches")
             }
-
-            let row = app.buttons["conceptArticleRow"].firstMatch
-            if row.exists {
-                row.tap()
-                sleep(1)
-                snap(app, "5b3-article-from-sheet")
-                app.navigationBars.buttons.firstMatch.tap()
-                sleep(1)
-            }
-            let related = app.buttons["relatedConceptChip"].firstMatch
-            if related.exists {
-                related.tap()
-                sleep(1)
-                snap(app, "5b4-related-concept-jump")
-                app.navigationBars.buttons.firstMatch.tap()
-                sleep(1)
-            }
-            app.buttons["closeSheet"].tap()
-            sleep(1)
+            foundNothing = find.exists && find.label.contains("No new matches")
+            journey.snap("5b2b-topic-search")
         }
+        if !foundNothing {
+            // Either the search added Articles, or it was never offered because
+            // the Concept already had three. Both ways there is a row.
+            drillThroughArticleRow(journey, snapping: "5b3-article-from-sheet", backTo: closeSheet,
+                                   missing: "the Concept has Articles, and the sheet lists none of them")
+        }
+        drillThroughRelatedConcept(journey, snapping: "5b4-related-concept-jump",
+                                   backTo: closeSheet, required: false)
+        journey.tap(closeSheet, "close button")
+        journey.waitUntilGone(closeSheet, "the frontier Concept's sheet did not dismiss")
 
-        app.navigationBars.buttons.firstMatch.tap()   // back
-        sleep(1)
+        journey.goBack(to: clusterCard, "the cluster overview never came back")
 
         // Full map: every concept in one net, no sections.
         let fullMap = app.buttons["fullMapCard"].firstMatch
-        XCTAssertTrue(fullMap.waitForExistence(timeout: 5), "full map card missing")
-        fullMap.tap()
-        sleep(3)
-        snap(app, "5c-full-map")
+        journey.waitFor(fullMap, "full map card missing")
+        journey.tap(fullMap, "full map card")
+        // A 141-dot net is still drifting a little at three seconds; it is
+        // legible well before it is finished, and waiting for the last pixel
+        // costs more than the screenshot gains.
+        journey.settle("the full map's force layout to settle", timeout: 3)
+        journey.snap("5c-full-map")
 
         // Three kinds of connection have to be told apart on the map, and the
         // only way to know they are is to look at both themes. The strokes are
         // drawn in a Canvas over Theme.card, which is exactly the combination
         // that shipped a dark-mode readability bug on Settings once.
         for key in ["Learn first", "Related", "Read together"] {
-            XCTAssertTrue(app.staticTexts[key].firstMatch.waitForExistence(timeout: 5),
-                          "map legend has no key for “\(key)” — the edge kinds are unexplained")
+            journey.waitFor(app.staticTexts[key].firstMatch,
+                            "map legend has no key for “\(key)” — the edge kinds are unexplained")
         }
         XCUIDevice.shared.appearance = .light
-        sleep(2)
-        snap(app, "5c1-full-map-light")
+        journey.settle("the map to redraw in light mode", timeout: 3)
+        journey.snap("5c1-full-map-light")
         XCUIDevice.shared.appearance = .dark
-        sleep(2)
-        snap(app, "5c2-full-map-dark")
+        journey.settle("the map to redraw in dark mode", timeout: 3)
+        journey.snap("5c2-full-map-dark")
 
         // Zoomed in, where a dash and an arrowhead are actually resolvable: at
         // overview scale a 141-dot map is dense enough that any line looks like
         // any other, so the screenshot gate would prove nothing about whether
         // the three kinds are told apart.
-        app.otherElements["knowledgeGraph"].firstMatch.pinch(withScale: 3, velocity: 1)
-        sleep(2)
-        snap(app, "5c3-full-map-dark-zoomed")
+        let graph = app.otherElements["knowledgeGraph"].firstMatch
+        journey.waitFor(graph, "the map has no graph to zoom into")
+        graph.pinch(withScale: 3, velocity: 1)
+        journey.settle("the zoomed map to redraw", timeout: 2)
+        journey.snap("5c3-full-map-dark-zoomed")
         XCUIDevice.shared.appearance = .light
-        sleep(2)
-        snap(app, "5c4-full-map-light-zoomed")
+        journey.settle("the zoomed map to redraw in light mode", timeout: 2)
+        journey.snap("5c4-full-map-light-zoomed")
 
-        app.navigationBars.buttons.firstMatch.tap()
-        sleep(1)
+        journey.goBack(to: fullMap, "the cluster overview never came back from the full map")
 
-        app.buttons["Progress"].tap()
-        sleep(1)
-        snap(app, "6-progress-charts")
+        let progressTab = app.buttons["Progress"]
+        journey.tap(progressTab, "Progress tab")
+        journey.waitUntil("Progress tab never became selected") { progressTab.isSelected }
+        journey.settle("the progress charts to draw")
+        journey.snap("6-progress-charts")
 
-        // Weekly quiz: answer every question (any option), reach the result.
-        let start = app.buttons["startQuiz"].firstMatch
-        if start.waitForExistence(timeout: 3), start.isEnabled {
-            start.tap()
-            let action = app.buttons["quizAction"].firstMatch
-            XCTAssertTrue(action.waitForExistence(timeout: 30), "quiz never generated")
-            snap(app, "7-quiz-question")
-            var safety = 0
-            while action.exists, safety < 20 {
-                let option = app.buttons["quizOption"].firstMatch
-                if option.exists { option.tap() }
-                action.tap()      // check answer
-                if action.exists { action.tap() }   // next / see results
-                safety += 1
-            }
-            let done = app.buttons["quizDone"].firstMatch
-            XCTAssertTrue(done.waitForExistence(timeout: 5), "quiz result never shown")
-            snap(app, "8-quiz-result")
-            done.tap()
-        }
+        answerTheWeeklyQuiz(journey)
 
         // Settings: the large title and the section footers must both be
         // legible — this screen shipped a dark-mode readability bug once
         // precisely because the journey never captured it.
-        app.buttons["Settings"].tap()
-        sleep(1)
-        snap(app, "9-settings")
+        let settingsTab = app.buttons["Settings"]
+        journey.tap(settingsTab, "Settings tab")
+        journey.waitUntil("Settings tab never became selected") { settingsTab.isSelected }
+        journey.settle("Settings to draw")
+        journey.snap("9-settings")
         app.swipeUp()
         app.swipeUp()
-        sleep(1)
-        snap(app, "9b-settings-footers")
+        journey.settle("Settings to stop scrolling")
+        journey.snap("9b-settings-footers")
+
+        journey.finish()
     }
+
+    // MARK: - Core journey steps that need more than a line
+
+    /// Opens the planted Article and returns its first Concept chip.
+    ///
+    /// The chip is required, not hoped for. On-device analysis attaches
+    /// Concepts by matching the Pack's vocabulary — or by reading the text,
+    /// where Apple Intelligence is available — and this Article names seven
+    /// Concepts the flagship Pack defines, so an Article with no chip means
+    /// analysis is broken rather than that the news was quiet. That used to be
+    /// `if chip.waitForExistence(timeout: 5)`, and it skipped four steps in
+    /// silence (#30).
+    private func openSeededArticle(_ journey: Journey) -> XCUIElement {
+        let app = journey.app
+        let card = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", UITestLaunch.seededArticleTitle))
+            .firstMatch
+        journey.waitFor(card, "the planted Article never reached the Feed", timeout: 60)
+        journey.tap(card, "the planted Article")
+
+        let chip = app.buttons["conceptChip"].firstMatch
+        journey.waitFor(chip, """
+            on-device analysis attached no Concept to an Article that names seven of them
+            """, timeout: 90)
+        return chip
+    }
+
+    /// Opens an Article from the Concept sheet's row list and comes back.
+    private func drillThroughArticleRow(_ journey: Journey, snapping name: String,
+                                        backTo sheetRoot: XCUIElement, missing: String) {
+        let row = journey.app.buttons["conceptArticleRow"].firstMatch
+        journey.waitFor(row, missing)
+        journey.tap(row, "article row")
+        journey.settle("the article to open")
+        journey.snap(name)
+        journey.goBack(to: sheetRoot, "the concept sheet never came back")
+    }
+
+    /// Jumps to a related Concept and comes back.
+    ///
+    /// `required: false` is for the frontier Concept, which the journey meets
+    /// for the first time and which no reading has yet joined to anything —
+    /// that absence is declared in the journey's steps and announced in the
+    /// run. Either way it is checked rather than assumed: the sheet's "Related
+    /// concepts" section and its chips have to agree, so a section that
+    /// promises jumps and offers none is a failure and not a quiet skip.
+    private func drillThroughRelatedConcept(_ journey: Journey, snapping name: String,
+                                            backTo sheetRoot: XCUIElement, required: Bool) {
+        let app = journey.app
+        let related = app.buttons["relatedConceptChip"].firstMatch
+        let sectionHeader = app.staticTexts
+            .matching(NSPredicate(format: "label CONTAINS[c] 'Related concepts'")).firstMatch
+        let offered = journey.becomesTrue({ related.exists })
+        XCTAssertEqual(offered, sectionHeader.exists,
+                       "the sheet's related-Concepts section and its chips disagree")
+        if required {
+            XCTAssertTrue(offered, """
+                the Concepts of a read Article are Co-read with each other, so this sheet \
+                must offer a related Concept to jump to
+                """)
+        }
+        guard offered else { return }
+
+        journey.tap(related, "related concept chip")
+        journey.settle("the sibling Concept's page to draw")
+        journey.snap(name)
+        journey.goBack(to: sheetRoot, "the concept sheet never came back")
+    }
+
+    /// Answers every question of the weekly quiz and reaches the result.
+    ///
+    /// The quiz is always on offer: its candidates are Concepts that have a
+    /// definition, and installing a Pack gives every Concept one.
+    private func answerTheWeeklyQuiz(_ journey: Journey) {
+        let app = journey.app
+        let start = app.buttons["startQuiz"].firstMatch
+        journey.waitFor(start, "the Progress tab offers no weekly quiz")
+        XCTAssertTrue(start.isEnabled,
+                      "the weekly quiz has no candidates, though every Pack Concept carries a definition")
+        journey.tap(start, "start quiz")
+
+        let action = app.buttons["quizAction"].firstMatch
+        journey.waitFor(action, "quiz never generated", timeout: 60)
+        journey.snap("7-quiz-question")
+
+        let done = app.buttons["quizDone"].firstMatch
+        var answered = 0
+        // `QuizEngine.quizCandidates` caps at 8; the extra iterations are only
+        // there so a runaway loop ends as a failure rather than a hang.
+        while !done.exists, answered < 12 {
+            let option = app.buttons["quizOption"].firstMatch
+            journey.waitFor(option, "question \(answered + 1) offered no options")
+            option.tap()
+            journey.waitUntil("question \(answered + 1) never accepted an answer") {
+                action.exists && action.isEnabled
+            }
+            action.tap()                                   // check answer
+            journey.waitUntil("question \(answered + 1) never showed whether the answer was right") {
+                !action.exists || action.label != "Check answer"
+            }
+            journey.tap(action, "the way on from question \(answered + 1)")
+            answered += 1
+        }
+        XCTAssertGreaterThan(answered, 0, "the quiz ended before it asked anything")
+        journey.waitFor(done, "quiz result never shown")
+        journey.snap("8-quiz-result")
+        journey.tap(done, "quiz done")
+    }
+
+    // MARK: - Pack selection
 
     /// Choosing what the map covers: see the active Pack, switch to the other
     /// built-in one, take up its suggested Sources, and switch back.
@@ -244,91 +382,88 @@ final class TechPulseUITests: XCTestCase {
     /// previous run already took the offer up (#26). It ends on the Pack it
     /// started on, so it leaves nothing behind either.
     func testPackSelectionJourney() throws {
-        let app = XCUIApplication()
-        app.launchArguments += [uiTestResetStore, "-hasOnboarded", "YES"]
-        app.launch()
+        let journey = Journey("pack selection", steps: [
+            .required("10-settings-pack-row"),
+            .required("10a-pack-library"),
+            .required("10b-import-picker"),
+            .required("10c-source-offer"),
+            .required("10d-pack-switched"),
+            .required("10e-knowledge-after-switch"),
+            .required("10f-pack-switched-back"),
+            .required("10g-sources-from-pack"),
+        ], launchArguments: ["-hasOnboarded", "YES"])
+        let app = journey.app
+        journey.start()
 
-        app.buttons["Settings"].tap()
+        journey.tap(app.buttons["Settings"], "Settings tab")
         let packRow = app.buttons["packRow"].firstMatch
-        XCTAssertTrue(packRow.waitForExistence(timeout: 10), "Settings has no Pack row")
-        snap(app, "10-settings-pack-row")
-        packRow.tap()
-        sleep(1)
-        snap(app, "10a-pack-library")
+        journey.waitFor(packRow, "Settings has no Pack row")
+        journey.snap("10-settings-pack-row")
+        journey.tap(packRow, "Pack row")
 
         // Both built-in Packs are on offer, and one of them is marked active.
         let builtins = app.buttons.matching(identifier: "builtinPack")
-        XCTAssertTrue(builtins.element(boundBy: 0).waitForExistence(timeout: 5),
-                      "no built-in packs listed")
+        journey.waitFor(builtins.element(boundBy: 0), "no built-in packs listed")
+        journey.snap("10a-pack-library")
         XCTAssertGreaterThan(builtins.count, 1, "only one built-in pack to choose from")
         XCTAssertTrue(app.staticTexts["AI Engineering"].firstMatch.exists,
                       "the active Pack is not named")
 
         // Importing: the entry point opens the system file picker. What a bad
         // file does is covered by unit tests; this only proves the door opens.
-        app.buttons["importPack"].firstMatch.tap()
-        sleep(2)
-        snap(app, "10b-import-picker")
+        journey.tap(app.buttons["importPack"].firstMatch, "import Pack button")
         let cancel = app.buttons["Cancel"].firstMatch
-        if cancel.waitForExistence(timeout: 3) {
-            cancel.tap()
-        } else {
-            app.swipeDown(velocity: .fast)
-        }
-        sleep(1)
+        journey.waitFor(cancel, "the system file picker never opened", timeout: 15)
+        journey.snap("10b-import-picker")
+        journey.tap(cancel, "the file picker's Cancel button")
+        journey.waitUntilGone(cancel, "the file picker never closed")
+        journey.waitFor(builtins.element(boundBy: 0), "the Pack library never came back")
 
-        // Switch to the other built-in Pack: its suggested Sources are offered.
-        // The offer is only ever the Sources the reader has not got, so on a
-        // simulator that ran this journey before there is nothing left to
-        // offer — the end state is asserted below either way.
-        builtins.element(boundBy: 1).tap()
-        sleep(2)
+        // Switch to the other built-in Pack. Its suggested Sources are offered:
+        // the offer lists the Sources the reader has not got, and on a wiped
+        // store that is all of them.
+        journey.tap(builtins.element(boundBy: 1), "the second built-in Pack")
         let accept = app.buttons["acceptSources"].firstMatch
-        if accept.waitForExistence(timeout: 5) {
-            snap(app, "10c-source-offer")
-            accept.tap()
-            sleep(2)
-        }
+        journey.waitFor(accept, "the Pack's suggested Sources were never offered", timeout: 15)
+        journey.snap("10c-source-offer")
+        journey.tap(accept, "accept sources")
 
         // The map is now the other Pack's.
-        XCTAssertTrue(app.staticTexts["Security Engineering"].firstMatch
-            .waitForExistence(timeout: 5), "the Pack did not switch")
-        snap(app, "10d-pack-switched")
+        journey.waitFor(app.staticTexts["Security Engineering"].firstMatch, "the Pack did not switch")
+        journey.snap("10d-pack-switched")
 
-        app.navigationBars.buttons.firstMatch.tap()   // back to Settings
-        sleep(1)
-        app.buttons["Knowledge"].tap()
-        sleep(2)
-        snap(app, "10e-knowledge-after-switch")
+        journey.goBack(to: packRow, "Settings never came back")
+        journey.tap(app.buttons["Knowledge"], "Knowledge tab")
+        journey.settle("the switched map to draw", timeout: 5)
+        journey.snap("10e-knowledge-after-switch")
 
         // Switch back, so the flagship Pack is what the next launch opens on.
-        app.buttons["Settings"].tap()
-        packRow.tap()
-        sleep(1)
-        app.buttons.matching(identifier: "builtinPack").element(boundBy: 0).tap()
-        sleep(2)
-        if app.buttons["declineSources"].firstMatch.exists {
-            app.buttons["declineSources"].firstMatch.tap()
-            sleep(1)
-        }
-        XCTAssertTrue(app.staticTexts["AI Engineering"].firstMatch
-            .waitForExistence(timeout: 5), "switching back did not restore the flagship Pack")
-        snap(app, "10f-pack-switched-back")
+        journey.tap(app.buttons["Settings"], "Settings tab")
+        journey.tap(packRow, "Pack row")
+        journey.waitFor(builtins.element(boundBy: 0), "the Pack library never came back")
+        journey.tap(builtins.element(boundBy: 0), "the flagship Pack")
+        // No offer is expected here — the flagship Pack's Sources arrived with
+        // onboarding, and the offer only ever lists what the reader has not
+        // got. If one does appear (a Pack gained a Source), decline it: this
+        // journey is about switching back, not about changing Sources.
+        let decline = app.buttons["declineSources"].firstMatch
+        if journey.becomesTrue({ decline.exists }) { decline.tap() }
+        journey.waitFor(app.staticTexts["AI Engineering"].firstMatch,
+                        "switching back did not restore the flagship Pack")
+        journey.snap("10f-pack-switched-back")
 
         // The Security Pack's suggestions are now the reader's own Sources,
         // and they survived switching back — a Source is chosen, not owned by
         // the Pack that suggested it.
-        app.navigationBars.buttons.firstMatch.tap()   // back to Settings
-        sleep(1)
-        let fromPack = app.staticTexts["Krebs on Security"].firstMatch
-        var scrolls = 0
-        while !fromPack.exists, scrolls < 10 {
-            app.swipeUp()
-            scrolls += 1
-        }
-        XCTAssertTrue(fromPack.exists, "the Pack's suggested Sources never reached Settings")
-        snap(app, "10g-sources-from-pack")
+        journey.goBack(to: packRow, "Settings never came back")
+        journey.scroll(to: app.staticTexts["Krebs on Security"].firstMatch,
+                       "the Pack's suggested Sources never reached Settings")
+        journey.snap("10g-sources-from-pack")
+
+        journey.finish()
     }
+
+    // MARK: - Guards
 
     /// The Concept sheet must be dismissable **whatever its scroll position** —
     /// the invariant the core journey now leans on, so it gets its own guard.
@@ -339,69 +474,71 @@ final class TechPulseUITests: XCTestCase {
     /// affordance is removed, stops being hittable while scrolled, or the sheet
     /// gains a layout where the button scrolls away with the content.
     func testConceptSheetDismissesWhileScrolled() throws {
-        let app = XCUIApplication()
-        app.launchArguments += [uiTestResetStore, "-hasOnboarded", "YES"]
-        app.launch()
+        // No steps declared: this guard's evidence is its assertions, not a
+        // screenshot, so there is nothing for the ledger to hold it to.
+        let journey = Journey("sheet dismissal", steps: [],
+                              launchArguments: ["-hasOnboarded", "YES"])
+        let app = journey.app
+        journey.start()
 
-        app.buttons["Knowledge"].tap()
+        journey.tap(app.buttons["Knowledge"], "Knowledge tab")
         let cluster = app.buttons["clusterCard"].firstMatch
-        XCTAssertTrue(cluster.waitForExistence(timeout: 10), "no cluster cards")
-        cluster.tap()
-        sleep(2)
+        journey.waitFor(cluster, "no cluster cards")
+        journey.tap(cluster, "cluster card")
 
         let frontier = app.buttons["frontierCard"].firstMatch
-        XCTAssertTrue(frontier.waitForExistence(timeout: 5),
-                      "a freshly seeded cluster must have a frontier card")
-        frontier.tap()
-        sleep(1)
+        journey.waitFor(frontier, "a freshly seeded cluster must have a frontier card")
+        journey.tap(frontier, "frontier card")
 
         let close = app.buttons["closeSheet"].firstMatch
-        XCTAssertTrue(close.waitForExistence(timeout: 5), "concept sheet never opened")
+        journey.waitFor(close, "concept sheet never opened")
+        journey.settle("the sheet's presentation to finish")
 
         // Scroll away from the top — the state in which a swipe-to-dismiss
         // silently stops working.
         let beforeScroll = app.screenshot().pngRepresentation
         app.swipeUp(velocity: .fast)
-        sleep(1)
+        journey.settle("the sheet to stop scrolling")
         XCTAssertNotEqual(beforeScroll, app.screenshot().pngRepresentation,
                           "sheet did not scroll, so this test is not exercising the #26 case")
 
-        XCTAssertTrue(close.isHittable, "close button not reachable once the sheet is scrolled")
+        XCTAssertTrue(close.exists && close.isHittable,
+                      "close button not reachable once the sheet is scrolled")
         close.tap()
-        sleep(1)
-        XCTAssertFalse(close.exists, "scrolled concept sheet did not dismiss")
+        journey.waitUntilGone(close, "scrolled concept sheet did not dismiss")
 
         // And the tab bar is live again, which is what the journey needs next.
         let progress = app.buttons["Progress"]
-        progress.tap()
-        sleep(1)
-        XCTAssertTrue(progress.isSelected, "tab tap still swallowed after dismissal")
+        journey.tap(progress, "Progress tab")
+        journey.waitUntil("tab tap still swallowed after dismissal") { progress.isSelected }
+
+        journey.finish()
     }
 
     /// Usability guards: every tab reachable, primary controls hittable.
     func testTabsAndTargets() throws {
-        let app = XCUIApplication()
         // Onboarding covered by the core journey; the wipe keeps "every tab
         // reachable" a statement about a known install rather than about
         // whatever the last run left (#26).
-        app.launchArguments += [uiTestResetStore, "-hasOnboarded", "YES"]
-        app.launch()
+        // No steps declared — see `testConceptSheetDismissesWhileScrolled`.
+        let journey = Journey("tabs and targets", steps: [],
+                              launchArguments: ["-hasOnboarded", "YES"])
+        let app = journey.app
+        journey.start()
+
         for tab in ["Feed", "Knowledge", "Progress", "Settings"] {
             let button = app.buttons[tab].firstMatch
-            XCTAssertTrue(button.waitForExistence(timeout: 10), "\(tab) tab missing")
+            journey.waitFor(button, "\(tab) tab missing")
             XCTAssertTrue(button.isHittable, "\(tab) tab not hittable")
             button.tap()
         }
         // Settings must expose at least one source toggle, and the sync row
         // after scrolling past the sources list.
-        XCTAssertTrue(app.switches.firstMatch.waitForExistence(timeout: 5), "no feed source toggles")
-        let syncRow = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS 'Sync now'")).firstMatch
-        var scrolls = 0
-        while !syncRow.exists, scrolls < 4 {
-            app.swipeUp()
-            scrolls += 1
-        }
-        XCTAssertTrue(syncRow.waitForExistence(timeout: 3), "Sync now row missing")
+        journey.waitFor(app.switches.firstMatch, "no feed source toggles")
+        journey.scroll(to: app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS 'Sync now'")).firstMatch,
+                       "Sync now row missing", swipes: 4)
+
+        journey.finish()
     }
 }

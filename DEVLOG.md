@@ -10,6 +10,102 @@
 
 ---
 
+## 2026-08-18 — A skipped step is now a failure, not a green run (#30)
+
+**Built**
+- **Every journey declares its steps, and a step that does not run fails.**
+  `JourneyLedger` and `ScreenshotEvidence` (`Tests/Support/`) are the
+  bookkeeping: a journey lists its steps up front, `snap()` records one and
+  writes its PNG, and `finish()` names every declared step that never ran, every
+  step that ran without being declared, and every screenshot that is not from
+  this run. `Journey` (`Tests/UITests/`) wraps that around `XCUIApplication`.
+- **The bookkeeping has its own tests, in the *unit* bundle.** `Tests/Support` is
+  compiled into both test targets, so the 13 tests that cover "a required step
+  that never ran is named" and "a file left over from an earlier run is not
+  evidence" run in 0.02s instead of three minutes. Both were mutation-checked —
+  with `missing` stubbed to `[]` and the staleness comparison forced false, five
+  and one of them go red respectively.
+- **Screenshots are checked like evidence.** Each journey deletes its own PNGs
+  before it starts and asserts, on writing and again at the end, that the file
+  exists, is non-empty and post-dates the run. #26 was cracked by noticing that
+  `4-marked-known.png` was four days old — by comparing file timestamps by hand.
+- **15 `if element.exists` branches became assertions; three are declared
+  optional and say why.** Only one of the three is skipped in a normal run —
+  the frontier Concept's related-Concept jump — and it is announced in the log
+  and the result bundle rather than passed over. Both related-Concept branches
+  also assert that the sheet's "Related concepts" section and its chips agree,
+  so a section promising jumps and offering none is a failure.
+- **A planted Article (`-uitest-seed-article`).** The store wipe made the *store*
+  known; it did not make the *reading* known. Analysis attaches Concepts by
+  matching the Pack's vocabulary, so whether the newest Article had a Concept
+  chip depended on what the news said that morning — and on 2026-08-18 it said
+  nothing on the map, which is how the whole concept-sheet block had been
+  skipping. `UITestSupport` now plants one unanalyzed Article naming seven
+  flagship-Pack Concepts, and the app's own analysis is still what finds them.
+  It is planted **already read**, because `rebuildCoreadLinks` scores *readings*
+  — without one in the store, the Concepts on that sheet are Co-read with
+  nothing and `3b-related-concept-jump` could never run. A step that can never
+  run is not a step, so the reading is planted and the step is required.
+- **47 `sleep()` calls became 0.** Waits name their condition: the feed header's
+  own "Syncing…", the arXiv button's own "Added N fresh articles ✓", a Concept
+  that has become Known, a tab that has become selected. Where the thing being
+  waited for is an animation, `settle()` returns as soon as two consecutive
+  frames match and prints when it gives up — the full map is still drifting at
+  three seconds and says so.
+
+**Verified** The suite as it stood was run first, green in 191.2s — and five of
+its documented steps did not run in it. Their PNGs kept the dates of runs one to
+five days earlier (`3-concept-sheet`, `3b`, `3c` from 17 Aug 16:52,
+`4-marked-known` from 17 Aug 15:21, `5b4` from 13 Aug), so the previous day's
+green run had skipped four of them too. The timestamps are the whole argument,
+and they are exactly what nobody was looking at.
+
+The rewritten suite is green with every required step run and the one skipped
+step reported: **187.5s against the baseline's 191.2s**, while doing five steps
+more than it did (190.1s on the full scheme, still under). Three of the four
+tests are individually faster (16.9 vs 21.0, 39.0 vs 46.0, 19.0 vs 20.9); the
+core journey is 112.6 against 103.4 because it now walks the block it used to
+skip. 239 unit tests pass in 14.8s, and
+Release still builds with the test hooks compiled out.
+
+**Reviewed, then changed** The two-axis review earned its keep. The `Standards`
+axis caught an unused `FileManager` seam in `ScreenshotEvidence` — ADR-0006
+decided against exactly that ("a seam bought for a hypothetical is one more
+thing to maintain") — and three constants hand-mirrored between the app and the
+journeys under "if one changes, change both" comments. `Tests/Support` compiles
+into the unit bundle, which *does* link the app, so `UITestLaunchTests` now
+asserts the copies match instead of asking the reader to remember, and a third
+test checks the planted Article still names at least five Pack Concepts. The
+`Spec` axis caught the sharper one: `3b` and `5b4` were both declared optional
+for a reason that is *always* true, so the coverage #30 wanted to save was still
+evaporating — loudly, but evaporating. Planting the reading fixed half of that;
+the other half is a defect in the Concept sheet, recorded below. Also gone: an
+unreachable `else` in the import-picker step whose written reason described a
+case the assertion above it had already ruled out, and a bare
+`if action.exists { action.tap() }` in the quiz loop — the one branch left in
+the file that was the exact shape the issue names.
+
+**Flagged, not fixed: the Concept sheet ignores Semantic Links.**
+`ConceptSheetView.relatedConcepts` reads `ConceptLink` only, so "Related
+concepts" is empty for any Concept your reading has not joined to another.
+ADR-0002 computes Semantic Links at install precisely so day one is not
+"unconnected dust" — the map draws them, the sheet does not. That is why
+`5b4-related-concept-jump` is optional, and it is a defect in the sheet rather
+than in the journey: filed as **#33**, which carries "this step becomes
+required" as one of its acceptance criteria.
+
+**Learned** Two things. **The wipe was only half the state**: #26 made the store
+known and everyone (this log included) treated the journey as deterministic
+afterwards — but the feed is fetched from the internet at launch, so the
+*reading* was still whatever the morning brought. A test whose subject arrives
+by RSS is a test whose steps are optional. And **a conditional is a claim about
+the world that nobody reads**: `if element.exists` said "this might not be here"
+to no one, and the four steps it was silently skipping cost four days of a stale
+screenshot going unnoticed. Saying it in a declaration, with the reason, turns
+the same claim into something the run can print and the reviewer can argue with.
+
+---
+
 ## 2026-08-18 — Explain now sends your Pack, and a test says so (#29)
 
 **Built.** The decision from the entry below is in the code. `ExplainPrompt` is a

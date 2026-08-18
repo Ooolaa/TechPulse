@@ -11,7 +11,7 @@ Offline-first iOS app that aggregates AI/tech news, summarizes articles **on-dev
 - On-device intelligence: Foundation Models summarization + concept extraction, NaturalLanguage fallback
 - Knowledge engine: mastery scoring, embedding-based concept matching, "I know this", time decay
 - Force-directed knowledge graph (Canvas + TimelineView) and Swift Charts progress views
-- UI test (`Tests/UITests`) drives feed → article → concept sheet → graph and saves screenshots to `/tmp/techpulse_uitest`
+- UI test (`Tests/UITests`) drives feed → article → concept sheet → graph and saves screenshots to `/tmp/techpulse_uitest`. Each journey that takes screenshots declares its steps up front: a step that does not run fails the test, and its screenshot has to have been written by that run
 
 Knowledge Pack (skill tree): ~50 pre-seeded AI-engineer concepts in 7 clusters with dependency arrows, cluster overview + detail screens, frontier detection ("ready to learn"), gap detector with feed recommendations, and the staged learning path on Progress.
 
