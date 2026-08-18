@@ -10,6 +10,54 @@
 
 ---
 
+## 2026-08-18 — Explain will disambiguate from your Pack, not from the article (#29)
+
+**Decided, not yet built.** A grilling session settled #29, which #16's audit had
+raised and left open. Recorded as
+[ADR-0006](docs/adr/0006-explain-disambiguates-from-your-pack-not-from-the-article.md)
+and a new `Egress` entry in `CONTEXT.md`; the code and the document corrections
+are the implementation ticket.
+
+- **The opt-in path will send the term, the Active Pack's field, and its Cluster
+  names** — no article text. The reader's own map does the disambiguating the
+  ±220-character excerpt used to. Anthropic learns "someone studying AI
+  engineering asked what LoRA means" and never sees a document.
+- **The on-device path keeps the excerpt**, deliberately. Nothing leaves the
+  device there, so the better signal is free. Two paths, two prompts, on purpose.
+- **Where fallback-first and the privacy stance conflict, fallback-first wins.**
+  Both were listed as absolutes, which is how they came to contradict each other
+  unnoticed. Dropping Explain on hardware without Apple Intelligence was the
+  cleanest privacy answer and would have deleted the feature on the iPhone 14 Pro
+  this app is actually read on — the device that is the reason the opt-in path
+  exists.
+- **`Egress` is now a term**: the closed, enumerated list of what leaves the
+  device. The stance had no name, so "on-device by default", "nothing leaves the
+  phone", "concept name/definition only" and "opt-in exception" were four
+  phrasings of it that nobody could check against one another.
+- **arXiv stays and joins the list** — a search term reaching a search API is the
+  feature working, and proxying it would need the first-party server the product
+  does not have.
+
+**The cost, taken knowingly.** A word ambiguous *inside* the reader's own field —
+"bias" statistically against "bias" in fairness — stops being separable, where the
+sentence would have separated it. The field resolves the common collisions, and
+the sentence-level cases are disproportionately words already on the map, which
+never reach a model: `ArticleView.explain` matches an existing Concept first and
+returns offline.
+
+**Learned** Two things the interview surfaced that reading the code had not.
+The first is that **the decision was upstream of the fix**: the issue offered
+three options, and all three took "send an excerpt or don't" as the question,
+when the real question was what the promise protects. Once that was *egress*
+rather than *any model seeing article text*, a fourth option appeared that none
+of the three had — use the Pack. The second is that **the missing word was the
+root cause**. `CONTEXT.md` has had 17 precise terms and nothing for the privacy
+stance, so four phrasings of it drifted apart across four documents with no
+way to notice. The map has a name for everything the reader can see and had none
+for the promise the product is built on.
+
+---
+
 ## 2026-08-17 — The journey's verdict came from leftover data, not from the code (#26)
 
 **Built**

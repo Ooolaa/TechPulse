@@ -103,3 +103,11 @@ _Avoid_: reminder, schedule, goal, notification setting
 The run of consecutive days on which reading happened. Survives a day not yet
 extended; only a fully missed day breaks it.
 _Avoid_: chain, run, combo
+
+**Egress**:
+Everything the app sends off the device, as a closed and enumerated list. The
+point of the term is that the list is complete and checkable: a feature that adds
+to it is changing the product's central promise, not adding a detail. Work done
+on the device — however much of your reading it touches — is not Egress, which is
+what makes the promise sayable at all.
+_Avoid_: telemetry, analytics, tracking, upload, data collection
