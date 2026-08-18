@@ -10,6 +10,52 @@
 
 ---
 
+## 2026-08-18 — Explain now sends your Pack, and a test says so (#29)
+
+**Built.** The decision from the entry below is in the code. `ExplainPrompt` is a
+new pure type that builds both Explain prompts as data; `IntelligenceService.define`
+asks it for one instead of assembling a string at the call site.
+
+- **The opt-in path sends the term, the Active Pack's `field`, and its
+  `clusterOrder`** — `Term the reader selected: LoRA / The field they are
+  studying: AI Engineering / Areas of that field on their map: …`. No article
+  text. Both values were already on `ActivePack`, so this needed no new data and
+  no new fetch: `define` is already `@MainActor` and reads `ActivePack.inUse`.
+- **The on-device path still sends the ±220-character excerpt**, and its
+  instructions still say to use it. Two paths, two prompts, on purpose.
+- **The system prompts diverged too, not just the payloads.** The opt-in one had
+  to stop saying "use the excerpt to disambiguate" — there is no excerpt — and it
+  now says the model is told the reader's field *and nothing about the document
+  the term came from*. The injection rule is built per path for the same reason:
+  a shared wording that mentioned "an excerpt" would invite the model to ask for
+  one. That was a real red test, not a hypothetical — the first version shared
+  one rule string and the exactness test caught the word.
+- **The Cluster list is capped at 12.** A Pack author picks these so the count is
+  not truly unbounded, but a payload that is a promise needs a ceiling, and the
+  first Clusters carry the field's shape anyway.
+- **Empty field or Clusters drop their line** rather than sending a blank one. A
+  Pack is data and an imported one need not fill everything in; the model gets
+  less signal, not a malformed prompt.
+
+**Verified** 218 unit tests pass. Seven are new, and the one that matters asserts
+the opt-in prompt **equals** a string built from the term, the field and the
+Clusters — not that it lacks article text, which only catches the leak somebody
+already thought of. `optIn` cannot be handed an excerpt at all, so the way article
+text returns is somebody widening the function, and an exact match goes red for
+any widening.
+
+**Learned** The seam was worth more than the fix. Changing the payload was twenty
+lines; what took the failure off the table was that prompt construction is now a
+pure function over the term and the Pack, so *what leaves the device* is a value
+a test can hold. `AnthropicClient` stays non-injectable deliberately (ADR-0006):
+transport was never what anyone got wrong, and the seam that would have caught
+this is the one that got built. The documents were the other half — `PRIVACY.md`,
+`README.md` and `ROADMAP.md` now say the same thing as the code, and ROADMAP
+records the fallback-first precedence rather than listing two absolutes and
+leaving the collision to be rediscovered.
+
+---
+
 ## 2026-08-18 — Explain will disambiguate from your Pack, not from the article (#29)
 
 **Decided, not yet built.** A grilling session settled #29, which #16's audit had

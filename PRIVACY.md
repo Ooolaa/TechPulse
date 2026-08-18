@@ -1,8 +1,8 @@
 # TechPulse — Privacy
 
 TechPulse is built so that **your reading stays on your phone**. There is no
-account and no server of ours. What network traffic exists is listed below in
-full, including one case where a fragment of article text does leave the device.
+account and no server of ours. Everything the app sends off the device is listed
+below in full — that list is closed, and **no article text is on it**.
 
 ## What we collect
 
@@ -21,6 +21,12 @@ an App Group container shared with the TechPulse widget. It stays on the device
 and is readable only by this app and its own widget.
 
 ## Network traffic
+
+This section is the whole of it. Everything the app sends off the device has a
+name in the project's own vocabulary — **Egress** — and the point of the name is
+that this list is complete: a feature that adds a line here is changing what the
+app promises, not adding a detail. Work done *on* the device, however much of
+your reading it touches, is not on this list and never will be.
 
 The app makes these outbound connections, all over HTTPS:
 
@@ -42,14 +48,20 @@ server of ours (there is none).
 
 - **Go deeper** — expanding a Concept sends that **Concept's name, definition and
   cluster**. No article text.
-- **Explain** — selecting a word in an article sends the **word you selected and
-  roughly 220 characters of the surrounding article text**, so the model can tell
-  which sense of an ambiguous term is meant. This is article text leaving the
-  device, and it is the one case where that happens.
+- **Explain** — selecting a word in an article sends the **word you selected, the
+  field your Pack covers, and the names of its Clusters**. No article text. The
+  model is told what you are studying, not what you are reading — "someone
+  studying AI Engineering asked what LoRA means" — and that is what tells it
+  which sense of an ambiguous term you meant.
+
+On hardware with Apple Intelligence, Explain runs on-device and uses the sentence
+around the word instead, which is a better clue and costs nothing because it
+never leaves the phone. The two paths deliberately send different things; see
+[ADR-0006](docs/adr/0006-explain-disambiguates-from-your-pack-not-from-the-article.md).
 
 Both features work without a key on hardware with Apple Intelligence, where the
-same analysis runs on-device and nothing is transmitted. Remove the key any time
-in Settings → AI engine, and both fall back to on-device or stop.
+analysis runs on-device and nothing is transmitted. Remove the key any time in
+Settings → AI engine, and both fall back to on-device or stop.
 
 ## Your API key
 
@@ -72,10 +84,10 @@ and is removed from the Keychain when you delete it.
   installed, and a Pack that fails is rejected with a reason rather than
   partially applied.
 - Article text is treated as **attacker-controlled** — whoever writes a feed you
-  subscribed to chooses those bytes. It is never auto-linked, and where it
-  reaches a model (the Explain path above) it is passed as reference material
-  under system-side instructions saying it is not to be followed as
-  instructions.
+  subscribed to chooses those bytes. It is never auto-linked, and where any of it
+  reaches a model — the word you selected on either Explain path, the surrounding
+  sentence on the on-device one — it is passed as reference material under
+  system-side instructions saying it is not to be followed as instructions.
 
 ## Imported Packs
 

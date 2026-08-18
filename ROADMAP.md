@@ -164,17 +164,21 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
 
 ## Standing constraints (unchanged by anything above)
 
-- **Privacy:** on-device by default, no first-party server, and every outbound
-  connection enumerated in [PRIVACY.md](PRIVACY.md). This bullet used to claim
-  the BYO-key path sends "concept name/definition only" — it does not: the
-  Explain path also sends ~220 characters of surrounding article text, and
-  topic search sends a Concept name to arXiv. Both were undisclosed until the
-  #16 audit; #29 decides whether the excerpt should be sent at all. Every new
-  feature is measured against the stance, and against saying what it actually
-  does.
+- **Privacy:** on-device by default, no first-party server, and **Egress** — the
+  full list of what leaves the device — enumerated in [PRIVACY.md](PRIVACY.md).
+  No article text is on that list. Every new feature is measured against the
+  stance, and against saying what it actually does; a feature that adds a line
+  to the list is changing the promise, not adding a detail.
 - **Zero third-party dependencies** — still a feature.
 - **Fallback-first:** every AI feature must work (degraded is fine) on
   hardware without Apple Intelligence — the reference device guarantees it.
+- **When fallback-first and privacy collide, fallback-first wins**
+  ([ADR-0006](docs/adr/0006-explain-disambiguates-from-your-pack-not-from-the-article.md)).
+  These two were listed side by side as absolutes, which is how they came to
+  contradict each other unnoticed in the Explain path: the answer is to change
+  **what a feature sends**, never to delete the feature on hardware without
+  Apple Intelligence. That hardware is the reference device, and it is why the
+  opt-in path exists at all. Any change here needs an ADR, not a commit.
 - **Testing gate:** nothing ships without unit coverage for engine logic and
   a journey screenshot for every new screen — Settings taught us that the
   uncovered screen is where the shipped bug hides.
