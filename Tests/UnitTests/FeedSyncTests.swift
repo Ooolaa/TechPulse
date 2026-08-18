@@ -28,10 +28,16 @@ final class FeedStub: URLProtocol, @unchecked Sendable {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        // A path nobody registered fails the request rather than serving an
+        // empty feed: a setup mistake should not read as a source with no news.
+        guard let body = Self.bodies[request.url?.path ?? ""] else {
+            client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
+            return
+        }
         let response = HTTPURLResponse(url: request.url!, statusCode: 200,
                                        httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.bodies[request.url?.path ?? ""] ?? Data())
+        client?.urlProtocol(self, didLoad: body)
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -167,14 +173,20 @@ struct FeedSyncTests {
         #expect(added == FeedSyncService.newSourceAllowance)
     }
 
+    /// A Source with articles cached takes what is left of the day's intake and
+    /// no more. Two syncs, because a cap with nothing left to give returns 0
+    /// whether or not the feed was ever read — the first take is what proves
+    /// the cap is doing the refusing and the stub is doing the serving.
     @Test("a Source that already has articles cached is held to the daily cap")
-    func cappedSourceGetsNothingMore() async throws {
+    func cappedSourceTakesOnlyWhatTheDayHasLeft() async throws {
         let context = try makeContext()
         source(named: "AI Weekly", path: "/a.xml", items: 10, in: context)
-        cache(FeedSyncService.dailyIntakeLimit, sourceName: "AI Weekly", in: context)
+        cache(FeedSyncService.dailyIntakeLimit - 4, sourceName: "AI Weekly", in: context)
 
-        let added = await sync(context)
+        let firstTake = await sync(context)
+        let secondTake = await sync(context)
 
-        #expect(added == 0)
+        #expect(firstTake == 4, "four of the day's thirty were unspent, and the feed had ten to offer")
+        #expect(secondTake == 0, "the day is spent now, and a cached Source has no bootstrap to fall back on")
     }
 }
