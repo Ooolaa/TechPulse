@@ -11,7 +11,12 @@ enum FeedSyncService {
     /// Daily intake cap across ALL feeds. 30 fresh articles a day is plenty
     /// for a starting reader — an overflowing feed kills the habit
     /// (Atomic Habits: make it easy; an achievable pile gets opened).
-    private static let dailyIntakeLimit = 30
+    static let dailyIntakeLimit = 30
+
+    /// Articles a Source with nothing cached may take OUTSIDE the daily cap,
+    /// so that a Source added on a day whose intake is already spent shows
+    /// something rather than an empty tag until tomorrow.
+    static let newSourceAllowance = 5
 
     /// Descriptive User-Agent: some hosts (notably reddit, which serves the
     /// Kaggle community feed) throttle or 403 default CFNetwork agents.
@@ -54,14 +59,15 @@ enum FeedSyncService {
         var allowance = max(0, dailyIntakeLimit - addedToday)
         var added = 0
 
-        // New-source bootstrap: a source with nothing cached may take a few
-        // articles OUTSIDE the daily cap — otherwise a source added on a day
-        // whose intake is already spent shows an empty tag until tomorrow.
+        // Rationed by name, because an Article names its Source: "has this
+        // Source cached anything?" is a name-level question, and two Sources
+        // under one name — names are not unique, subscription is deduplicated
+        // by URL everywhere it happens — cannot be told apart by it. Taking the
+        // names as a set is what says they share one ration (#23).
         let cachedSourceNames = Set(existing.map(\.sourceName))
-        var bootstrap: [String: Int] = Dictionary(
-            uniqueKeysWithValues: sources
-                .filter { !cachedSourceNames.contains($0.name) }
-                .map { ($0.name, 5) }
+        let newSourceNames = Set(sources.map(\.name)).subtracting(cachedSourceNames)
+        var bootstrap = Dictionary(
+            uniqueKeysWithValues: newSourceNames.map { ($0, newSourceAllowance) }
         )
 
         // Pool candidates across all feeds, newest first, so the cap keeps the
