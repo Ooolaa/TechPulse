@@ -10,6 +10,59 @@
 
 ---
 
+## 2026-08-18 — One cap, named once, and a test that drives the fetch (#28)
+
+**Built**
+- **`TopicSearchService` had no size cap at all.** Its two siblings each had
+  one — `FeedSyncService` behind a named `maxFeedBytes`, `FullTextService` as a
+  bare `5_000_000` — and the topic search took whatever `URLSession` returned
+  and handed it to `RSSParser`. Its URL is built from a Concept name rather than
+  from a Source the reader enabled, so the bytes are no more trustworthy than a
+  feed's.
+- **`ResponseLimit` asks the two questions once.** Did it come back OK, and is it
+  a plausible size. All three fetchers now go through it, so `PRIVACY.md`'s
+  sentence is true of the app rather than of the two fetchers that happened to
+  carry a copy of the number.
+- **One byte changed hands.** `FeedSyncService` used `<=` and `FullTextService`
+  `<`, against a documented promise that responses *over* 5 MB are discarded.
+  `<=` is the promise, so a page of exactly 5,000,000 bytes is now read where it
+  used to be dropped. Small, deliberate, and a test pins it.
+- **`PRIVACY.md` no longer needs its qualifier.** The bullet read "Feed and
+  article responses" — narrowed at some point to stay true of the code, which is
+  the quieter half of the failure #32 was about: a document bent to fit rather
+  than overclaiming. It now says every response the app fetches.
+- **Which turned out to be four fetchers, not three.** Widening the sentence made
+  it false again immediately: `AnthropicClient` fetches from `api.anthropic.com`
+  and decodes the reply with no size check. It now refuses an over-cap reply
+  *before* the status check, because the error path renders the body into a
+  message — an over-cap reply must not be worked on in order to be complained
+  about. It shares the number rather than the predicate: `accepts` folds in a
+  status test this call site answers for itself, in 401-specific language the
+  reader needs.
+
+**Verified** 260 unit tests green, 9 new. The one that counts drives
+`findArticles` over a stubbed 5 MB arXiv response and asserts no Article is
+filed — with a control that runs the *same* feed under the cap and asserts one
+is, so the refusal is the cap and not a stub that never intercepted. Removing
+the cap turns four assertions red, including `tagged == 0` becoming `tagged == 1`
+with an Article in the store: the over-cap body really is parsed without it. The
+Anthropic path has the same pair, through the session `ByoKeyTests` already
+injects.
+
+**Learned** Widening a claim is where you find out how many places it has to be
+true of. The grep that closed #32 asked which documents said a thing; the grep
+that closed this one asked which *call sites* had to earn it, and the honest
+answer was one more than the ticket named. Both reviews found the fourth fetcher
+independently — the Spec axis by grepping `URLSession` against the new sentence,
+which is the check the sentence now deserves every time it is restated.
+
+Also: the transport seam this needed does not exist in production, and did not
+need to. `URLProtocol.registerClass` intercepts `URLSession.shared` itself,
+scoped by `canInit` to one host, so the test drives the real code path with
+nothing in the app that exists only for tests.
+
+---
+
 ## 2026-08-18 — "No article text" was an absolute, and the word you select is article text (#32)
 
 **Built** (prose only — no behaviour changed; the three Swift edits are doc

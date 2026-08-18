@@ -25,8 +25,7 @@ enum FullTextService {
         var request = URLRequest(url: url, timeoutInterval: 10)
         request.setValue("Mozilla/5.0 (iPhone) TechPulse/1.0", forHTTPHeaderField: "User-Agent")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
-              data.count < 5_000_000,
+              ResponseLimit.accepts(data: data, response: response),
               let html = String(data: data, encoding: .utf8)
         else { try? context.save(); return }
 

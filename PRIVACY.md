@@ -85,10 +85,13 @@ and is removed from the Keychain when you delete it.
 - **No third-party dependencies** — nothing in the app to compromise by way of
   someone else's package.
 - Feed XML is parsed with external-entity resolution **disabled**.
-- Feed and article responses over 5 MB are **discarded rather than parsed or
-  stored**. Note what this does and does not do: the response is already in
-  memory by the time it is measured, so the limit bounds what the app keeps and
-  works on, not what it allocates.
+- **Every response the app fetches** — a feed, an article page, a topic search,
+  or a model reply on the opt-in path — is **discarded rather than parsed or
+  stored** if it is over 5 MB. One limit, named once, so the sentence is true of
+  the whole app rather than of the fetchers that happened to carry a copy of
+  it. Note what this does and does not
+  do: the response is already in memory by the time it is measured, so the limit
+  bounds what the app keeps and works on, not what it allocates.
 - An **imported Pack is untrusted input**: it is validated before anything is
   installed, and a Pack that fails is rejected with a reason rather than
   partially applied.

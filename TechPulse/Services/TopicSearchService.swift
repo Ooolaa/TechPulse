@@ -37,7 +37,7 @@ enum TopicSearchService {
         var request = URLRequest(url: url, timeoutInterval: 30)
         request.setValue(FeedSyncService.userAgent, forHTTPHeaderField: "User-Agent")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true
+              ResponseLimit.accepts(data: data, response: response)
         else { return 0 }
 
         let existing = (try? context.fetch(FetchDescriptor<Article>())) ?? []

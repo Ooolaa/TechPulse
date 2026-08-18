@@ -13,10 +13,6 @@ enum FeedSyncService {
     /// (Atomic Habits: make it easy; an achievable pile gets opened).
     private static let dailyIntakeLimit = 30
 
-    /// Feed responses are untrusted input; a hostile or broken publisher must
-    /// not be able to balloon memory. 5 MB dwarfs any legitimate feed.
-    private nonisolated static let maxFeedBytes = 5_000_000
-
     /// Descriptive User-Agent: some hosts (notably reddit, which serves the
     /// Kaggle community feed) throttle or 403 default CFNetwork agents.
     /// Shared with TopicSearchService.
@@ -37,8 +33,7 @@ enum FeedSyncService {
                     var urlRequest = URLRequest(url: feed.url, timeoutInterval: 30)
                     urlRequest.setValue(userAgent, forHTTPHeaderField: "User-Agent")
                     guard let (data, response) = try? await URLSession.shared.data(for: urlRequest),
-                          (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true,
-                          data.count <= maxFeedBytes
+                          ResponseLimit.accepts(data: data, response: response)
                     else { return (feed.index, nil) }
                     return (feed.index, data)
                 }

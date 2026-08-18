@@ -7,6 +7,7 @@ struct AnthropicClient {
     enum ClientError: LocalizedError {
         case badStatus(Int, String)
         case emptyResponse
+        case oversizedResponse
 
         var errorDescription: String? {
             switch self {
@@ -14,6 +15,7 @@ struct AnthropicClient {
                 code == 401 ? "The API key was rejected — check it in Settings."
                             : "Anthropic API error \(code): \(body.prefix(160))"
             case .emptyResponse: "The model returned an empty response."
+            case .oversizedResponse: "The model's reply was too large to read."
             }
         }
     }
@@ -53,6 +55,13 @@ struct AnthropicClient {
         ))
 
         let (data, response) = try await session.data(for: request)
+        // Before the status check, because the error path renders the body as a
+        // message: an over-cap reply must not be worked on to be complained
+        // about. `ResponseLimit.accepts` is not used here — that predicate folds
+        // in a status test this call site needs to answer for itself, so what is
+        // shared is the number, which is the thing `PRIVACY.md` promises (#28).
+        guard data.count <= ResponseLimit.maxBytes else { throw ClientError.oversizedResponse }
+
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             throw ClientError.badStatus(status, String(data: data, encoding: .utf8) ?? "")

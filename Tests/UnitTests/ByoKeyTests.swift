@@ -143,6 +143,33 @@ struct AnthropicClientTests {
         }
     }
 
+    /// The fourth fetcher. `PRIVACY.md` claims the 5 MB cap for every response
+    /// the app fetches, and the model's reply is one of them — a claim that was
+    /// false the moment it was widened for #28 unless this path is bounded too.
+    @Test("an over-cap reply is refused before it is decoded")
+    func oversizedResponse() async throws {
+        // Valid JSON that would parse to "hello", padded past the cap. The only
+        // reason to refuse it is its size.
+        let padding = String(repeating: "x", count: ResponseLimit.maxBytes)
+        StubURLProtocol.stub(status: 200,
+                             body: #"{"content":[{"type":"text","text":"hello"}],"pad":"\#(padding)"}"#)
+
+        let error = try #require(await #expect(throws: AnthropicClient.ClientError.self) {
+            _ = try await stubbedClient.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
+        })
+        guard case .oversizedResponse = error else {
+            Issue.record("expected oversizedResponse, got \(error)")
+            return
+        }
+    }
+
+    @Test("the same reply under the cap is decoded, so the refusal is the cap")
+    func underCapResponseIsDecoded() async throws {
+        StubURLProtocol.stub(status: 200, body: #"{"content":[{"type":"text","text":"hello"}]}"#)
+        let text = try await stubbedClient.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
+        #expect(text == "hello")
+    }
+
     /// `URLProtocol` may deliver a body as a stream rather than as `httpBody`.
     private static func body(of request: URLRequest) -> Data? {
         if let body = request.httpBody { return body }
