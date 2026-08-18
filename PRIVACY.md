@@ -49,17 +49,18 @@ things. Requests go **directly to api.anthropic.com under your key**, through no
 server of ours (there is none).
 
 - **Go deeper** — expanding a Concept sends that **Concept's name, definition and
-  cluster**. No article text.
+  cluster**. No passage of any article — though a Concept's name may itself be a
+  word the on-device analysis lifted from one you read.
 - **Explain** — selecting a word in an article sends the **word you selected, the
-  field your Pack covers, and the names of its Clusters**. No article text. The
-  model is told what you are studying, not what you are reading — "someone
-  studying AI Engineering asked what LoRA means" — and that is what tells it
-  which sense of an ambiguous term you meant. Nothing else from the article goes
-  with it: not the sentence around the word, not the title, not the body. The
-  word itself is article text, and it is the only article text there is.
-  **A word already on your map sends nothing at all** — it opens the Concept
-  you already have, offline, and the match allows for case, hyphens and plurals, so
-  selecting "LoRAs" opens your "LoRA"
+  field your Pack covers, and the names of its Clusters**. No passage of the
+  article. The model is told what you are studying, not what you are reading —
+  "someone studying AI Engineering asked what LoRA means" — and that is what
+  tells it which sense of an ambiguous term you meant. Nothing else from the
+  article goes with it: not the sentence around the word, not the title, not the
+  body. The word itself is article text, and it is the only article text there
+  is. **A word already on your map sends nothing at all** — it opens the Concept
+  you already have, offline, and the match allows for case, hyphens and plurals,
+  so selecting "LoRAs" opens your "LoRA"
   ([ADR-0007](docs/adr/0007-explain-matches-the-map-on-spelling-not-on-meaning.md)).
 
 On hardware with Apple Intelligence, Explain runs on-device and uses the sentence

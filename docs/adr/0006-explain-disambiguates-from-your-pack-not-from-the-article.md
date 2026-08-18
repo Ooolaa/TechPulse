@@ -10,10 +10,24 @@ two. All three were reasoning about **Go deeper**, where the claim is true, and
 none was re-checked when Explain began using the same client (#29).
 
 **Decision:** the opt-in path sends the selected term, the Active Pack's **field**,
-and its **Cluster** names. No article text. The reader's own map supplies the
-disambiguation the excerpt used to: "someone studying AI engineering asked what
-LoRA means" picks the right sense of most words, and the model never sees a
-document the reader was reading.
+and its **Cluster** names. No *passage* of the article. The reader's own map
+supplies the disambiguation the excerpt used to: "someone studying AI
+engineering asked what LoRA means" picks the right sense of most words, and the
+model never sees a document the reader was reading.
+
+**Correction (2026-08-18):** the sentence above read "**No article text.**" when
+this ADR landed, and is corrected here to "No *passage* of the article" (#32).
+The selected term **is** article text — a fragment of an RSS body, bounded by
+`WordSelection.normalize` to six words and sixty characters — so the original was
+an absolute the code contradicts, of exactly the kind this ADR's own diagnosis
+warns about: *a claim with an exception is a claim somebody will restate without
+the exception.* It is replaced rather than footnoted, because a standing absolute
+is what gets restated next, and quoted here rather than erased, because it was
+restated elsewhere while it stood. The same reading applies to **Go deeper**: its
+payload is a Concept's name and definition, and a name the on-device analysis
+lifted from an article is article text too, so the preamble's "where the claim is
+true" holds of the passage claim rather than of the absolute. The decision is
+unchanged; only the sentence was wrong.
 
 The **on-device path keeps the excerpt**, deliberately. Nothing leaves the device
 there, so the better signal is free. The two paths therefore build different

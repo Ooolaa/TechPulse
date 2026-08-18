@@ -35,3 +35,15 @@ If the concept you need isn't in the glossary yet, that's a signal — either yo
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
 
 > _Contradicts ADR-0002 (on-device first) — but worth reopening because…_
+
+## Correcting a landed ADR
+
+An ADR records what was decided. Never silently rewrite one — pick the form that matches what went wrong:
+
+- **The decision changed** → write a new ADR that supersedes it. Both stay; the superseded one gains a line pointing forward.
+- **The decision stands, a sentence was wrong** → fix the sentence **and** add a `**Correction (YYYY-MM-DD):**` paragraph directly under it, quoting what it used to say and citing the issue. Do both: quoting keeps the record of what was restated elsewhere while the sentence stood, fixing removes what would be restated next. A correction note left above a standing error is half a fix.
+- **A consequence turned out narrower or wider than claimed** → amend that consequence in place, linking forward to the ADR that changed it if there is one.
+
+**Distrust absolutes.** "No X" is the sentence that gets restated without its exception — both corrections ADR-0006 has needed were absolutes that were nearly true. Write what **is** sent and what is the most that ever leaves, not what never is.
+
+**A correction touching `Egress` changes five documents together**: `CONTEXT.md`'s `Egress` entry, `PRIVACY.md`, `README.md`, `ROADMAP.md`'s standing constraints, and the ADR. Grep the old wording across Markdown *and* Swift before you finish — doc comments restate these claims too.

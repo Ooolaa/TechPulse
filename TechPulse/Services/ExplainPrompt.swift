@@ -33,7 +33,9 @@ enum ExplainTier: Equatable {
 /// ±220-character excerpt because nothing leaves the device there, so the better
 /// disambiguator is free. The opt-in path — the reader's own Anthropic key, on
 /// hardware without Apple Intelligence — sends the reader's own map instead: the
-/// Active Pack's field and Cluster names, and no article text.
+/// Active Pack's field and Cluster names, and no *passage* of the article. The
+/// selected term is itself article text, and it is the only article text there
+/// is (#32).
 ///
 /// Pure, and outside any actor, so what each path sends is a unit test rather
 /// than a claim in a document. That is the whole point of the type: the excerpt reached
@@ -83,8 +85,9 @@ struct ExplainPrompt: Equatable {
         )
     }
 
-    /// Opt-in (BYO key): the reader's Pack disambiguates, and no article text
-    /// leaves the device. "Someone studying AI Engineering asked what LoRA
+    /// Opt-in (BYO key): the reader's Pack disambiguates, and no passage of the
+    /// article leaves the device — the selected term is the most of one that
+    /// ever does. "Someone studying AI Engineering asked what LoRA
     /// means" picks the right sense of most words without the model ever seeing
     /// the document they were reading.
     ///

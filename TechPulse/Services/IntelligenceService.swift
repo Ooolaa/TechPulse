@@ -129,8 +129,10 @@ enum IntelligenceService {
     ///
     /// The two tiers ask different questions, deliberately (ADR-0006). On-device
     /// the excerpt disambiguates and never leaves the phone; on the opt-in path
-    /// the reader's own Active Pack does that job instead, so no article text is
-    /// sent. `ExplainPrompt` builds both, purely, so which is which is a test.
+    /// the reader's own Active Pack does that job instead, so no passage of the
+    /// article is sent — only the term the reader selected, which is article
+    /// text and is the most of one that ever leaves (#32). `ExplainPrompt`
+    /// builds both, purely, so which is which is a test.
     static func define(term: String, excerpt: String,
                        context: ModelContext) async -> Concept? {
         // Chosen once, purely, and then followed. The tier picks the prompt and

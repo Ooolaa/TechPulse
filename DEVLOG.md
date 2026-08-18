@@ -10,6 +10,64 @@
 
 ---
 
+## 2026-08-18 — "No article text" was an absolute, and the word you select is article text (#32)
+
+**Built** (prose only — no behaviour changed; the three Swift edits are doc
+comments)
+- **ADR-0006's decision sentence is corrected, and says what it used to say.**
+  It read "the opt-in path sends the selected term, the Active Pack's field, and
+  its Cluster names. **No article text.**" The second sentence contradicts the
+  first: the selected term *is* article text, a fragment of an RSS body bounded
+  by `WordSelection.normalize` to six words and sixty characters. It now reads
+  "No *passage* of the article", with a dated `**Correction (2026-08-18):**`
+  paragraph under it quoting the original. Both halves are the point — quoting
+  keeps the record of what was restated elsewhere while it stood, fixing removes
+  the sentence that would be restated next.
+- **The absolute was in three places, not one.** `PRIVACY.md`'s Explain bullet
+  carried it too, and contradicted *itself* five lines later ("the word itself is
+  article text, and it is the only article text there is"). Its Go deeper bullet
+  carried it as well — and there it is not quite true either: a Concept's name
+  may be a word the on-device analysis lifted from something you read. Both
+  bullets now make the passage claim, and the Go deeper one says the quiet part.
+- **`CONTEXT.md`'s `Egress` entry now carries the shared phrasing**, so the term
+  defines the sentence every other document has to match: *no passage of what you
+  are reading leaves, and a word you select is the most of an article that ever
+  does*. `README.md` and `ROADMAP.md` already said exactly that — #29's review
+  caught them before they landed. The ADR that generated them was the one still
+  carrying the absolute.
+- **The code said it too.** `ExplainPrompt`'s type comment and its `optIn`
+  builder, and `IntelligenceService.define`'s comment, all carried "no article
+  text" — the absolute restated inside the very files written to make the claim
+  checkable. All three now make the passage claim. The grep is the check the
+  documents could not do for themselves.
+- **The convention for correcting a landed ADR is written down** in
+  `docs/agents/domain.md`, since this is the second correction ADR-0006 has taken
+  and the first time the *form* mattered: supersede when the decision changes,
+  correct in place with a dated note when the decision stands and a sentence was
+  wrong, amend a consequence in place when it turned out narrower than claimed
+  (#31 was that third case). It also says a correction touching `Egress` changes
+  five documents together, and to grep the old wording across Markdown *and*
+  Swift — because doc comments restate these claims too, which is how three of
+  them kept this one alive.
+
+**Verified** 251 unit tests green, unchanged — no Swift behaviour was touched.
+The check that mattered was a grep across Markdown *and* Swift: `no article text`
+no longer appears as a live claim in either. What remains is the correction note
+quoting the retired sentence, and dated DEVLOG entries — including the #29 one
+three entries below, which already recorded *"'No article text' was not true: the
+word you select is article text"* while the ADR that wrote the phrase went on
+saying it.
+
+**Learned** Both corrections ADR-0006 has needed were absolutes that were nearly
+true — "never reach a model at all" (#31) and "No article text" (#32) — and both
+were written by the document whose own diagnosis is *a claim with an exception is
+a claim somebody will restate without the exception*. Knowing the failure mode
+does not stop you writing it; the bounded sentence has to be the habit. Saying
+what **is** sent, and what is the most that ever leaves, survives restatement in
+a way that any "no X" does not.
+
+---
+
 ## 2026-08-18 — Explain matches the map on spelling, not on meaning (#31)
 
 **Built**
