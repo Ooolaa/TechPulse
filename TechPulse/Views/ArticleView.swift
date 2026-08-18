@@ -86,18 +86,22 @@ struct ArticleView: View {
     /// sheet instantly and offline; only genuinely unknown terms cost a
     /// generation. `WordSelection.normalize` has already rejected paragraph
     /// drags before we get here.
+    ///
+    /// Which words that covers is `ExplainRoute`'s to decide, not this view's:
+    /// ADR-0006 rests an accepted cost on it, so it is tested rather than
+    /// spelled out in a `first(where:)` here (ADR-0007).
     private func explain(_ term: String, _ excerpt: String) {
         let known = (try? modelContext.fetch(FetchDescriptor<Concept>())) ?? []
-        if let hit = known.first(where: {
-            $0.name.localizedCaseInsensitiveCompare(term) == .orderedSame
-        }) {
+        switch ExplainRoute.decide(term: term, known: known,
+                                   canDeepen: IntelligenceService.canDeepen) {
+        case .existing(let hit):
             selectedConcept = hit
             return
-        }
-
-        guard IntelligenceService.canDeepen else {
+        case .unavailable:
             explainFailed = term
             return
+        case .generate:
+            break
         }
 
         explaining = term

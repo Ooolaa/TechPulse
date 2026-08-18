@@ -57,6 +57,10 @@ server of ours (there is none).
   which sense of an ambiguous term you meant. Nothing else from the article goes
   with it: not the sentence around the word, not the title, not the body. The
   word itself is article text, and it is the only article text there is.
+  **A word already on your map sends nothing at all** — it opens the Concept
+  you already have, offline, and the match allows for case, hyphens and plurals, so
+  selecting "LoRAs" opens your "LoRA"
+  ([ADR-0007](docs/adr/0007-explain-matches-the-map-on-spelling-not-on-meaning.md)).
 
 On hardware with Apple Intelligence, Explain runs on-device and uses the sentence
 around the word instead, which is a better clue and costs nothing because it

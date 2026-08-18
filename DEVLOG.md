@@ -10,6 +10,54 @@
 
 ---
 
+## 2026-08-18 — Explain matches the map on spelling, not on meaning (#31)
+
+**Built**
+- **ADR-0007, because the sentence was load-bearing.** ADR-0006 accepted a
+  quality cost — a word ambiguous inside your own field is no longer separable
+  once the excerpt stops being sent — on the grounds that such words are
+  "disproportionately words already on the map, which never reach a model at
+  all". `ArticleView.explain` matched a Concept by name, case-insensitively and
+  nothing else, so **"LoRAs", "low-rank-adaptation" and "RAG systems" each fell
+  through to a generation**: on the opt-in path, one more selected word leaving
+  the device. A consequence accepted on a mitigation is only as accepted as the
+  mitigation is true, so this is an ADR rather than a patch.
+- **`ConceptMatch` folds spelling — case, separators, English plurals — and
+  stops.** "LoRAs" finds `LoRA`; "low-rank-adaptation" finds `Low-Rank
+  Adaptation`. An exactly-spelled name still beats one that merely folds the
+  same, so the fold only widens what matches: nothing that opened a Concept
+  before opens a different one now. Synonyms and phrases ("RAG systems") still reach a
+  model, stated as a test rather than left as an oversight.
+- **The rejected option was the more capable one.** Moving the embedding match
+  ahead of generating would catch synonyms too — and would put an `NLEmbedding`
+  pass on every selection, and would reuse a 0.25 distance threshold chosen for
+  *deduping a result the model already returned* to decide *not to ask at all*.
+  A false positive there hands the reader a definition of a Concept they did not
+  tap, offline, with nothing to signal the substitution.
+- **The call site is the claim, so the call site is tested.** `ExplainRoute`
+  lifts the decision out of the view: map first, model second, with `canDeepen`
+  asked *after* the map, so a word you already have is explained on hardware
+  that can explain nothing. #29's own review had found tested builders behind an
+  untested call site (`1f8334e`); this is the same shape, caught before shipping.
+
+**Verified** 251 unit tests green, 12 of them new — 8 in `ConceptMatchTests`,
+4 in `ExplainRouteTests`. The `-es` rule went red first on a real case, not a
+hypothetical: a stem test of a single "s" took "databases" to "databas" and lost
+`Vector Database`. It now strips "es" only after stems that cannot take a bare
+"s" ("ss", "x", "z", "sh", "ch"), so "losses" → "loss" and "databases" →
+"database". Both halves mutation-checked: neutering `singular` to return its
+word unchanged turns five assertions red, and dropping the exact-match
+preference from `first` turns the tie-break test red on its own.
+
+**Learned** Over-folding and over-matching fail differently, and that asymmetry
+is the whole design. The fold runs on *both* sides of the comparison, so folding
+too hard produces a wrong answer only where two Concept names fold together — a
+map that would already confuse its reader — while an embedding threshold is
+one-sided and fails silently, in the direction of showing a definition nobody
+asked for. A rough plural rule is acceptable where a similarity score is not.
+
+---
+
 ## 2026-08-18 — A skipped step is now a failure, not a green run (#30)
 
 **Built**

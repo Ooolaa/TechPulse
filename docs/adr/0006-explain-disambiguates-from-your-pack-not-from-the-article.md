@@ -53,7 +53,13 @@ stance is honoured by changing **what is sent**, not by removing the feature.
 separable, where the sentence would have separated it. Accepted: the field
 resolves the common collisions, and the sentence-level cases are
 disproportionately words already on the map, which never reach a model at all
-(`ArticleView.explain` matches an existing Concept first and returns).
+(`ExplainRoute` matches an existing Concept first and returns). That match folds
+case, separators and English plurals, so "LoRAs" and "low-rank-adaptation" find
+the Concepts the Pack named — and it folds spelling only. A synonym of a word on the
+map, or a phrase around one ("RAG systems"), does still reach a model. See
+[ADR-0007](0007-explain-matches-the-map-on-spelling-not-on-meaning.md), which
+narrowed this sentence to what the code guarantees and widened the code to meet
+most of what it had claimed (#31).
 
 **The claim becomes checkable.** The reason this survived weeks is that nothing
 could assert what leaves the device: `AnthropicClient()` is constructed inline
