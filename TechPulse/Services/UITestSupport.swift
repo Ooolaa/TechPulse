@@ -101,7 +101,12 @@ enum UITestSupport {
     /// never run, which is the defect #30 is about rather than a fix for it.
     static func seedArticleIfRequested(context: ModelContext) {
         guard ProcessInfo.processInfo.arguments.contains(seedArticleArgument) else { return }
+        seedArticle(context: context)
+    }
 
+    /// Plants the Article. Separate from the argument check so a test can plant
+    /// it without launching the app, and assert on what analysis makes of it.
+    static func seedArticle(context: ModelContext) {
         let article = Article(guid: SeededArticle.guid,
                               title: SeededArticle.title,
                               content: SeededArticle.body,

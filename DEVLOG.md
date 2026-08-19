@@ -10,6 +10,45 @@
 
 ---
 
+## 2026-08-19 — Analysis waited on the network, so the planted Article lost its Concepts (#33 follow-up)
+
+**Built**
+- **The journeys were failing on this machine, and the on-device model was not
+  why.** `testCoreJourney` timed out waiting for a Concept chip on the planted
+  Article, and the simulator's missing model catalog was the obvious suspect —
+  the log is full of it. It was the wrong suspect: `IntelligenceService` already
+  falls back to matching the Pack's vocabulary when the model does not answer,
+  and a store-level test proves it attaches Concepts to that exact Article in
+  half a second with no model at all.
+- **`FeedView.task` synced before it analyzed.** So nothing already in the store
+  got looked at until a network round trip finished, and when it did finish,
+  `analyzePending` takes the newest eight — thirty articles the sync had just
+  brought in, against one planted moments earlier. The planted Article could
+  lose that race outright, which is the state-dependence #30 set out to remove,
+  wearing a different hat.
+- **Analyze first, then sync.** Local work does not wait on the network, and an
+  article that arrived before this launch does not compete with a batch that
+  arrived during it. `sync()` still analyzes what it brings in, so the trailing
+  catch-up call went away. A reader opening a cached article now sees its
+  Concepts without waiting on a sync — the same fix, on the user-facing side.
+
+**Verified** All four UI journeys pass, 191.8s against #30's 187.5s baseline —
+`testCoreJourney` 114.1s, and `5b4-related-concept-jump` runs as a required step
+rather than being asserted and hoped for. 297 unit tests, 3 new: the planted
+Article's text names Pack Concepts, analysis attaches them with no model
+available, and reading it leaves Co-read Links behind. Those three take 1.7s and
+cover the premise the journey spends three minutes reaching, so the next time it
+breaks the log will say whether the app or the UI is at fault.
+
+**Learned** The failing environment was loud about one thing — a missing model
+catalog, printed hundreds of times — and the actual defect was silent and
+elsewhere. Reaching for the loud explanation would have left a real ordering bug
+in the app and a journey step marked required on faith. What settled it was
+cheap: reproduce the journey's premise at store level, where a wrong answer
+arrives in a second instead of three minutes.
+
+---
+
 ## 2026-08-19 — The map drew the connection; the sheet, where you follow it, did not (#33)
 
 **Built**
@@ -53,17 +92,14 @@ Concepts has Semantic-Link neighbours and no Co-read ones. Mutation-checked:
 make the rule ignore Semantic Links and it goes red six times, once per frontier
 Concept.
 
-**Not verified here, and worth being exact about what that leaves open.** The UI
-journeys do not run on this machine: `testCoreJourney` fails at
-`openSeededArticle` because the simulator has no on-device model catalog, so
-analysis attaches no Concept to the planted Article and the journey never
-reaches a sheet. Confirmed pre-existing by stashing this work and re-running on
-a clean tree at `a06e069`, which fails identically at the same assertion. The
-install test proves the *data* premise — the frontier Concept has neighbours —
-but nothing here exercises `ConceptSheetView`: that the new `SemanticLink` query
-populates, that `chipRow` renders a chip, that the chip pushes a page. `5b4` is
-required on the strength of the premise, and wants one journey run on hardware
-that has the models before it is trusted.
+**Correction (2026-08-19):** this entry first said the UI journeys could not run
+here and that `5b4` was required on the strength of the install test alone,
+because `testCoreJourney` failed at `openSeededArticle` and failed identically
+on a clean tree at `a06e069`. The pre-existing failure was real; blaming the
+simulator's missing on-device model for it was wrong. The cause was analysis
+ordering, fixed in the entry above, and the four journeys now pass — `5b4`
+included. The install test still stands, and still proves the data premise
+rather than the render.
 
 **Learned** ADR-0002 was implemented in the renderer and not in the reader. The
 Semantic Links existed, were correct, and were drawn — and the feature they were

@@ -95,11 +95,16 @@ struct FeedView: View {
             .searchable(text: $searchText, prompt: "Search articles")
         }
         .task {
+            // What is already in the store is analyzed before the network is
+            // touched. Analysis is local and fast, so a reader opening a cached
+            // article should not wait on a sync to see its Concepts — and an
+            // article that arrived before this launch should not have to win a
+            // place in `analyzePending`'s newest-first batch against thirty
+            // articles the sync has just brought in.
+            await IntelligenceService.analyzePending(context: modelContext)
             // Sync on launch when cache is empty or stale (>30 min); never blocks reading.
             let stale = lastSynced.map { Date.now.timeIntervalSince($0) > 1800 } ?? true
-            if stale { await sync() }
-            // Catch up on any articles still awaiting on-device analysis.
-            await IntelligenceService.analyzePending(context: modelContext)
+            if stale { await sync() }   // and `sync` analyzes what it brought in
         }
     }
 
