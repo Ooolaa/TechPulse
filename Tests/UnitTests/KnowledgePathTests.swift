@@ -8,12 +8,7 @@ import SwiftData
 struct KnowledgePathTests {
 
     private static let sharedContainer: ModelContainer = {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try! ModelContainer(
-            for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self, SemanticLink.self,
-            configurations: config
-        )
+        return try! AppSchema.inMemoryContainer()
     }()
 
     private func makeContext() throws -> ModelContext {

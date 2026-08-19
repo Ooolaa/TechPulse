@@ -10,12 +10,7 @@ struct KnowledgeEngineTests {
     /// One in-memory container for the whole suite: repeated ModelContainer
     /// creation alongside the host app's live container traps in SwiftData.
     private static let sharedContainer: ModelContainer = {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try! ModelContainer(
-            for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self, SemanticLink.self,
-            configurations: config
-        )
+        return try! AppSchema.inMemoryContainer()
     }()
 
     /// Fresh logical state per test. Row-by-row deletes (not batch) so the

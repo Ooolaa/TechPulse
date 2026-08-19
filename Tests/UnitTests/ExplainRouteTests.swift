@@ -97,13 +97,7 @@ struct ConceptMatchTests {
 struct ExplainRouteTests {
 
     private static let sharedContainer: ModelContainer = {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try! ModelContainer(
-            for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-            SemanticLink.self, InstalledPack.self,
-            configurations: config
-        )
+        return try! AppSchema.inMemoryContainer()
     }()
 
     private func makeMap() throws -> [Concept] {

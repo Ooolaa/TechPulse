@@ -165,13 +165,7 @@ struct ExplainPromptTests {
 struct ExplainDegradationTests {
 
     private static let sharedContainer: ModelContainer = {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try! ModelContainer(
-            for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-            SemanticLink.self, InstalledPack.self,
-            configurations: config
-        )
+        return try! AppSchema.inMemoryContainer()
     }()
 
     @Test("returns nil and writes nothing, rather than crashing")

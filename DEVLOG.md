@@ -10,6 +10,67 @@
 
 ---
 
+## 2026-08-19 — Siri's weekly question opened the store with a schema that deleted your Packs (#21)
+
+**Built**
+- **`WeeklyLearningIntent` opened the app's own store with a schema missing
+  `InstalledPack`.** The list of models was hand-written at the call site, and
+  the Pack work added a model to the app's list and to `PreviewData`'s but not
+  to this one.
+- **The ticket predicted a throw. It is worse than that.** A `ModelContainer`
+  opened with *fewer* models than the store holds does not refuse to open it:
+  SwiftData migrates the store down to the schema it was handed and drops the
+  tables that schema doesn't name. So asking Siri "what did I learn this week?"
+  deleted the reader's installed Packs — the Active Pack, its Stages, its
+  authored Concept list — and the app came back next launch to a store with no
+  Pack in it. The generic Siri error the ticket describes never appeared,
+  which is why nothing caught this: the intent answered fine, and the damage
+  showed up somewhere else entirely.
+- **`AppSchema` declares the models once.** Two doors, both onto the same
+  schema: `container()` for the reader's store on disk, `inMemoryContainer()`
+  for the previews and the ten test suites that had each been writing out the
+  model list *and* the in-memory flag by hand. Adding a model is one edit, and
+  there is no list left to remember.
+- **Stores already damaged are not repaired here.** A reader who asked Siri on a
+  build before this one lost the `InstalledPack` row, not their reading:
+  `Concept`, `LearningEvent` and the Links were all in the intent's schema and
+  survived. `PackMigration.ensureBuiltinInstalled` puts a builtin reader back on
+  the flagship Pack at next launch, but a reader on an imported or generated
+  Pack comes back on AI Engineer with their Mastery intact and their Pack gone.
+  Worth its own ticket; it isn't this one.
+- **`conceptsAdvanced(inWeekEnding:context:)` and `spokenAnswer(for:)` came out
+  of `perform`.** The week window, the "Mastery actually moved" filter and the
+  sentence itself are the parts worth testing, and `perform`'s own return is an
+  opaque `some IntentResult & ProvidesDialog` a test cannot read — so a test
+  that only calls `perform` cannot tell a right answer from a wrong one.
+  `perform` is now the store, those two calls and nothing else. The window
+  itself is untouched — naming it invited an upper bound (a week ending now
+  does not contain tomorrow, and a future-dated Source timestamp has reached
+  this store before), and that is a question about the week rather than about
+  the schema, so it stays as it was and says so in a comment.
+
+**Verified** 271 unit tests green, 6 new. The one that counts writes an
+`InstalledPack` into the store the app itself created — the unit bundle's test
+host *is* the app, so this is the real on-disk store, not a fixture — asks the
+intent its question, reopens the store and requires the Pack still to be there.
+Put the old hand-written schema back in the intent and it goes red, with
+SwiftData logging the truncation on the way past; the first version of that
+test, which only asserted `perform` didn't throw, passed against the bug. The
+rest pin the week window (an event 30 days old and one that moved no Mastery
+are both left out) and the three sentences Siri can say. Two suites that had been
+quietly building containers without `InstalledPack` now build the app's schema
+and stayed green.
+
+**Learned** "Incompatible schema" was the wrong mental model, and it made the
+first test useless. A narrower schema is not rejected, it is *applied* — the
+mismatch is resolved by deleting the difference. So the test for a drifted
+schema can't be "does it open"; it has to be "is the data still there
+afterwards". And the reason the drift lasted: a list of every model, written
+out at each call site, reads as configuration at all three, so nothing about
+the third one looked incomplete.
+
+---
+
 ## 2026-08-18 — One cap, named once, and a test that drives the fetch (#28)
 
 **Built**

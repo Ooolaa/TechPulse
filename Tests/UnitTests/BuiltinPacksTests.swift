@@ -158,12 +158,7 @@ struct BuiltinPacksTests {
     @Test("the built-in Pack installs, producing the same map the compiled pack seeded")
     @MainActor
     func installsCleanly() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-            SemanticLink.self, InstalledPack.self,
-            configurations: config)
+        let container = try AppSchema.inMemoryContainer()
         let context = ModelContext(container)
 
         let pack = try aiEngineer()
@@ -185,12 +180,7 @@ struct BuiltinPacksTests {
     @Test("the built-in Pack round-trips through install and export")
     @MainActor
     func roundTripsThroughInstall() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-            SemanticLink.self, InstalledPack.self,
-            configurations: config)
+        let container = try AppSchema.inMemoryContainer()
         let context = ModelContext(container)
 
         try PackInstaller.install(try aiEngineer(), origin: .builtin, context: context)

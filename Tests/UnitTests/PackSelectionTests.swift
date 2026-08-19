@@ -11,12 +11,7 @@ import SwiftData
 struct PackSelectionTests {
 
     private func makeContext() throws -> ModelContext {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-            SemanticLink.self, InstalledPack.self,
-            configurations: config)
+        let container = try AppSchema.inMemoryContainer()
         ActivePack.resetCache()
         return ModelContext(container)
     }

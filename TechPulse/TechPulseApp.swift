@@ -11,11 +11,7 @@ struct TechPulseApp: App {
 
     init() {
         do {
-            container = try ModelContainer(
-                for: FeedSource.self, Article.self, Concept.self,
-                LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-                SemanticLink.self, InstalledPack.self
-            )
+            container = try AppSchema.container()
             #if DEBUG
             // Before seeding, so a journey that asked for a clean store gets
             // seeded from scratch rather than on top of the last run (#26).

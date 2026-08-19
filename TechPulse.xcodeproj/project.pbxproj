@@ -60,6 +60,7 @@
 		787B5A057456E5A8138E7E57 /* ProgressTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B5DEA33C7F76331B8669A39 /* ProgressTabView.swift */; };
 		7B67654466C221D28BE47D9B /* QuizEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0B5916628B4441F136B85D0 /* QuizEngine.swift */; };
 		7E39B00F888424CFF59C19D9 /* HabitEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FEFD3493ED4C1DAEF0BA1F /* HabitEngineTests.swift */; };
+		7EE8127BFC39B53B9442A4C5 /* WeeklyLearningIntentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51994DA7136B4BC895E94AC8 /* WeeklyLearningIntentTests.swift */; };
 		81BED1514496A1784067284A /* AnthropicClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2015A82A0B6F08CC61ADBD74 /* AnthropicClient.swift */; };
 		82BC7E7FAD1FE1E81A71D54D /* WidgetRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A841F0FB3F4D5D35ED829C8 /* WidgetRefresh.swift */; };
 		82F1A66E3841ED0A10F0386D /* SemanticLinker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E478192808857D337F5CAC /* SemanticLinker.swift */; };
@@ -73,6 +74,7 @@
 		8FFEF7536EEB88B4ADF5CB65 /* ExplainPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F70C6D332EB69325A6D616 /* ExplainPromptTests.swift */; };
 		938F03142455C084AD92D02F /* UITestLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0188A6A2C5F1053026243BEF /* UITestLaunch.swift */; };
 		96315EB538495DDC2CEFAAF0 /* TechPulseUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE45300FDDCED3CAA7416DFF /* TechPulseUITests.swift */; };
+		9796E0FC34C8CE54E14845DA /* AppSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26205B32A6979E490DE69772 /* AppSchema.swift */; };
 		9A027009EB10BC820E82765E /* PackFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F41B56AE8558577F90FF07 /* PackFile.swift */; };
 		9A63C654F78898F6D8AC58E3 /* TechPulseWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0589963A0AE4B696E53ADA0C /* TechPulseWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9FEFD5F2EBDE54F3A8D21D9D /* PackLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571D5671CDF5C25BAA89D44C /* PackLibraryView.swift */; };
@@ -155,6 +157,7 @@
 		21E4491DBD576D7C3A194CF7 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		24CB6AB829AE3904762AA2F3 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		2586ABA9BB3FC1C928EC6AEC /* ExplainPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplainPrompt.swift; sourceTree = "<group>"; };
+		26205B32A6979E490DE69772 /* AppSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSchema.swift; sourceTree = "<group>"; };
 		2A5A340CE5E5021CD152F174 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2A8587075ACC8C5B50E579FD /* ForceGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForceGraphView.swift; sourceTree = "<group>"; };
 		2B07EE9C61977870716F7F9E /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -174,6 +177,7 @@
 		4C0794BD56A9EDCCBA857486 /* WeeklyLearningIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyLearningIntent.swift; sourceTree = "<group>"; };
 		4C2E5EA53D43AAA6E9661699 /* WordSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordSelection.swift; sourceTree = "<group>"; };
 		4E8740BCA165AACC9103823F /* SelectableText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableText.swift; sourceTree = "<group>"; };
+		51994DA7136B4BC895E94AC8 /* WeeklyLearningIntentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyLearningIntentTests.swift; sourceTree = "<group>"; };
 		571D5671CDF5C25BAA89D44C /* PackLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackLibraryView.swift; sourceTree = "<group>"; };
 		5CD7DA32E69836E54817449D /* FeedSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedSyncTests.swift; sourceTree = "<group>"; };
 		5E0AC48BA00E4E792E92DD6F /* Journey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Journey.swift; sourceTree = "<group>"; };
@@ -239,6 +243,7 @@
 		04FA278C00ACCCE3E80B68B5 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				26205B32A6979E490DE69772 /* AppSchema.swift */,
 				E4185C93CEBFBE8C369F380C /* Article.swift */,
 				ED47D39B166251E56D6F8BF5 /* Concept.swift */,
 				D6C50EAE7BF362DAABB8850D /* ConceptDependency.swift */,
@@ -333,6 +338,7 @@
 				01130D5542466DB13D5E9BEA /* SemanticLinkerTests.swift */,
 				F1C1E4844F48EA3BC9B6F3A3 /* TopicSearchTests.swift */,
 				BD1DAA70ADF0D37270B455AB /* UITestLaunchTests.swift */,
+				51994DA7136B4BC895E94AC8 /* WeeklyLearningIntentTests.swift */,
 				F29ABE279F16EBD657FA2268 /* WordSelectionTests.swift */,
 			);
 			name = UnitTests;
@@ -595,6 +601,7 @@
 				1E177F824E7AD32EE4346C8B /* TopicSearchTests.swift in Sources */,
 				938F03142455C084AD92D02F /* UITestLaunch.swift in Sources */,
 				0E4A760C098CAEF67AB392C1 /* UITestLaunchTests.swift in Sources */,
+				7EE8127BFC39B53B9442A4C5 /* WeeklyLearningIntentTests.swift in Sources */,
 				F944E516BBFE88A84803266D /* WordSelectionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -604,6 +611,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				81BED1514496A1784067284A /* AnthropicClient.swift in Sources */,
+				9796E0FC34C8CE54E14845DA /* AppSchema.swift in Sources */,
 				EC37A6EFCC4433454C4656EE /* Article.swift in Sources */,
 				113632B5A6A20C4EDE618116 /* ArticleView.swift in Sources */,
 				38E00AED36E3963C7E3DF030 /* BuiltinPacks.swift in Sources */,

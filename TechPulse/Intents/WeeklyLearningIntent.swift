@@ -8,26 +8,40 @@ struct WeeklyLearningIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let container = try ModelContainer(
-            for: FeedSource.self, Article.self, Concept.self,
-            LearningEvent.self, ConceptLink.self, ConceptDependency.self,
-            SemanticLink.self
-        )
-        let weekAgo = Date.now.addingTimeInterval(-7 * 86_400)
+        let container = try AppSchema.container()
+        let names = Self.conceptsAdvanced(inWeekBefore: .now, context: container.mainContext)
+        return .result(dialog: IntentDialog(stringLiteral: Self.spokenAnswer(for: names)))
+    }
+
+    /// What Siri says back. Built as a `String` so it can be read in a test —
+    /// the dialog `perform` returns is hidden behind an opaque type, so a test
+    /// that only calls `perform` can't tell a right answer from a wrong one.
+    static func spokenAnswer(for names: [String]) -> String {
+        guard !names.isEmpty else {
+            return "No new concepts this week — open TechPulse and read a few articles."
+        }
+        // Six is what fits in something spoken aloud; the count is the honest
+        // total either way.
+        let list = names.prefix(6).joined(separator: ", ")
+        return "This week you advanced \(names.count) concept\(names.count == 1 ? "" : "s"): \(list)."
+    }
+
+    /// The Concepts the reader advanced in the seven days before `now`, named
+    /// once each however many readings moved them. A reading that moved no
+    /// Mastery isn't something you learned, so it doesn't count.
+    ///
+    /// The window has a floor and no ceiling: a `LearningEvent` dated in the
+    /// future is reported too. That is the rule as it has always been, and a
+    /// future-dated Source timestamp has reached this store before — but it is
+    /// a question about the week, not about the schema this file was opened to
+    /// fix, so it is left as it stands.
+    static func conceptsAdvanced(inWeekBefore now: Date, context: ModelContext) -> [String] {
+        let weekAgo = now.addingTimeInterval(-7 * 86_400)
         let descriptor = FetchDescriptor<LearningEvent>(
             predicate: #Predicate { $0.date > weekAgo && $0.masteryDelta > 0 }
         )
-        let events = (try? container.mainContext.fetch(descriptor)) ?? []
-        let names = Array(Set(events.map(\.conceptName))).sorted()
-
-        let dialog: IntentDialog
-        if names.isEmpty {
-            dialog = "No new concepts this week — open TechPulse and read a few articles."
-        } else {
-            let list = names.prefix(6).joined(separator: ", ")
-            dialog = "This week you advanced \(names.count) concept\(names.count == 1 ? "" : "s"): \(list)."
-        }
-        return .result(dialog: dialog)
+        let events = (try? context.fetch(descriptor)) ?? []
+        return Array(Set(events.map(\.conceptName))).sorted()
     }
 }
 
