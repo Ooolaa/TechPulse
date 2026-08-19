@@ -59,41 +59,31 @@ struct ResponseLimitTests {
 
 // MARK: - Driving the service over a real over-cap response
 
-/// Stubs the arXiv host only, so nothing else a parallel test does is affected.
-///
-/// Registered globally rather than through an injected `URLSession`, because
-/// `TopicSearchService` has no session to inject and adding one would be
-/// production surface bought for a test — the trade ADR-0006 weighed for
-/// `AnthropicClient` ("transport is not what anyone got wrong"). `AnthropicClient`
-/// does carry a `session` property, which `ByoKeyTests` uses through
-/// `URLSessionConfiguration.protocolClasses`; that is the scoped form of this
-/// same technique, and the reason the two stubs cannot collide.
-final class ArxivStub: URLProtocol, @unchecked Sendable {
-    /// Written on the main actor before the fetch is awaited and read on
-    /// `URLSession`'s queue after — a happens-before the `.serialized` suite
-    /// keeps true by never letting two tests overlap on it.
-    nonisolated(unsafe) static var body = Data()
-
-    override class func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "export.arxiv.org"
-    }
-
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200,
-                                       httpVersion: nil, headerFields: nil)!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.body)
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
-}
-
 @MainActor
 @Suite("Topic search against the cap", .serialized)
 struct TopicSearchCapTests {
+
+    /// Stubs the arXiv host only, so nothing else a parallel test does is
+    /// affected. Registered globally rather than through an injected
+    /// `URLSession`, because `TopicSearchService` has no session to inject and
+    /// adding one would be production surface bought for a test — the trade
+    /// ADR-0006 weighed for `AnthropicClient` ("transport is not what anyone
+    /// got wrong"). `AnthropicClient` does carry a `session`, which
+    /// `ByoKeyTests` stubs through `StubTransport.session()`; that is the
+    /// scoped form of the same technique.
+    private static let queryURL = URL(string: "https://export.arxiv.org/api/query")!
+
+    /// Registers the stub for this suite's host and serves `body` from the
+    /// arXiv query endpoint. Undone by the caller's `defer`.
+    private func stubArxiv(_ body: Data) {
+        StubTransport.registerGlobally()
+        StubTransport.serve(Self.queryURL, body: body)
+    }
+
+    private func stopStubbingArxiv() {
+        StubTransport.unregisterGlobally()
+        StubTransport.stopServing(host: Self.queryURL.host()!)
+    }
 
     private static let sharedContainer: ModelContainer = {
         return try! AppSchema.inMemoryContainer()
@@ -132,9 +122,8 @@ struct TopicSearchCapTests {
         let concept = Concept(name: "Sparse Attention", category: "LLMs", definition: "d")
         context.insert(concept)
 
-        URLProtocol.registerClass(ArxivStub.self)
-        defer { URLProtocol.unregisterClass(ArxivStub.self) }
-        ArxivStub.body = atomFeed(id: "arxiv:over-cap", padding: ResponseLimit.maxBytes)
+        stubArxiv(atomFeed(id: "arxiv:over-cap", padding: ResponseLimit.maxBytes))
+        defer { stopStubbingArxiv() }
 
         let tagged = await TopicSearchService.findArticles(for: concept, context: context)
 
@@ -152,9 +141,8 @@ struct TopicSearchCapTests {
         let concept = Concept(name: "Rotary Embeddings", category: "LLMs", definition: "d")
         context.insert(concept)
 
-        URLProtocol.registerClass(ArxivStub.self)
-        defer { URLProtocol.unregisterClass(ArxivStub.self) }
-        ArxivStub.body = atomFeed(id: "arxiv:under-cap", padding: 0)
+        stubArxiv(atomFeed(id: "arxiv:under-cap", padding: 0))
+        defer { stopStubbingArxiv() }
 
         let tagged = await TopicSearchService.findArticles(for: concept, context: context)
 

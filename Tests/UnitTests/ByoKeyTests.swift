@@ -49,51 +49,32 @@ struct KeychainStoreTests {
 
 // MARK: - Anthropic client
 
-/// Captures the request and replays a canned response, so the request shape can
-/// be asserted without a key or a network call. One class rather than one per
-/// status code: the status and body are the only things that vary.
-final class StubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var status = 200
-    nonisolated(unsafe) static var responseBody = Data()
-    nonisolated(unsafe) static var lastRequest: URLRequest?
-
-    static func stub(status: Int, body: String) {
-        Self.status = status
-        Self.responseBody = Data(body.utf8)
-        Self.lastRequest = nil
-    }
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-    override func startLoading() {
-        Self.lastRequest = request
-        let response = HTTPURLResponse(url: request.url!, statusCode: Self.status,
-                                       httpVersion: nil, headerFields: nil)!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.responseBody)
-        client?.urlProtocolDidFinishLoading(self)
-    }
-    override func stopLoading() {}
-}
-
 @Suite("Anthropic client", .serialized)
 struct AnthropicClientTests {
 
-    private var stubbedClient: AnthropicClient {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [StubURLProtocol.self]
-        return AnthropicClient(session: URLSession(configuration: config))
+    /// Replays a canned response for Anthropic's endpoint, so the request shape
+    /// can be asserted without a key or a network call. Installed on the
+    /// session `AnthropicClient` takes rather than process-wide — the scoped
+    /// form, which needs no global registration to undo.
+    ///
+    /// That the client has a `session` to inject at all sits awkwardly with
+    /// ADR-0006, which says it is "deliberately not made injectable". The
+    /// sentence and the code disagree; #34 is where that gets settled, and this
+    /// test only uses what is already there.
+    private func stub(status: Int, body: String) -> AnthropicClient {
+        StubTransport.stopServing(host: AnthropicClient.endpoint.host()!)
+        StubTransport.serve(AnthropicClient.endpoint, status: status, body: body)
+        return AnthropicClient(session: StubTransport.session())
     }
 
     @Test("sends the key and version headers to Anthropic, and extracts the text")
     func requestShape() async throws {
-        StubURLProtocol.stub(status: 200, body: #"{"content":[{"type":"text","text":"hello"}]}"#)
+        let client = stub(status: 200, body: #"{"content":[{"type":"text","text":"hello"}]}"#)
 
-        let text = try await stubbedClient.complete(system: "sys", user: "usr",
-                                                    apiKey: "sk-ant-unit")
+        let text = try await client.complete(system: "sys", user: "usr", apiKey: "sk-ant-unit")
         #expect(text == "hello")
 
-        let request = try #require(StubURLProtocol.lastRequest)
+        let request = try #require(StubTransport.lastRequest(to: AnthropicClient.endpoint.host()!))
         // The destination is part of the privacy claim: the key goes to
         // Anthropic directly and through no server of ours.
         #expect(request.url == AnthropicClient.endpoint)
@@ -113,10 +94,10 @@ struct AnthropicClientTests {
 
     @Test("a rejected key surfaces the status and a message naming the key")
     func unauthorized() async throws {
-        StubURLProtocol.stub(status: 401, body: #"{"error":{"message":"invalid x-api-key"}}"#)
+        let client = stub(status: 401, body: #"{"error":{"message":"invalid x-api-key"}}"#)
 
         let error = try #require(await #expect(throws: AnthropicClient.ClientError.self) {
-            _ = try await stubbedClient.complete(system: "s", user: "u", apiKey: "bad")
+            _ = try await client.complete(system: "s", user: "u", apiKey: "bad")
         })
         guard case .badStatus(let code, _) = error else {
             Issue.record("expected badStatus, got \(error)")
@@ -132,10 +113,10 @@ struct AnthropicClientTests {
         // Anthropic answers 200 with a `content` array that need not hold a
         // text block. Returning "" here would render as a blank explanation
         // rather than as the failure it is.
-        StubURLProtocol.stub(status: 200, body: #"{"content":[]}"#)
+        let client = stub(status: 200, body: #"{"content":[]}"#)
 
         let error = try #require(await #expect(throws: AnthropicClient.ClientError.self) {
-            _ = try await stubbedClient.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
+            _ = try await client.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
         })
         guard case .emptyResponse = error else {
             Issue.record("expected emptyResponse, got \(error)")
@@ -151,11 +132,11 @@ struct AnthropicClientTests {
         // Valid JSON that would parse to "hello", padded past the cap. The only
         // reason to refuse it is its size.
         let padding = String(repeating: "x", count: ResponseLimit.maxBytes)
-        StubURLProtocol.stub(status: 200,
-                             body: #"{"content":[{"type":"text","text":"hello"}],"pad":"\#(padding)"}"#)
+        let client = stub(status: 200,
+                          body: #"{"content":[{"type":"text","text":"hello"}],"pad":"\#(padding)"}"#)
 
         let error = try #require(await #expect(throws: AnthropicClient.ClientError.self) {
-            _ = try await stubbedClient.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
+            _ = try await client.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
         })
         guard case .oversizedResponse = error else {
             Issue.record("expected oversizedResponse, got \(error)")
@@ -165,8 +146,8 @@ struct AnthropicClientTests {
 
     @Test("the same reply under the cap is decoded, so the refusal is the cap")
     func underCapResponseIsDecoded() async throws {
-        StubURLProtocol.stub(status: 200, body: #"{"content":[{"type":"text","text":"hello"}]}"#)
-        let text = try await stubbedClient.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
+        let client = stub(status: 200, body: #"{"content":[{"type":"text","text":"hello"}]}"#)
+        let text = try await client.complete(system: "s", user: "u", apiKey: "sk-ant-unit")
         #expect(text == "hello")
     }
 

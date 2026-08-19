@@ -10,6 +10,73 @@
 
 ---
 
+## 2026-08-19 — Three URLProtocol stubs became one, and the two properties that made them safe stopped being remembered (#36)
+
+**Built**
+- **`StubTransport` is the only `URLProtocol` subclass left in `Tests/`.**
+  `StubURLProtocol`, `ArxivStub` and `FeedStub` differed in four things —
+  how they were installed, what they matched, what they served, and whether they
+  recorded the request — and agreed on everything else, including the three
+  lines of `didReceive` / `didLoad` / `didFinishLoading` that are easy to get
+  subtly wrong and were written out three times.
+- **Narrow matching is now a property of the type, not of each copy.** Routes
+  are keyed by host and path, and `canInit` says yes only to a host some test
+  has registered. The old stubs each had to re-derive this: two matched a host
+  because they were registered process-wide, one matched *everything* because it
+  was scoped to an injected session, and a fourth stub copied from the wrong one
+  of the three would have broken the other two intermittently. The rule is one
+  line now, and `StubTransportTests` asserts it.
+- **The shared state is behind a `Mutex`, so the ordering is by construction.**
+  Every old copy was `nonisolated(unsafe)` static state written on the main
+  actor before a fetch and read on `URLSession`'s queue after, sound because the
+  suite carried `.serialized` — a happens-before that lived in a different file
+  from the `unsafe` it justified, restated as a comment three times. Suites keep
+  `.serialized` because one test's routes should outlive its own body, but
+  nothing about memory safety rests on anyone remembering it.
+- **An unregistered path fails rather than serving an empty 200.** `FeedStub`
+  had worked this out — a setup mistake must not read as a Source with no news —
+  and it was the one behaviour of the three that the other two lacked. Now every
+  caller gets it.
+- **The requests are recorded per host**, so `ByoKeyTests` keeps asserting the
+  request shape, and a test that wants to know what was *asked for* rather than
+  what came back can read `requests(to:)`.
+- **What one class made shared, the type scopes back.** Three classes were three
+  private worlds: unregistering one could not disarm another, and one suite's
+  "last request" was unreachable from the next. One class hands all of that to
+  everybody, and Swift Testing runs suites in parallel even when each is
+  `.serialized` within itself — so routes and recorded requests are held per
+  host, `lastRequest(to:)` takes the host it means, and global registration is
+  counted so the first suite to finish leaves the stub installed for the one
+  still fetching. Both of those were review findings, and both were regressions
+  against the isolation the three separate classes had for free.
+
+**Verified** 304 unit tests, 7 new — the fixture's own suite, which asserts the
+properties the three suites used to state in comments: it serves what it was
+given, fails what it was not, leaves foreign hosts alone, records what it
+served, works both installed ways, and forgets one host without disarming
+another. Mutation-checked one suite at a time, which is the criterion #36 set:
+make the stub misfire and `FeedSyncTests` goes red on all five, and
+`AnthropicClientTests` on all five. `TopicSearchCapTests` goes red on its
+control test only — `overCapIsNotParsed` asserts `tagged == 0`, which a failed
+fetch produces too. That is exactly why the control test was written, and it is
+unchanged from the old stub's behaviour. The counted registration is checked the
+same way: drop the count and the fixture's own test escapes to the real network,
+which is the failure it exists to prevent.
+
+**Learned** Folding three fixtures into one takes isolation away before it gives
+anything back: three classes could not unregister each other and could not read
+each other's last request, and one class can do both. The review found both, and
+neither was visible in a green suite — parallel suites fail this way
+occasionally, which is the worst way to find out. The rest holds: the three
+copies did not drift in the way duplication usually does.
+They drifted in what each one *knew*: one knew that an unregistered path must
+fail, another knew why matching everything was safe in its own scope and
+dangerous in the others', and the comment explaining the cross-actor write was
+the same paragraph three times over. Folding them together was less about the
+line count than about which of the three the next person would have copied.
+
+---
+
 ## 2026-08-19 — Analysis waited on the network, so the planted Article lost its Concepts (#33 follow-up)
 
 **Built**

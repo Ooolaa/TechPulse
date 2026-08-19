@@ -11,39 +11,6 @@ import SwiftData
 // with nothing cached for either of them trapped (#23). Syncing is how a Source
 // acquires articles, so the condition could not clear itself.
 
-/// Serves feeds for `feeds.test` only, so nothing else a parallel test does is
-/// affected. Same technique as `ArxivStub` in `ResponseLimitTests`, and for the
-/// same reason: `FeedSyncService` has no session to inject, and adding one
-/// would be production surface bought for a test.
-final class FeedStub: URLProtocol, @unchecked Sendable {
-    /// Body per URL path. Written on the main actor before the fetch is awaited
-    /// and read on `URLSession`'s queue after — a happens-before the
-    /// `.serialized` suite keeps true by never letting two tests overlap on it.
-    nonisolated(unsafe) static var bodies: [String: Data] = [:]
-
-    override class func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "feeds.test"
-    }
-
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        // A path nobody registered fails the request rather than serving an
-        // empty feed: a setup mistake should not read as a source with no news.
-        guard let body = Self.bodies[request.url?.path ?? ""] else {
-            client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
-            return
-        }
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200,
-                                       httpVersion: nil, headerFields: nil)!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: body)
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
-}
-
 @MainActor
 @Suite("Feed sync", .serialized)
 struct FeedSyncTests {
@@ -57,20 +24,24 @@ struct FeedSyncTests {
         for source in try context.fetch(FetchDescriptor<FeedSource>()) { context.delete(source) }
         for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
         try context.save()
-        FeedStub.bodies = [:]
+        StubTransport.stopServing(host: Self.host)
         return context
     }
 
-    /// A Source whose feed is served by `FeedStub` under `path`, carrying
+    /// Serves this suite's feeds and nothing else, so nothing a parallel test
+    /// does is affected: `FeedSyncService` builds its own session, so the stub
+    /// is registered process-wide and the host is what keeps it narrow.
+    private static let host = "feeds.test"
+
+    /// A Source whose feed `StubTransport` serves under `path`, carrying
     /// `items` entries with guids unique to that path.
     @discardableResult
     private func source(named name: String, path: String, items: Int,
                         in context: ModelContext) -> FeedSource {
-        let source = FeedSource(name: name,
-                                url: URL(string: "https://feeds.test\(path)")!,
-                                category: "LLMs")
+        let url = URL(string: "https://\(Self.host)\(path)")!
+        let source = FeedSource(name: name, url: url, category: "LLMs")
         context.insert(source)
-        FeedStub.bodies[path] = feed(items: items, guidPrefix: path)
+        StubTransport.serve(url, body: feed(items: items, guidPrefix: path))
         return source
     }
 
@@ -107,8 +78,8 @@ struct FeedSyncTests {
     }
 
     private func sync(_ context: ModelContext) async -> Int {
-        URLProtocol.registerClass(FeedStub.self)
-        defer { URLProtocol.unregisterClass(FeedStub.self) }
+        StubTransport.registerGlobally()
+        defer { StubTransport.unregisterGlobally() }
         return await FeedSyncService.syncAll(context: context)
     }
 
