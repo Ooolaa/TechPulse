@@ -13,6 +13,7 @@ struct PackMigrationTests {
     private func makeContext() throws -> ModelContext {
         let container = try AppSchema.inMemoryContainer()
         UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+        ActivePackIdentity.forget()
         // The cache is process-global; a previous test's Pack must not leak in.
         ActivePack.resetCache()
         return ModelContext(container)
@@ -132,6 +133,198 @@ struct PackMigrationTests {
         #expect(try context.fetch(FetchDescriptor<InstalledPack>()).filter(\.isActive).count == 1)
     }
 
+    // MARK: - The reader whose Pack record went missing (#37)
+
+    /// The store as #21 left it: everything the reader learned is still there,
+    /// and the one row that said which Pack it was is not.
+    private func loseThePackRecord(_ context: ModelContext) throws {
+        for record in try context.fetch(FetchDescriptor<InstalledPack>()) {
+            context.delete(record)
+        }
+        try context.save()
+        ActivePack.resetCache()
+    }
+
+    @Test("a reader on the other built-in comes back on that Pack, not the flagship")
+    func lostRecordRestoresTheRightBuiltin() throws {
+        let context = try makeContext()
+        let security = try BuiltinPacks.load(BuiltinPacks.securityEngineeringFileName)
+        try PackInstaller.install(security, origin: .builtin, context: context)
+
+        // This path reinstalls the Pack over the top, which rewrites Clusters
+        // and definitions and rebuilds every edge — so it is the path where
+        // what the reader learned could plausibly be lost.
+        let lit = try #require(try concept("Threat Modeling", in: context))
+        lit.masteryLevel = 0.6
+        lit.isMarkedKnown = true
+        context.insert(LearningEvent(kind: "read", conceptName: "Threat Modeling",
+                                     masteryDelta: 0.1))
+        try context.save()
+        try loseThePackRecord(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == "Security Engineering")
+        #expect(active.origin == .builtin)
+        // Reinstalled from the file, so the whole Pack is back, Stages and all.
+        #expect(active.stages.count == security.stages.count)
+
+        let after = try #require(try concept("Threat Modeling", in: context))
+        #expect(after.masteryLevel == 0.6)
+        #expect(after.isMarkedKnown)
+        #expect(try context.fetch(FetchDescriptor<LearningEvent>()).count == 1)
+    }
+
+    @Test("a reader on a Pack of their own keeps its name, its Clusters and its map")
+    func lostRecordAdoptsAnImportedMap() throws {
+        let context = try makeContext()
+        let mine = PackFile(
+            field: "Product Design",
+            specialtyCluster: nil,
+            clusterOrder: ["Research", "Craft"],
+            concepts: [
+                .init(name: "User interviews", cluster: "Research",
+                      definition: "Asking before building.", dependencies: []),
+                .init(name: "Affordances", cluster: "Craft",
+                      definition: "What a thing looks like it does.",
+                      dependencies: ["User interviews"]),
+            ],
+            stages: [],
+            suggestedSources: [])
+        try PackInstaller.install(mine, origin: .imported, context: context, vector: { _ in nil })
+        try loseThePackRecord(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == "Product Design")
+        #expect(active.origin == .imported)
+        #expect(Set(active.conceptNames) == ["User interviews", "Affordances"])
+        // In the order the Concepts arrived, which for a Pack is its author's.
+        #expect(active.clusterOrder == ["Research", "Craft"])
+        // The flagship was not installed over the top: its Concepts are absent
+        // and the reader's own Dependency is still the only edge on the map.
+        #expect(try concept("RAG", in: context) == nil)
+        let edges = try context.fetch(FetchDescriptor<ConceptDependency>())
+        #expect(edges.count == 1)
+        #expect(edges.first?.dependent == "Affordances")
+    }
+
+    @Test("recovering a Pack leaves Mastery and history where they were")
+    func recoveryKeepsWhatWasLearned() throws {
+        let context = try makeContext()
+        let mine = PackFile(
+            field: "Product Design", specialtyCluster: nil,
+            clusterOrder: ["Research"],
+            concepts: [.init(name: "User interviews", cluster: "Research",
+                             definition: "Asking before building.", dependencies: [])],
+            stages: [], suggestedSources: [])
+        try PackInstaller.install(mine, origin: .imported, context: context, vector: { _ in nil })
+        let lit = try #require(try concept("User interviews", in: context))
+        lit.masteryLevel = 0.6
+        lit.isMarkedKnown = true
+        context.insert(LearningEvent(kind: "read", conceptName: "User interviews",
+                                     masteryDelta: 0.1))
+        try context.save()
+        try loseThePackRecord(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let after = try #require(try concept("User interviews", in: context))
+        #expect(after.masteryLevel == 0.6)
+        #expect(after.isMarkedKnown)
+        #expect(try context.fetch(FetchDescriptor<LearningEvent>()).count == 1)
+    }
+
+    @Test("the recovered Pack holds the Pack's Concepts, not everything the reader read")
+    func recoveryLeavesStrayConceptsOutOfThePack() throws {
+        let context = try makeContext()
+        // Coordinates rather than embeddings, so the Semantic Links a real
+        // install would draw are drawn here exactly.
+        let places: [String: [Double]] = [
+            "User interviews": [1.0, 0.0], "Affordances": [0.9, 0.1],
+        ]
+        let mine = PackFile(
+            field: "Product Design", specialtyCluster: nil,
+            clusterOrder: ["Research", "Craft"],
+            concepts: [
+                .init(name: "User interviews", cluster: "Research",
+                      definition: "Asking before building.", dependencies: []),
+                .init(name: "Affordances", cluster: "Craft",
+                      definition: "What a thing looks like it does.", dependencies: []),
+            ],
+            stages: [], suggestedSources: [])
+        try PackInstaller.install(mine, origin: .imported, context: context,
+                                  vector: { text in
+            places.first { text.hasPrefix($0.key) }?.value
+        })
+        #expect(try !context.fetch(FetchDescriptor<SemanticLink>()).isEmpty)
+
+        // A Concept the reader's own reading discovered. It is theirs, but it
+        // was never part of the Pack — and a Concept with no Dependencies that
+        // counts as a Pack member is trivially on the Frontier (ADR-0001).
+        context.insert(Concept(name: "Kerning", category: "Articles",
+                               definition: "Space between letters."))
+        try context.save()
+        try loseThePackRecord(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try #require(ActivePack.load(context: context))
+        #expect(Set(active.conceptNames) == ["User interviews", "Affordances"])
+        #expect(!active.clusterOrder.contains("Articles"))
+        // Still on the map, still the reader's — just not part of the Pack.
+        #expect(try concept("Kerning", in: context) != nil)
+    }
+
+    @Test("a remembered built-in that no longer ships falls back to the flagship")
+    func rememberedBuiltinThatIsGoneFallsBack() throws {
+        let context = try makeContext()
+        try legacyInstall(context)
+        ActivePackIdentity.remember(field: "Bioinformatics", origin: .builtin)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try #require(ActivePack.load(context: context))
+        // Never a record claiming to be a built-in no build has: matching by
+        // field is how the version bump finds it, so it could never be updated.
+        #expect(active.field == "AI Engineering")
+        #expect(!active.stages.isEmpty)
+    }
+
+    @Test("a record that is merely inactive is reactivated, not rebuilt narrower")
+    func inactiveRecordIsReactivated() throws {
+        let context = try makeContext()
+        let security = try BuiltinPacks.load(BuiltinPacks.securityEngineeringFileName)
+        try PackInstaller.install(security, origin: .builtin, context: context)
+        // The record is intact; only its flag says otherwise. Rebuilding from
+        // the map would throw away Stages and Sources it still has.
+        for record in try context.fetch(FetchDescriptor<InstalledPack>()) {
+            record.isActive = false
+        }
+        try context.save()
+        ActivePack.resetCache()
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == "Security Engineering")
+        #expect(active.stages.count == security.stages.count)
+        #expect(active.suggestedSources.count == security.suggestedSources.count)
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).count == 1)
+    }
+
+    @Test("a store from before Packs were data still opens on the flagship")
+    func nothingRememberedStillInstallsTheFlagship() throws {
+        let context = try makeContext()
+        try legacyInstall(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        #expect(try #require(ActivePack.load(context: context)).field == "AI Engineering")
+    }
+
     // MARK: - The returning reader
 
     @Test("an existing install migrates with Mastery, Lit state and history intact")
@@ -227,6 +420,7 @@ struct PackMigrationTests {
         try PackInstaller.install(chosen, origin: .imported, context: context)
         // As if the app had shipped a new version of its built-in Pack.
         UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+        ActivePackIdentity.forget()
 
         PackMigration.ensureBuiltinInstalled(context: context)
 
@@ -243,6 +437,7 @@ struct PackMigrationTests {
         let chosen = try BuiltinPacks.load(BuiltinPacks.securityEngineeringFileName)
         try PackInstaller.install(chosen, origin: .builtin, context: context)
         UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+        ActivePackIdentity.forget()
 
         PackMigration.ensureBuiltinInstalled(context: context)
 

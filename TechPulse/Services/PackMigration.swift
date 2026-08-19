@@ -23,6 +23,10 @@ enum PackMigration {
     ///   Lit state and `lastReviewed`, so the reader's map is exactly as they
     ///   left it. `LearningEvent` rows are keyed by Concept name and are never
     ///   touched, so history and Streak survive untouched.
+    /// - **A record that went missing** — the same shape as the case above, but
+    ///   the reader was on a Pack the flagship would bury. Told apart by
+    ///   `ActivePackIdentity`, which is written at install and outlives the
+    ///   store (#37).
     /// - **Already migrated** — an active Pack of the current version. Nothing
     ///   happens.
     ///
@@ -37,10 +41,13 @@ enum PackMigration {
 
         do {
             guard let active = ActivePack.load(context: context) else {
-                return try install(BuiltinPacks.aiEngineer(), context: context)
+                return try openOnTheRememberedPack(context: context)
             }
             // Only the built-in Pack the reader is on is refreshed, and a
             // built-in is found by its field: two of them never cover one.
+            // Readers who upgrade into this build installed their Pack before
+            // anything wrote the memory down; this is where they get one.
+            ActivePackIdentity.remember(field: active.field, origin: active.origin)
             let installed = UserDefaults.standard.integer(forKey: installedVersionKey)
             guard installed < builtinPackVersion, active.origin == .builtin,
                   let current = BuiltinPacks.all.first(where: { $0.pack.field == active.field })
@@ -52,6 +59,42 @@ enum PackMigration {
             // on the map they already have.
             assertionFailure("built-in pack failed to install: \(error)")
         }
+    }
+
+    /// No record. Either this store never had one — a fresh install, or one
+    /// from before Packs were data — or it lost the one it had.
+    ///
+    /// Nothing remembered means the first two, and the flagship is right for
+    /// both: it creates the map, or it adopts the compiled Concepts already
+    /// there by name. A remembered Pack means the third, and the flagship would
+    /// bury a map the reader chose.
+    private static func openOnTheRememberedPack(context: ModelContext) throws {
+        guard let remembered = ActivePackIdentity.recalled else {
+            return try install(BuiltinPacks.aiEngineer(), context: context)
+        }
+        // The record may be intact and merely not active — a Pack switch that
+        // did not finish, say. Nothing was lost, so nothing needs rebuilding.
+        let stored = (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? []
+        if let intact = stored.filter({ $0.field == remembered.field })
+            .max(by: { $0.installedAt < $1.installedAt }) {
+            return try PackInstaller.reactivate(intact, context: context)
+        }
+        // A built-in ships with the app, so it comes back whole — Stages,
+        // specialty Cluster, suggested Sources and all.
+        if remembered.origin == .builtin {
+            let builtin = BuiltinPacks.all.first { $0.pack.field == remembered.field }
+            // A built-in whose field no longer ships cannot be rebuilt as one:
+            // the version bump finds a built-in *by field*, so a record naming
+            // a Pack no build has could never be updated again. The flagship is
+            // the honest answer, and it is what this reader got before.
+            return try install(builtin?.pack ?? BuiltinPacks.aiEngineer(), context: context)
+        }
+        // A Pack the reader brought or generated is not kept as a file, so it
+        // cannot be reinstalled — but the map it made outlived it.
+        if try PackInstaller.adoptSurvivingMap(remembered, context: context) != nil { return }
+        // Nothing survived either: an empty store that remembers a Pack is a
+        // reader who has been reset, not one who lost anything.
+        try install(BuiltinPacks.aiEngineer(), context: context)
     }
 
     private static func install(_ pack: PackFile, context: ModelContext) throws {

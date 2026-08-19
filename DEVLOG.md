@@ -10,6 +10,73 @@
 
 ---
 
+## 2026-08-19 — The row that said which Pack you were on had no second copy (#37)
+
+**Built**
+- **Losing the record meant losing the Pack.** `PackMigration` read which Pack
+  the reader was on from one place — the `InstalledPack` row — and treated its
+  absence as "fresh install, or a store from before Packs were data". Both of
+  those want the flagship installed over the top, so that is what a store which
+  had simply *lost* the row got: a Security Engineering reader came back on AI
+  Engineering, and a reader on a Pack they imported came back on AI Engineering
+  with `PackInstaller` rebuilding `ConceptDependency` from the flagship on the
+  way, taking their edges too. #21 closed the way in; this is the hole it lit up.
+- **`ActivePackIdentity` keeps the answer where a store migration cannot reach
+  it.** Two strings in `UserDefaults` — the Pack's field and its origin —
+  written by every install, and by the ordinary launch too, so a reader who
+  upgrades into this build and installs nothing still ends up with a memory.
+  The record is still the Pack; this is only its name.
+- **Launch now tells the cases apart.** Nothing remembered still means the
+  flagship, which is right for a fresh store and for a pre-Packs one. A record
+  that is merely *inactive* is reactivated rather than rebuilt — nothing was
+  lost, and rebuilding would throw away Stages and Sources it still has. A
+  remembered built-in is reinstalled by field, so it comes back whole; a
+  remembered built-in that no longer ships falls back to the flagship rather
+  than minting a record claiming to be a built-in no build has, which the
+  version bump — which finds built-ins *by field* — could never repair.
+- **A Pack the reader brought has no file to reinstall from, so the map is read
+  back instead.** `PackInstaller.adoptSurvivingMap` rebuilds the record out of
+  what outlived it, and the membership question has an exact answer: Semantic
+  Links are written in exactly one place, over a Pack's own Concepts, so the
+  edges that survived name the Pack and a Concept the reader's own reading
+  discovered has none. That matters beyond tidiness — ADR-0001 keeps non-Pack
+  Concepts out of the Frontier because a Concept with no Dependencies is
+  trivially ready, so a recovered Pack that swept up everything would put a
+  word from yesterday's article forward as the Next Dot.
+- **What comes back is still narrower, and says so.** No Stages — ADR-0004
+  already derives a reading order from Dependencies, so the path still means
+  something. No specialty Cluster, so no Side Quest lane. No author-suggested
+  Sources; the reader's own subscriptions are `FeedSource` rows and were never
+  in question. And a Pack whose Semantic Links never computed has none to read
+  back, so there the whole map is adopted — the best answer available, with the
+  Frontier cost named in the comment.
+- **Stores damaged before this ships have nothing to remember with.** They keep
+  today's behaviour and land on the flagship. The app is not on the App Store,
+  so that population is dev devices — accepted rather than worked around.
+
+**Verified** 278 unit tests green, 7 new, all at the launch seam
+(`ensureBuiltinInstalled`) the existing suite already tests through, plus the
+four UI journeys re-run because this changes what happens on launch. Delete the
+`InstalledPack` row from a Security Engineering store and the reader comes back
+on Security Engineering with its six Stages, its Mastery and its history — that
+path reinstalls over the top, so it is the one where what was learned could
+plausibly be lost. Do it to an imported "Product Design" store and the two
+Concepts, their two Clusters in order and their single Dependency are all there
+under the right name, with a Concept the reader picked up from an article left
+on the map but out of the Pack. Disable the branch and the recovery tests go red
+in the shape #37 describes — 68 flagship Concepts poured over a two-Concept map.
+
+**Learned** "No record" was several situations wearing one face, and the code
+could only see two of them because the others had never happened yet. The fix
+was not smarter inference from the store — the store cannot say whose map it is
+— but a second, cheaper copy of the one fact that mattered, kept where the
+failure could not reach it. Then the review found the fact I *could* infer:
+Semantic Links have exactly one writer, so they were already a record of Pack
+membership, sitting in the store the whole time. Worth asking of any single row
+the app cannot recompute: what reads it, and what happens the day it is gone.
+
+---
+
 ## 2026-08-19 — Siri's weekly question opened the store with a schema that deleted your Packs (#21)
 
 **Built**
@@ -37,8 +104,8 @@
   survived. `PackMigration.ensureBuiltinInstalled` puts a builtin reader back on
   the flagship Pack at next launch, but a reader on an imported or generated
   Pack comes back on AI Engineer with their Mastery intact and their Pack gone.
-  Worth its own ticket; it isn't this one.
-- **`conceptsAdvanced(inWeekEnding:context:)` and `spokenAnswer(for:)` came out
+  That is #37, fixed the same day in the entry above.
+- **`conceptsAdvanced(inWeekBefore:context:)` and `spokenAnswer(for:)` came out
   of `perform`.** The week window, the "Mastery actually moved" filter and the
   sentence itself are the parts worth testing, and `perform`'s own return is an
   opaque `some IntentResult & ProvidesDialog` a test cannot read — so a test

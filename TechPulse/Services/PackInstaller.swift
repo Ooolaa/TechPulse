@@ -294,6 +294,9 @@ enum PackInstaller {
                 origin: origin)
             context.insert(record)
             try context.save()
+            // A second copy of which Pack this is, outside the store, so losing
+            // the record is losing the Pack's detail and not its name (#37).
+            ActivePackIdentity.remember(field: pack.field, origin: origin)
             // The engines read a cached Pack; installing one that nobody can
             // see would be worse than not installing it.
             ActivePack.refresh(context: context)
@@ -304,6 +307,84 @@ enum PackInstaller {
             context.rollback()
             throw error
         }
+    }
+
+    /// Rebuilds a Pack record from the map that outlived it.
+    ///
+    /// A Pack the reader imported or generated is not kept as a file, so a lost
+    /// record cannot be reinstalled — but its Concepts, their Clusters and
+    /// their Dependencies are all still in the store, and the Pack's name is
+    /// remembered outside it (`ActivePackIdentity`, #37).
+    ///
+    /// Membership comes from the Semantic Links, which are written in one place
+    /// only — `rebuildSemanticLinks`, over the Pack's own Concepts — so a
+    /// Concept the reader's reading discovered has none, and the edges that
+    /// survived name the Pack. This matters beyond tidiness: ADR-0001 keeps
+    /// non-Pack Concepts out of the Frontier because a Concept with no
+    /// Dependencies is trivially ready, so a Pack that contained everything
+    /// would put a word from yesterday's article up as the Next Dot. A Pack
+    /// whose Links never computed has none to read, and there the whole map is
+    /// the best answer available.
+    ///
+    /// What comes back is still narrower than what was lost: no Stages
+    /// (ADR-0004 derives a reading order from the Dependencies that survived),
+    /// no specialty Cluster, and none of the author's suggested Sources — the
+    /// reader's own subscriptions are `FeedSource` rows and were never in
+    /// question.
+    ///
+    /// Returns nil when there is no map to adopt, which is a reader who was
+    /// reset rather than one who lost anything.
+    static func adoptSurvivingMap(_ pack: ActivePackIdentity.Remembered,
+                                  context: ModelContext) throws -> InstalledPack? {
+        let concepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
+        guard !concepts.isEmpty else { return nil }
+
+        // The order they arrived in. For a Pack's own Concepts that is the
+        // order its author wrote them, and nothing else that survived says.
+        let ordered = concepts.sorted { ($0.firstSeen, $0.name) < ($1.firstSeen, $1.name) }
+        let linked = Set(((try? context.fetch(FetchDescriptor<SemanticLink>())) ?? [])
+            .flatMap { [$0.conceptA, $0.conceptB] })
+        let members = ordered.filter { linked.contains($0.name) }
+        let adopted = members.isEmpty ? ordered : members
+
+        var clusterOrder: [String] = []
+        for concept in adopted where !clusterOrder.contains(concept.category) {
+            clusterOrder.append(concept.category)
+        }
+
+        do {
+            for record in (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? [] {
+                record.isActive = false
+            }
+            let record = InstalledPack(
+                field: pack.field, specialtyCluster: nil, clusterOrder: clusterOrder,
+                stages: [], suggestedSources: [],
+                conceptNames: adopted.map(\.name), sideQuestConcepts: [], origin: pack.origin)
+            context.insert(record)
+            try context.save()
+            ActivePack.refresh(context: context)
+            return record
+        } catch {
+            // Same invariant `install` holds: never leave the live context
+            // holding a Pack that was not saved, or `ActivePack.load` reports a
+            // Pack that is not there.
+            context.rollback()
+            throw error
+        }
+    }
+
+    /// Makes an intact record active again.
+    ///
+    /// A record whose flag says inactive is not a lost Pack — everything it
+    /// carries is still there. Reactivating it keeps the Stages, the specialty
+    /// Cluster and the author's Sources that rebuilding from the map would
+    /// throw away.
+    static func reactivate(_ record: InstalledPack, context: ModelContext) throws {
+        for other in (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? [] {
+            other.isActive = (other === record)
+        }
+        try context.save()
+        ActivePack.refresh(context: context)
     }
 
     /// Replaces every Semantic Link with the ones these Concepts support.
