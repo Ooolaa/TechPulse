@@ -10,6 +10,48 @@
 
 ---
 
+## 2026-08-19 — The widget aged a streak forward on a grace day already spent (#25)
+
+**Built**
+- **The widget ages its own file forward, and it aged one day too generously.**
+  `WidgetSnapshot.rolledForward(to:)` dropped the streak to zero once two days
+  had elapsed since the file was written, mirroring the one grace day
+  `HabitEngine.streakDays` allows. The mirror is only right when the file's own
+  day was read. A snapshot carrying `readToday == 0` already means "last read
+  was yesterday" — the grace is spent in the file itself — so a second day's
+  worth of it showed a live N-day streak, and the "read one article to keep it
+  alive" prompt with it, on a morning the streak rule calls broken.
+- **How much grace is left is a property of the snapshot, not a constant.**
+  `readToday > 0` leaves one further day; `readToday == 0` leaves none. That is
+  the whole fix — the file already carried what distinguishes the two cases, so
+  no new field and no format change (the widget reads this JSON out of the App
+  Group; adding to it is not free).
+- **`streakAtRisk` and `isEmpty` are derived, and came right on their own** once
+  the aged streak did. The widget cannot now prompt you to save a streak that
+  has already ended.
+
+**Verified** 282 unit tests green, 4 new. The one that matters pairs
+`rolledForward(to:)` against `HabitEngine.streakDays(articles:now:)` over the
+same reading history across four viewing days, for a streak written on an
+unextended day and one written on an extended day — the ageing rule is an
+approximation of the engine, so the test asserts the two agree rather than
+restating the arithmetic. Before the fix it fails exactly where #25 says: one
+day after an unextended snapshot, 5 against the engine's 0. The existing
+roll-forward tests (same day untouched, next day keeps the streak, two days
+breaks it) assert the same things and still pass — that path was never wrong.
+They and the new ones now build their snapshot through one helper, so each test
+reads as the single value it varies.
+
+**Learned** The bug was a rule copied into a second place where its input had a
+different meaning. `elapsed >= 2` was a correct reading of the grace day, then
+was applied to a snapshot that had already consumed one. Where a cheap
+approximation shadows an authority, the useful test is not "does the
+approximation return what I expect" but "does it return what the authority
+returns" — the same history through both, at several times. That test would
+have caught this the day the roll-forward was written.
+
+---
+
 ## 2026-08-19 — The row that said which Pack you were on had no second copy (#37)
 
 **Built**
