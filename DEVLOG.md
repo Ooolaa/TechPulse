@@ -10,6 +10,69 @@
 
 ---
 
+## 2026-08-19 — The map drew the connection; the sheet, where you follow it, did not (#33)
+
+**Built**
+- **The sheet read one edge kind out of three.** `ConceptSheetView.relatedConcepts`
+  came from `@Query var allLinks: [ConceptLink]` and nothing else, so "Related
+  concepts — tap to jump" rendered only for a Concept your reading had already
+  joined to another. `FullMapView` has queried `SemanticLink` since ADR-0002 and
+  draws it as the "Related" edge. So the map showed a fresh install joined up,
+  you tapped a dot, and the sheet said nothing about the neighbours you had just
+  seen — ADR-0002's day-one failure surviving in the one surface a reader uses
+  to act on it.
+- **`ConceptNeighbours` answers the sheet's actual question**: given this
+  Concept, what can I offer as a jump, and on what grounds. It reads both
+  undirected kinds through one `UndirectedConceptEdge` protocol, drops a link
+  whose other end this store has no Concept for, and takes the strongest link of
+  a repeated pair. The sheet keeps a computed property and a render; the rule is
+  testable without a view.
+- **The two claims stay apart.** "Read together" is a record of your reading;
+  "Related in meaning" was computed from the Pack's definitions at install.
+  ADR-0002 stores and draws them differently, and the sheet now says which is
+  which — the map's legend says "Read together" and "Related", and inside a
+  section already headed "Related concepts" the second needs its extra word to
+  say anything. A pair that earned both kinds is claimed once, by the reading:
+  the stronger claim, and the same chip twice under two headings would be a lie
+  about one of them.
+- **Six chips, and the row fills.** Half is reserved for whichever kind has
+  fewer to show and only for as many as it actually has, so one Co-read
+  neighbour and six Semantic ones is 1 + 5 rather than four chips and a gap.
+  Neither kind can crowd the other out; neither leaves the row short.
+- **`5b4-related-concept-jump` is a required step now.** It was the last
+  declared exception #30 left, and its reason was this defect. Both drill-
+  throughs now name the heading they rely on and assert it, because one chip
+  identifier serves both rows — without that, a sheet offering only the other
+  kind would pass while the failure message blamed the wrong edge.
+
+**Verified** 294 unit tests, 12 new. The rule's tests are pure, but a pure rule
+cannot say whether a real install leaves anything to jump to, so the one that
+carries the ticket installs the flagship Pack with the embedding the app ships
+with — no injected vectors — and asserts that every one of the six frontier
+Concepts has Semantic-Link neighbours and no Co-read ones. Mutation-checked:
+make the rule ignore Semantic Links and it goes red six times, once per frontier
+Concept.
+
+**Not verified here, and worth being exact about what that leaves open.** The UI
+journeys do not run on this machine: `testCoreJourney` fails at
+`openSeededArticle` because the simulator has no on-device model catalog, so
+analysis attaches no Concept to the planted Article and the journey never
+reaches a sheet. Confirmed pre-existing by stashing this work and re-running on
+a clean tree at `a06e069`, which fails identically at the same assertion. The
+install test proves the *data* premise — the frontier Concept has neighbours —
+but nothing here exercises `ConceptSheetView`: that the new `SemanticLink` query
+populates, that `chipRow` renders a chip, that the chip pushes a page. `5b4` is
+required on the strength of the premise, and wants one journey run on hardware
+that has the models before it is trusted.
+
+**Learned** ADR-0002 was implemented in the renderer and not in the reader. The
+Semantic Links existed, were correct, and were drawn — and the feature they were
+computed for still didn't work, because the surface that acts on a connection
+queried the other table. Worth asking of any new edge kind: every place the old
+one is read, not just the place it is drawn.
+
+---
+
 ## 2026-08-19 — The widget aged a streak forward on a grace day already spent (#25)
 
 **Built**

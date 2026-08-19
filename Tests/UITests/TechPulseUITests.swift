@@ -12,23 +12,6 @@ import XCTest
 @MainActor
 final class TechPulseUITests: XCTestCase {
 
-    /// Why the frontier Concept's sheet may offer nothing to jump to.
-    ///
-    /// The sheet's related Concepts come from Co-read Links only, and a Co-read
-    /// Link needs a reading — the planted Article is one, which is what makes
-    /// the same step *required* on the Article's own sheet, but no reading has
-    /// met the frontier Concept yet.
-    ///
-    /// Worth saying plainly: this contradicts ADR-0002, which computes Semantic
-    /// Links at install precisely so day one is not "unconnected dust". The
-    /// sheet ignores them — a defect in the sheet rather than in this journey,
-    /// filed as #33. When that lands, this step stops being optional.
-    private let noCoreadLinksYet = """
-        the sheet's related Concepts come from Co-read Links, and no reading has \
-        met this frontier Concept yet — the Semantic Links ADR-0002 computes at \
-        install would cover it, but the sheet does not read them
-        """
-
     // MARK: - Core journey
 
     /// Feed → article → concept sheet → "I know this" → knowledge graph →
@@ -50,7 +33,7 @@ final class TechPulseUITests: XCTestCase {
                       because: "the arXiv search is only offered to a Concept with fewer than three Articles"),
             .optional("5b3-article-from-sheet",
                       because: "arXiv is a network this journey does not control — when it reports no new matches there is no Article row to open"),
-            .optional("5b4-related-concept-jump", because: noCoreadLinksYet),
+            .required("5b4-related-concept-jump"),
             .required("5c-full-map"),
             .required("5c1-full-map-light"),
             .required("5c2-full-map-dark"),
@@ -109,7 +92,11 @@ final class TechPulseUITests: XCTestCase {
         // planted Article is a reading, so its Concepts are Co-read with each
         // other by the time this sheet opens.
         drillThroughRelatedConcept(journey, snapping: "3b-related-concept-jump",
-                                   backTo: closeSheet, required: true)
+                                   backTo: closeSheet, under: "Read together",
+                                   missing: """
+                                       the Concepts of a read Article are Co-read with each other, so \
+                                       this sheet must offer a related Concept to jump to
+                                       """)
 
         // Article row → full article → back. Required: this Concept came from
         // the Article the journey is reading, so its Article list holds at
@@ -194,7 +181,12 @@ final class TechPulseUITests: XCTestCase {
                                    missing: "the Concept has Articles, and the sheet lists none of them")
         }
         drillThroughRelatedConcept(journey, snapping: "5b4-related-concept-jump",
-                                   backTo: closeSheet, required: false)
+                                   backTo: closeSheet, under: "Related in meaning",
+                                   missing: """
+                                       Semantic Links are computed for the whole Pack at install, so a \
+                                       frontier Concept no reading has met still has neighbours that \
+                                       mean something similar (#33)
+                                       """)
         journey.tap(closeSheet, "close button")
         journey.waitUntilGone(closeSheet, "the frontier Concept's sheet did not dismiss")
 
@@ -303,14 +295,17 @@ final class TechPulseUITests: XCTestCase {
 
     /// Jumps to a related Concept and comes back.
     ///
-    /// `required: false` is for the frontier Concept, which the journey meets
-    /// for the first time and which no reading has yet joined to anything —
-    /// that absence is declared in the journey's steps and announced in the
-    /// run. Either way it is checked rather than assumed: the sheet's "Related
-    /// concepts" section and its chips have to agree, so a section that
+    /// Required on both sheets since #33: a read Article's Concepts are Co-read
+    /// with each other, and a Concept no reading has met still has the Semantic
+    /// Links its Pack's install computed. Both kinds wear the same chip, so
+    /// `under` names the heading the caller is relying on and the step asserts
+    /// it — otherwise a sheet offering only the other kind would pass here and
+    /// `missing` would misattribute the failure it never had. The section and
+    /// its chips are checked against each other either way, so a section that
     /// promises jumps and offers none is a failure and not a quiet skip.
     private func drillThroughRelatedConcept(_ journey: Journey, snapping name: String,
-                                            backTo sheetRoot: XCUIElement, required: Bool) {
+                                            backTo sheetRoot: XCUIElement,
+                                            under claim: String, missing: String) {
         let app = journey.app
         let related = app.buttons["relatedConceptChip"].firstMatch
         let sectionHeader = app.staticTexts
@@ -318,13 +313,10 @@ final class TechPulseUITests: XCTestCase {
         let offered = journey.becomesTrue({ related.exists })
         XCTAssertEqual(offered, sectionHeader.exists,
                        "the sheet's related-Concepts section and its chips disagree")
-        if required {
-            XCTAssertTrue(offered, """
-                the Concepts of a read Article are Co-read with each other, so this sheet \
-                must offer a related Concept to jump to
-                """)
-        }
-        guard offered else { return }
+        XCTAssertTrue(offered, missing)
+        XCTAssertTrue(app.staticTexts
+            .matching(NSPredicate(format: "label CONTAINS[c] %@", claim)).firstMatch.exists,
+                      "the sheet offers chips but not under “\(claim)” — \(missing)")
 
         journey.tap(related, "related concept chip")
         journey.settle("the sibling Concept's page to draw")

@@ -40,6 +40,7 @@ private struct ConceptDetail: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var allLinks: [ConceptLink]
+    @Query private var semanticLinks: [SemanticLink]
     @Query private var allConcepts: [Concept]
     @State private var quizzing = false
     @State private var deepening = false
@@ -47,21 +48,13 @@ private struct ConceptDetail: View {
     @State private var findingArticles = false
     @State private var foundCount: Int?
 
-    /// Concepts linked to this one, most strongly associated first (design 2d).
-    /// Ordered by strength of association rather than raw co-occurrence, so a
-    /// Concept that merely turns up everywhere doesn't head every list.
-    private var relatedConcepts: [Concept] {
-        let neighborStrength = allLinks.reduce(into: [String: Double]()) { acc, link in
-            if link.conceptA == concept.name {
-                acc[link.conceptB] = max(acc[link.conceptB] ?? 0, link.strength)
-            }
-            if link.conceptB == concept.name {
-                acc[link.conceptA] = max(acc[link.conceptA] ?? 0, link.strength)
-            }
-        }
-        return allConcepts
-            .filter { neighborStrength[$0.name] != nil }
-            .sorted { neighborStrength[$0.name, default: 0] > neighborStrength[$1.name, default: 0] }
+    /// Concepts to jump to, grouped by what joins them and most strongly
+    /// associated first (design 2d). Ordered by strength of association rather
+    /// than raw co-occurrence, so a Concept that merely turns up everywhere
+    /// doesn't head every list.
+    private var neighbours: ConceptNeighbours {
+        ConceptNeighbours.around(concept.name, concepts: allConcepts,
+                                 coread: allLinks, semantic: semanticLinks)
     }
 
     private var stateColor: Color {
@@ -120,23 +113,15 @@ private struct ConceptDetail: View {
                     .padding(.top, 14)
             }
 
-            if !relatedConcepts.isEmpty {
+            if !neighbours.isEmpty {
                 Text("Related concepts — tap to jump")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Theme.textTertiary)
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .padding(.top, 16)
-                FlowLayout(spacing: 7) {
-                    ForEach(relatedConcepts.prefix(6)) { related in
-                        NavigationLink(value: related) {
-                            ConceptChip(concept: related, detailed: true)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("relatedConceptChip")
-                    }
-                }
-                .padding(.top, 8)
+                chipRow("Read together", neighbours.readTogether)
+                chipRow("Related in meaning", neighbours.related)
             }
 
             Text("Appears in \(concept.articles.count) article\(concept.articles.count == 1 ? "" : "s")")
@@ -178,6 +163,32 @@ private struct ConceptDetail: View {
         .sensoryFeedback(.success, trigger: concept.isMarkedKnown)
         .toolbar(isSheetRoot ? .hidden : .visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// One claim's worth of chips, under a heading naming the edge kind it came
+    /// from. The map's legend calls them "Read together" and "Related"
+    /// (`FullMapView.legendEdge`); inside a section already headed "Related
+    /// concepts" the second needs its extra word to say anything. An empty
+    /// group draws nothing: a heading over no chips would promise a jump the
+    /// sheet cannot offer.
+    @ViewBuilder
+    private func chipRow(_ claim: String, _ concepts: [Concept]) -> some View {
+        if !concepts.isEmpty {
+            Text(claim)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.textTertiary)
+                .padding(.top, 9)
+            FlowLayout(spacing: 7) {
+                ForEach(concepts) { related in
+                    NavigationLink(value: related) {
+                        ConceptChip(concept: related, detailed: true)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("relatedConceptChip")
+                }
+            }
+            .padding(.top, 6)
+        }
     }
 
     private var masteryRing: some View {
