@@ -67,7 +67,7 @@ struct ProgressTabView: View {
     // MARK: Stats
 
     /// Consecutive days with at least one article read; a day not yet extended
-    /// keeps the run alive (see `HabitEngine.streakDays`).
+    /// keeps the Streak alive (see `HabitEngine.streakDays`).
     private var readingStreakDays: Int { HabitEngine.streakDays(articles: articles) }
 
     private func statTile(_ value: String, _ label: String, _ valueColor: Color) -> some View {

@@ -161,7 +161,7 @@ struct StreakWidgetView: View {
     // MARK: Copy
     //
     // Never a bare zero: before the first read the widget invites, and a live
-    // run that today hasn't extended reads as a cue, not a failure.
+    // Streak that today hasn't extended reads as a cue, not a failure.
 
     private var headline: String {
         if snapshot.isEmpty { return "Start today" }

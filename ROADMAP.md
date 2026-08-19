@@ -55,7 +55,7 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
    stays where it was (no migration). Forced two fixes worth keeping: the
    streak walk was duplicated in two views (now `HabitEngine`), and it returned
    0 until you'd read *that day*, so a morning widget read "0-day streak" on a
-   live run — streaks now carry a one-day grace.
+   live Streak — Streaks now carry a one-day grace.
 
    *Still open:* **Live Activity** was deliberately cut, not forgotten. Live
    Activities are for time-bound events that end within ~8–12h; a streak has no

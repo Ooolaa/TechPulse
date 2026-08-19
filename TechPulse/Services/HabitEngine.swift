@@ -17,12 +17,12 @@ enum HabitEngine {
         return articles.count { ($0.readAt ?? .distantPast) >= todayStart }
     }
 
-    /// Length of the current reading run, in days.
+    /// Length of the current Streak, in days.
     ///
-    /// The run survives a day that hasn't been extended *yet*: it is measured
+    /// The Streak survives a day that hasn't been extended *yet*: it is measured
     /// from today when today has a read, otherwise from yesterday. Only a full
     /// missed day breaks it. Without that grace the home-screen widget would
-    /// read "0-day streak" every morning on a 30-day run — the exact opposite
+    /// read "0-day streak" every morning on a 30-day one — the exact opposite
     /// of the cue it exists to give.
     ///
     /// `now` is injected so tests don't depend on the wall clock.
@@ -34,7 +34,7 @@ enum HabitEngine {
         let today = calendar.startOfDay(for: now)
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today)
 
-        // Anchor on today if it counts, else on yesterday's still-live run.
+        // Anchor on today if it counts, else on yesterday's still-live Streak.
         var day: Date
         if readDays.contains(today) {
             day = today

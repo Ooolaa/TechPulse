@@ -20,7 +20,7 @@ struct WidgetSnapshot: Codable, Equatable {
 
     var goalMet: Bool { readToday >= dailyGoal }
 
-    /// A live run that today hasn't extended yet — the cue the widget exists for.
+    /// A live Streak that today hasn't extended yet — the cue the widget exists for.
     var streakAtRisk: Bool { streakDays > 0 && readToday == 0 }
 
     /// Nothing read ever: show an invitation, never a bare zero.
@@ -29,13 +29,13 @@ struct WidgetSnapshot: Codable, Equatable {
     /// Age a snapshot forward to `now`.
     ///
     /// The app may not run for days, so the widget cannot assume the file is
-    /// from today. A new day zeroes today's count; the streak then survives
+    /// from today. A new day zeroes today's count; the Streak then survives
     /// only as many further days as `HabitEngine.streakDays` would allow it.
     ///
     /// How many that is depends on the snapshot's own day. `readToday == 0`
     /// means the last read was *yesterday* — the engine's one grace day is
     /// already spent inside the file, so one more elapsed day breaks the
-    /// streak. A snapshot whose own day was read still has that grace, and
+    /// Streak. A snapshot whose own day was read still has that grace, and
     /// breaks on the second.
     func rolledForward(to now: Date) -> WidgetSnapshot {
         let calendar = Calendar.current

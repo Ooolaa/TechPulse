@@ -54,14 +54,14 @@ struct HabitEngineTests {
         #expect(streak([read(daysAgo: 0), read(daysAgo: 1), read(daysAgo: 2)]) == 3)
     }
 
-    @Test("a day not yet extended keeps the run alive (grace day)")
+    @Test("a day not yet extended keeps the streak alive (grace day)")
     func graceDayHolds() {
         // Read yesterday, nothing today: the widget must not say zero.
         #expect(streak([read(daysAgo: 1)]) == 1)
         #expect(streak([read(daysAgo: 1), read(daysAgo: 2), read(daysAgo: 3)]) == 3)
     }
 
-    @Test("one fully missed day breaks the run")
+    @Test("one fully missed day breaks the streak")
     func missedDayBreaks() {
         // Last read was two days ago — yesterday was missed entirely.
         #expect(streak([read(daysAgo: 2), read(daysAgo: 3)]) == 0)
@@ -97,7 +97,7 @@ struct HabitEngineTests {
         #expect(stored.rolledForward(to: Self.now) == stored)
     }
 
-    @Test("next day zeroes today's count but keeps the run")
+    @Test("next day zeroes today's count but keeps the streak")
     func rollForwardOneDay() {
         let stored = snapshot(streakDays: 5, readToday: 3)
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Self.now)!
@@ -107,7 +107,7 @@ struct HabitEngineTests {
         #expect(rolled.streakAtRisk)
     }
 
-    @Test("two days without the app breaks the run")
+    @Test("two days without the app breaks the streak")
     func rollForwardTwoDays() {
         let stored = snapshot(streakDays: 5, readToday: 3)
         let later = Calendar.current.date(byAdding: .day, value: 2, to: Self.now)!

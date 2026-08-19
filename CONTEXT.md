@@ -100,8 +100,8 @@ routine it follows. Declared once, and the thing a reminder is derived from.
 _Avoid_: reminder, schedule, goal, notification setting
 
 **Streak**:
-The run of consecutive days on which reading happened. Survives a day not yet
-extended; only a fully missed day breaks it.
+The consecutive days on which reading happened, counted back from the most
+recent one. Survives a day not yet extended; only a fully missed day breaks it.
 _Avoid_: chain, run, combo
 
 **Egress**:
