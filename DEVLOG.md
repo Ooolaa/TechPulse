@@ -10,6 +10,61 @@
 
 ---
 
+## 2026-08-19 — The ADR said there was no seam, next to the seam (#34)
+
+**Built**
+- **ADR-0006 named the wrong thing.** "The client is deliberately **not** made
+  injectable" sat five lines from its own correct diagnosis — that
+  `IntelligenceService` constructs `AnthropicClient()` inline, so the *call site*
+  has no seam. The type has had one since `e199533`, before the ADR was written:
+  `var session: URLSession = .shared`, which is how the API gets stubbed.
+- **Corrected in place with a dated note**, the form `docs/agents/domain.md`
+  gives for a decision that stands on a sentence that was wrong — the same shape
+  #32 used in this document. The sentence now names the call site; the note
+  quotes what it said and says why the wider reading was the dangerous one.
+- **The risk was a confident edit, not a confused reader.** "Deliberately not
+  made injectable" next to `var session: URLSession = .shared` reads as an
+  unused seam to delete, and deleting it does not fail a test — it fails the
+  *build*, taking the five tests that assert what reaches Anthropic. An ADR
+  written to make egress checkable would have caused the regression it exists to
+  prevent. The property now says at its declaration that it is load-bearing for
+  the tests and why.
+- **The claim was restated in two more live places**, which is the half of this
+  that a grep finds and a reading does not. `ExplainPrompt`'s doc comment said
+  `AnthropicClient` "is deliberately *not* injectable here"; `ByoKeyTests` had a
+  comment from #36 flagging the contradiction as unsettled. Both now say what is
+  true. `StubTransport` cited #34 for a question that was never #34's — whether
+  `FeedSyncService` and `TopicSearchService` should take a session — and now
+  gives the reason directly instead — and, on review, without attributing to
+  ADR-0006 a decision about those two fetchers that it never made, which would
+  have been this same defect in a fresh comment.
+
+**Verified** 304 unit tests green, unchanged — nothing here is behaviour. The
+claim the correction rests on is checked rather than asserted: close the seam
+(`private let session`) and `ByoKeyTests.swift:67` stops compiling, which is the
+sentence "deleting it takes those five tests with it", demonstrated. `e199533`
+does introduce the property, and `IntelligenceService` does still build its
+client inline at both call sites.
+
+**Corrected in this log too.** The #29 entry said `AnthropicClient` "stays
+non-injectable deliberately", naming the type — the strongest form of the wrong
+claim, and the one most likely to send someone to delete the property. My first
+instinct was to leave it as a dated record and let the ADR carry the fix; review
+pointed at this log's own precedent for the better answer, which is to correct
+the sentence and add the dated note beside it. A record of what was believed
+survives either way; only one of the two also closes the trap.
+
+**Learned** Three tickets against one document, and this one had the smallest
+words and the sharpest edge: #31 and #32 corrected claims about what leaves the
+device, and this corrected a sentence about a seam. The tell is the same each
+time — an absolute standing next to the exception it does not admit. What makes
+ADR-0006 in particular worth this fuss is that it is the load-bearing document
+for `Egress`: a reader who checks it against the code and finds a contradiction
+has been given a reason to stop checking, and that is the failure mode, not the
+sentence.
+
+---
+
 ## 2026-08-19 — Three URLProtocol stubs became one, and the two properties that made them safe stopped being remembered (#36)
 
 **Built**
@@ -661,14 +716,23 @@ Both corrected.
 **Learned** The seam was worth more than the fix. Changing the payload was twenty
 lines; what took the failure off the table was that prompt construction is now a
 pure function over the term and the Pack, so *what leaves the device* is a value
-a test can hold. `AnthropicClient` stays non-injectable deliberately (ADR-0006):
-transport was never what anyone got wrong, and the seam that would have caught
-this is the one that got built — though the first attempt at it stopped one level
-too shallow, and only a review that asked "what one-line change would this miss?"
-found the gap. The documents were the other half: `PRIVACY.md`, `README.md` and
-`ROADMAP.md` now say the same thing as the code, and ROADMAP records the
-fallback-first precedence rather than listing two absolutes and leaving the
-collision to be rediscovered.
+a test can hold. The `AnthropicClient` *call site* stays non-injectable
+deliberately (ADR-0006): transport was never what anyone got wrong, and the seam
+that would have caught this is the one that got built — though the first attempt
+at it stopped one level too shallow, and only a review that asked "what one-line
+change would this miss?" found the gap. The documents were the other half:
+`PRIVACY.md`, `README.md` and `ROADMAP.md` now say the same thing as the code,
+and ROADMAP records the fallback-first precedence rather than listing two
+absolutes and leaving the collision to be rediscovered.
+
+**Correction (2026-08-19):** the paragraph above read "`AnthropicClient` stays
+non-injectable deliberately" and named the type, which was never true — the type
+has taken a session since `e199533`, and only the `IntelligenceService` call site
+has no seam (#34). Corrected in place rather than left as a dated curiosity,
+because this was the strongest form of the claim ADR-0006 was corrected for: it
+reads as a licence to delete `AnthropicClient.session`, which does not fail a
+test but fails the build. What was written here on the day is otherwise
+untouched.
 
 ---
 

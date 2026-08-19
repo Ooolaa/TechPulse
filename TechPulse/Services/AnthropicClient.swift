@@ -23,6 +23,11 @@ struct AnthropicClient {
     static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
     static let model = "claude-sonnet-5"
 
+    /// Load-bearing for the tests, not for production: every caller takes the
+    /// default, and `AnthropicClientTests` replaces it to assert what reaches
+    /// Anthropic — the key and version headers, the destination, and the body,
+    /// which is the check ADR-0006 exists to keep possible. It reads as an
+    /// unused seam and is not one; deleting it takes those five tests with it.
     var session: URLSession = .shared
 
     private struct RequestBody: Encodable {

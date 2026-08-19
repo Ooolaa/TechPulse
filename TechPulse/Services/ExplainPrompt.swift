@@ -41,8 +41,9 @@ enum ExplainTier: Equatable {
 /// than a claim in a document. That is the whole point of the type: the excerpt reached
 /// Anthropic for weeks while three documents said it never did, and nothing
 /// could have caught it, because the prompt only existed inside a call to a
-/// client that was constructed inline (#29). `AnthropicClient` is deliberately
-/// *not* injectable here — transport is not what anyone got wrong.
+/// client that was constructed inline (#29). That call site is deliberately left
+/// that way — transport is not what anyone got wrong. `AnthropicClient` itself
+/// does take a session, which is how its own tests reach it (#34).
 struct ExplainPrompt: Equatable {
     /// Instructions the model is steered by — the system prompt on the opt-in
     /// path, the session instructions on-device.

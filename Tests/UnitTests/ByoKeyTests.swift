@@ -57,10 +57,10 @@ struct AnthropicClientTests {
     /// session `AnthropicClient` takes rather than process-wide — the scoped
     /// form, which needs no global registration to undo.
     ///
-    /// That the client has a `session` to inject at all sits awkwardly with
-    /// ADR-0006, which says it is "deliberately not made injectable". The
-    /// sentence and the code disagree; #34 is where that gets settled, and this
-    /// test only uses what is already there.
+    /// The seam this uses is the one ADR-0006 was corrected to describe (#34):
+    /// the *call site* takes no injected client, and the type does take a
+    /// session — which is what makes the destination and the headers assertable
+    /// at all, and the reason `AnthropicClient.session` is not dead code.
     private func stub(status: Int, body: String) -> AnthropicClient {
         StubTransport.stopServing(host: AnthropicClient.endpoint.host()!)
         StubTransport.serve(AnthropicClient.endpoint, status: status, body: body)

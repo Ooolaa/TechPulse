@@ -29,8 +29,11 @@ import Synchronization
 /// Two installation modes, because the fetchers differ: `session()` for a
 /// caller that takes a `URLSession` (`AnthropicClient`), and
 /// `registerGlobally()` for the ones that don't (`FeedSyncService`,
-/// `TopicSearchService`). Making those injectable is #34's question, not this
-/// type's — see ADR-0006.
+/// `TopicSearchService`). Giving those two a session would be production
+/// surface bought for a test, so registering globally is what a fetcher that
+/// builds its own session leaves a test to do. ADR-0006 declined a seam of its
+/// own — the `IntelligenceService` call site — but said nothing about these
+/// two, and this is not the place to decide it.
 final class StubTransport: URLProtocol {
 
     /// What a stubbed URL answers with.

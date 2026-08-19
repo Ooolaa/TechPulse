@@ -77,11 +77,26 @@ most of what it had claimed (#31).
 
 **The claim becomes checkable.** The reason this survived weeks is that nothing
 could assert what leaves the device: `AnthropicClient()` is constructed inline
-inside `IntelligenceService`, so there is no seam and no test. Prompt
-construction moves into pure functions over the term and the Pack, unit-tested,
-so a test goes red the moment article text re-enters the opt-in prompt. The
-client is deliberately **not** made injectable — transport is not what anyone got
-wrong, and a seam bought for a hypothetical is one more thing to maintain.
+inside `IntelligenceService`, so there is no seam at that call site and no test.
+Prompt construction moves into pure functions over the term and the Pack,
+unit-tested, so a test goes red the moment article text re-enters the opt-in
+prompt. The **call site** is deliberately not made injectable — `IntelligenceService`
+goes on constructing its own client rather than receiving one, because transport
+is not what anyone got wrong, and a seam bought for a hypothetical is one more
+thing to maintain.
+
+**Correction (2026-08-19):** the sentence above read "The client is deliberately
+**not** made injectable" when this ADR landed, and is corrected here to name the
+call site (#34). The *type* has had a transport seam since `e199533`, before this
+ADR: `AnthropicClient.session` defaults to `.shared` and `ByoKeyTests` stubs the
+API through it. So the original said, five lines apart in one paragraph, both
+that there is no seam and — correctly — that the call site is where the seam is
+missing. The risk is not a confused reader but a confident edit: "deliberately
+not made injectable" next to `var session: URLSession = .shared` reads as an
+unused seam to delete, and deleting it takes the five tests that assert what
+reaches Anthropic with it. That would be this ADR causing the failure it was
+written to prevent. The decision is unchanged — the call site still constructs
+its client inline, and should.
 
 **`Egress` is now a term.** The stance had no name, so "on-device by default",
 "nothing leaves the phone", "concept name/definition only" and "opt-in exception"
