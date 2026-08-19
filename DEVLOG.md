@@ -10,6 +10,76 @@
 
 ---
 
+## 2026-08-19 — Every Pack switch left a full record behind (#18)
+
+**Built**
+- **Retiring was a flag, and nothing ever swept.** `PackInstaller.install` set
+  `isActive = false` on every existing record and inserted a new one, so since #7
+  made switching a tap, each tap added an `InstalledPack` carrying its
+  `conceptNames`, `stages` and `suggestedSources` JSON. Flipping between the two
+  built-ins ten times left ten records, and nothing in the app could reclaim
+  them.
+- **One record per Pack, not one per tap.** Install now deletes any record of
+  the Pack it is about to write. Identity is the field *and* the origin, because
+  that pair is what decides whether a record is recoverable from anything else:
+  a built-in ships in a file and comes back whole, where a Pack the reader
+  brought or generated has only what its row holds. Two Packs sharing a field
+  but not an origin stay two Packs.
+- **The retired record stays, and it is load-bearing.** #37 made launch
+  reactivate an intact but inactive record rather than rebuilding a narrower
+  Pack from the surviving map — that is what keeps the Stages, the specialty
+  Cluster and the author's Sources. Pruning duplicates must not take the record
+  that path reads, so it does not: what survives is exactly one per Pack, which
+  is what `PackMigration` was already picking with `max(by: installedAt)`.
+- **Nothing the reader learned is at stake.** A record holds no Mastery — that
+  lives on `Concept`, which install deliberately leaves alone — so this is
+  bookkeeping the reader cannot feel, which is why it could grow unnoticed.
+- **"Storage used" was reading one file of the two that hold data.** SQLite runs
+  in WAL mode, so a recent write — including the deletes that reclaim a retired
+  Pack — sits in `default.store-wal` until a checkpoint. `StoreSize` sums the
+  store and its log. Not `-shm`: it exists only while the store is open and is
+  the same size whatever the reader has, so charging it to them says nothing.
+
+**Verified** 311 unit tests, 7 new. Eight taps between two Packs leave two
+records, one active; reinstalling the same Pack three times leaves one; a
+built-in and an imported Pack of the same field keep a record each. Mastery,
+`isMarkedKnown`, `LearningEvent` history and the Streak all survive six switches,
+and the retired record still carries its Stages and Sources for the recovery
+path. Mutation-checked: disable the prune and the two storage tests go red while
+the three guarding what must not be touched stay green, which is the split the
+ticket asked for. The four UI journeys pass — but one full-suite run in the
+middle of this work failed at `openSeededArticle`, "analysis attached no Concept
+to an Article that names seven of them (waited 90s)", and passed on the two runs
+after it. Same first assertion #33 chased, in a path this change does not touch:
+`b1d7a60` made it rarer, not gone. Recorded rather than shrugged at, because a
+journey that passes on retry is the thing #26 and #30 were both about.
+
+**The one criterion not met, plainly.** #18 asked that "Storage used" reflect
+the reclaimed space. It does not, and cannot without a `VACUUM` that SwiftData
+does not expose: deleting rows frees SQLite pages for reuse rather than
+returning them, so the figure stops climbing rather than dropping — and right
+after a switch it can rise, as the deletes sit in `-wal` waiting for a
+checkpoint. What shipped is a more accurate figure and a stated limit, not a
+number that goes down. Review is what made that explicit; the first draft had
+the caveat in a doc comment on a type the reader never sees, which is not the
+same as saying it.
+
+**Two things review found in the fix.** The prune was also wired into
+`adoptSurvivingMap`, where it can never fire — that path runs only when no
+record of the field survived — and where firing would have been actively wrong:
+it would delete an authored record to insert the narrow one, costing the reader
+ADR-0004's authored reading order to save a row. And `StoreSize` carried a
+double-`??` that documented a belief about `try?` that has not been true since
+SE-0230; the compiler said the second one was dead.
+
+**Learned** The record was the wrong thing to make cheap to create. Switching
+Packs went from a launch-time event to a tap in #7, and the write it performs
+was never revisited — the cost per tap was fine when taps were rare. Worth
+asking of anything a new gesture now does often: what did this cost when it was
+hard to do?
+
+---
+
 ## 2026-08-19 — The ADR said there was no seam, next to the seam (#34)
 
 **Built**

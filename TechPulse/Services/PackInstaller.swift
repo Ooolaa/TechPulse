@@ -200,6 +200,10 @@ enum PackInstaller {
             for record in (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? [] {
                 record.isActive = false
             }
+            // And drop any earlier record of *this* Pack, which the one being
+            // written replaces. Switching Packs is a tap, so without this every
+            // tap left a full record behind and storage only climbed (#18).
+            pruneEarlierRecords(ofField: pack.field, origin: origin, context: context)
 
             let existing = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
             let byExactName = Dictionary(existing.map { ($0.name, $0) },
@@ -356,6 +360,12 @@ enum PackInstaller {
             for record in (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? [] {
                 record.isActive = false
             }
+            // No prune here, deliberately: this path runs only when no record
+            // of this field survived (`PackMigration.openOnTheRememberedPack`),
+            // so there is nothing to supersede — and the record it writes is
+            // the narrow one, with no Stages. Deleting an authored record to
+            // replace it with this would cost the reader ADR-0004's authored
+            // reading order to save a row.
             let record = InstalledPack(
                 field: pack.field, specialtyCluster: nil, clusterOrder: clusterOrder,
                 stages: [], suggestedSources: [],
@@ -370,6 +380,32 @@ enum PackInstaller {
             // Pack that is not there.
             context.rollback()
             throw error
+        }
+    }
+
+    /// Deletes earlier records of the Pack about to be written, which replaces
+    /// them. Distinct from *retiring*, which is what happens to the Pack being
+    /// switched away from: that record stays, holding everything a reader who
+    /// switches back would otherwise lose.
+    ///
+    /// Identity is the field *and* the origin, because those are the two things
+    /// that decide whether a record can be rebuilt from anything else: a
+    /// built-in ships in a file and comes back whole, where a Pack the reader
+    /// brought or generated has only what this row holds. Two Packs that share
+    /// a field but not an origin are two Packs, and keep a record each.
+    ///
+    /// What survives is one record per Pack ever installed, rather than one per
+    /// tap. That is what `reactivate` needs — an intact record of a Pack the
+    /// reader may return to, with its Stages and its author's Sources — and it
+    /// is bounded by how many Packs the reader has actually had.
+    ///
+    /// A record holds no Mastery: that lives on `Concept`, which install leaves
+    /// alone. So nothing the reader learned is at stake here.
+    private static func pruneEarlierRecords(ofField field: String, origin: PackOrigin,
+                                            context: ModelContext) {
+        for record in (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? []
+        where record.field == field && record.packOrigin == origin {
+            context.delete(record)
         }
     }
 

@@ -21,9 +21,8 @@ struct SettingsView: View {
 
     /// SwiftData store size on disk (design 2f "Storage used").
     private var storageUsed: String {
-        let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
-        let size = (try? FileManager.default.attributesOfItem(atPath: storeURL.path)[.size] as? Int64) ?? 0
-        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        ByteCountFormatter.string(fromByteCount: StoreSize.onDisk(StoreSize.appStoreURL),
+                                  countStyle: .file)
     }
 
     private var grouped: [(category: String, sources: [FeedSource])] {
