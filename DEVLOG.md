@@ -10,6 +10,62 @@
 
 ---
 
+## 2026-08-20 — What is hot is what your own Sources started saying (#12)
+
+**Built**
+- **The alias list is gone.** `HotTopics.aliases` was sixteen terms typed in
+  2025 — "vibe coding", "world model" — matched against article text. ADR-0003
+  rejected both alternatives to observing on the record, and `CONTEXT.md` has
+  said "observed from your own Sources, never declared by hand" the whole time.
+  The glossary was right and the code was not; this makes the sentence true
+  rather than editing it.
+- **A term is hot when it has risen in the reader's own reading.** Document
+  frequency over a recent window against the fortnight-and-a-bit behind it,
+  scored as the difference in log-odds divided by its own standard error.
+- **Windows key on when an Article *arrived*, not when it was written.**
+  ADR-0003 records that Reddit's vote-sorted feeds are ordinary Sources carrying
+  timestamps days old. Judging those by publication files the evidence of a rise
+  in the baseline it is rising against — `addedAt` was already there.
+- **The Concept half of the filter went too.** It matched names of Concepts in a
+  Cluster called "Hot Topics", which exists only in the flagship Pack and was
+  also written by hand: the same declared list wearing the store's clothes, and
+  it would have left the lane working for one Pack and empty for every other.
+- **An empty lane says why.** "No articles yet — connect to the internet" is
+  about an empty feed; a full feed with nothing rising is a different sentence,
+  and a reader who has just arrived has nothing to compare this week against.
+
+**Two rules were tried and rejected, both measurably**
+- **Ranking by frequency** fails the way `CoreadScoring` records for raw
+  co-occurrence: the top terms in an AI feed are "model", "AI" and "data" every
+  single day.
+- **Ranking by the ratio of shares** — the obvious repair, and what shipped in
+  the first draft — fails the other way. A term appearing three times where it
+  never appeared scores near-infinitely; a term going from a fifth of the feed
+  to two thirds scores about three. So one new Source saying hello outranks the
+  story of the week, and `newSourceAllowance` guarantees a new Source does
+  exactly that. Review built the corpus that proved it: the lane came back
+  `six launches today`, `gpt six launches`, `hn my weekend`, `weekend project`,
+  `show hn` — and the term that had actually risen was deleted by the dedupe for
+  sitting inside a headline fragment scoring a hundred times higher.
+
+**Verified** 351 unit tests, 18 new. The ones that matter are the ones that were
+red: a term rising a lot beats a term rising from nothing; one story takes one
+slot rather than five; the same corpus ranks the same way twice; the window
+follows arrival. All four UI journeys pass.
+
+**Named, not fixed.** Bare numbers are dropped, so "Llama 4" surfaces as
+"llama". Keeping them was tried and was worse — nothing separates a version from
+an index, and the lane filled with "long documents 0". The topic is right, one
+release late.
+
+**Learned** The first scorer passed twelve tests I wrote and produced garbage on
+the first realistic corpus anyone else built. Every test encoded the shape I had
+already assumed; none of them asked what the rule does to a feed that is mostly
+noise, which is what a feed is. The review compiled the thing standalone and ran
+it — and that is the difference between testing a rule and trying it.
+
+---
+
 ## 2026-08-20 — The cue that reaches you (#15)
 
 **Built**

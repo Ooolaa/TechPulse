@@ -9,6 +9,10 @@ struct FeedView: View {
     @Query private var dependencies: [ConceptDependency]
     @State private var selectedCategory: String?
     @State private var showHotOnly = false
+    /// Observed once per change rather than per render: `HotTopics.rising`
+    /// tokenises every recent Article, and `filteredArticles` is recomputed
+    /// whenever this view's body is. Same reason `ActivePack` caches.
+    @State private var hotTerms: [String] = []
     @State private var isSyncing = false
     @State private var searchText = ""
     // Atomic Habits: start tiny (3/day), make progress visible, reward completion.
@@ -42,21 +46,22 @@ struct FeedView: View {
 
     // MARK: 🔥 Hot-topics filter — the "what is the world doing right now" lens
 
-    private var hotConceptNames: Set<String> {
-        Set(allConcepts
-            .filter { $0.category == HotTopics.cluster }
-            .map { $0.name.lowercased() })
+    /// Hot if the Article carries a term the reader's own Sources have started
+    /// using (ADR-0003).
+    ///
+    /// The Concept side of this is gone deliberately. It read the names of
+    /// Concepts in a Cluster called "Hot Topics", which exists only in the
+    /// flagship Pack and was written by hand in 2025 — the same declared list
+    /// ADR-0003 rejects, wearing the store's clothes. Keeping it would have
+    /// left the lane working for one Pack and empty for every other, which is
+    /// the failure the ADR opens with.
+    private func isHot(_ article: Article) -> Bool {
+        let text = "\(article.title) \(article.summary ?? "")".lowercased()
+        return hotTerms.contains(where: text.contains)
     }
 
-    /// Hot if analysis tagged a Hot Topics concept, or the text itself
-    /// mentions a hot topic (works before any analysis has run).
-    private func isHot(_ article: Article) -> Bool {
-        if article.concepts.contains(where: { $0.category == HotTopics.cluster }) {
-            return true
-        }
-        let text = "\(article.title) \(article.summary ?? "")".lowercased()
-        return HotTopics.aliases.contains(where: text.contains)
-            || hotConceptNames.contains(where: text.contains)
+    private func observeHotTerms() {
+        hotTerms = HotTopics.rising(in: articles).map(\.text)
     }
 
     /// Day sections (design 2a): TODAY / YESTERDAY / explicit date.
@@ -81,7 +86,15 @@ struct FeedView: View {
                 header
                 categoryChips
                 if filteredArticles.isEmpty {
-                    emptyState
+                    // "No articles yet" is about an empty feed. A feed with
+                    // plenty in it and nothing rising is a different sentence,
+                    // and telling that reader to check their connection would
+                    // be false.
+                    if showHotOnly && !articles.contains(where: isHot) {
+                        nothingRisingState
+                    } else {
+                        emptyState
+                    }
                 } else {
                     articleList
                 }
@@ -102,10 +115,15 @@ struct FeedView: View {
             // place in `analyzePending`'s newest-first batch against thirty
             // articles the sync has just brought in.
             await IntelligenceService.analyzePending(context: modelContext)
+            observeHotTerms()
             // Sync on launch when cache is empty or stale (>30 min); never blocks reading.
             let stale = lastSynced.map { Date.now.timeIntervalSince($0) > 1800 } ?? true
             if stale { await sync() }   // and `sync` analyzes what it brought in
         }
+        // Not `articles.count`: a sync that prunes as many as it adds leaves the
+        // count alone and the terms stale. The newest arrival moving is what
+        // says the feed changed.
+        .onChange(of: articles.first?.guid) { observeHotTerms() }
     }
 
     private func sync() async {
@@ -365,6 +383,30 @@ struct FeedView: View {
             .padding(.bottom, 8)
         }
         .refreshable { await sync() }
+    }
+
+    /// The 🔥 lane with nothing in it, which is a normal state rather than a
+    /// fault: Hot Topics are observed from the reader's own Sources (ADR-0003),
+    /// so a reader who has just arrived has nothing to compare this week
+    /// against and the honest answer is to say so.
+    private var nothingRisingState: some View {
+        VStack(spacing: 8) {
+            Spacer()
+            Image(systemName: "flame")
+                .font(.system(size: 34))
+                .foregroundStyle(Theme.stateNew)
+            Text("Nothing rising yet")
+                .font(.system(size: 16.5, weight: .bold))
+                .foregroundStyle(Theme.textPrimary)
+            Text("Hot topics are whatever your own sources have started talking about.\nA few days of reading is what gives this something to compare against.")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 32)
+        .accessibilityIdentifier("nothingRisingState")
     }
 
     private var emptyState: some View {
