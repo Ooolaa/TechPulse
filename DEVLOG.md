@@ -10,6 +10,57 @@
 
 ---
 
+## 2026-08-20 — Two records answer to one field, and only one is yours (#39)
+
+**Built**
+- **The record a remembered Pack names is found by three questions, narrowest
+  first**, in `PackMigration.intactRecord`: the built-in file name where both
+  sides have one (#19), then the `(field, origin)` pair `ActivePackIdentity`
+  remembers, then the field alone. `installedAt` breaks a tie inside whichever
+  answers — it used to *be* the match, which is how a Pack the reader was not
+  on could win by being the more recently installed.
+- **What that was costing.** Since #18 the store keeps one record per (field,
+  origin) pair, so a reader who has both a built-in "Security Engineering" and
+  a Pack of their own by that name has two records — with different Stages, a
+  different specialty Cluster and a different set of the author's suggested
+  Sources. Launch reactivated whichever was installed later. #19 had already
+  settled the built-in half by file name; this settles the half where the
+  reader was on their own Pack, and the half where the built-in predates file
+  names.
+- **The field alone is still the last thing tried, and it is not a formality.**
+  `ActivePackIdentity.recalled` reads an unrecorded origin as `.imported` — a
+  missing origin and an imported one are the same two strings to it — so a
+  reader from before origins were stored falls past the pair and is found here,
+  rather than falling through to `adoptSurvivingMap`, which rebuilds narrower
+  than the record they still have.
+
+**What the review changed**
+
+The doc comment first justified that third step as what a memory written before
+origins were stored "has to go on" — which the code does not do, because such a
+memory arrives carrying `.imported` and the pair is tried against it first. The
+comment now says what is true, including the case it cannot settle: with both
+records present and no origin recorded, the memory is indistinguishable from a
+real import and step 2 answers. A guess, but a settled one, and the reader's own
+Pack rather than whichever record is newer.
+
+The review also caught a test that pinned nothing. The built-in case was written
+against a record installed *through* `installBuiltin`, so it carried a file name
+and step 1 had already settled it before this change — it passed against the
+previous commit untouched. Rewritten against the case that actually regresses: a
+built-in remembered before file names existed, with a later imported record of
+the same field.
+
+**Verified** 382 unit tests, 3 new. Both acceptance tests were run against the
+implementation with the pair step removed and failed there — the built-in one
+only after the rewrite. All four UI journeys pass.
+
+**Learned** A default that stands in for missing data is invisible at the point
+it is read. `?? .imported` reads like a harmless fallback in `recalled` and
+becomes an assertion about the reader three call sites away.
+
+---
+
 ## 2026-08-20 — A Pack's field is copy, and copy gets rewritten (#19)
 
 **Built**

@@ -77,15 +77,8 @@ enum PackMigration {
         }
         // The record may be intact and merely not active — a Pack switch that
         // did not finish, say. Nothing was lost, so nothing needs rebuilding.
-        // Recognised by file name where both sides have one, so a built-in
-        // renamed since it was installed is still found; by field otherwise.
         let stored = (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? []
-        let sameFile = stored.filter {
-            $0.builtinFileName != nil && $0.builtinFileName == remembered.builtinFileName
-        }
-        let candidates = sameFile.isEmpty ? stored.filter { $0.field == remembered.field }
-                                          : sameFile
-        if let intact = candidates.max(by: { $0.installedAt < $1.installedAt }) {
+        if let intact = intactRecord(for: remembered, among: stored) {
             return try PackInstaller.reactivate(intact, context: context)
         }
         // A built-in ships with the app, so it comes back whole — Stages,
@@ -107,6 +100,53 @@ enum PackMigration {
         // Nothing survived either: an empty store that remembers a Pack is a
         // reader who has been reset, not one who lost anything.
         try installBuiltin(BuiltinPacks.aiEngineerBuiltin(), context: context)
+    }
+
+    /// The stored record a remembered Pack names, if it is still there.
+    ///
+    /// Three ways of asking, narrowest first, because two of the reader's own
+    /// records can answer to one field: since #18 the store keeps one record
+    /// per (field, origin) pair, so a reader who has both a built-in "AI
+    /// Engineering" and a Pack of their own by that name has two — and the two
+    /// carry different Stages, a different specialty Cluster and a different
+    /// set of the author's suggested Sources, so reactivating the wrong one is
+    /// not a small difference (#39).
+    ///
+    /// 1. The built-in file name, where both sides have one: the only
+    ///    identifier here the reader cannot rewrite (#19).
+    /// 2. The (field, origin) pair `ActivePackIdentity` remembers, which is
+    ///    what tells the reader's own Pack from the built-in it shares a name
+    ///    with.
+    /// 3. The field alone, for a memory whose origin does not match any record
+    ///    — including one written before origins were stored, which
+    ///    `ActivePackIdentity.recalled` reads as `.imported` because a missing
+    ///    origin and an imported one are the same two strings to it. Such a
+    ///    reader is found here rather than falling through to
+    ///    `adoptSurvivingMap`, which rebuilds narrower than the record they
+    ///    still have; it should stay the last resort it is.
+    ///
+    /// What that fallback cannot do is tell an unrecorded origin from a real
+    /// one. A reader with both records and a memory from before origins were
+    /// stored is read as having been on their own Pack, and step 2 answers.
+    /// That is a guess, but a settled one, and it is the reader's own Pack
+    /// rather than whichever record happens to be newer.
+    ///
+    /// `installedAt` breaks a tie within whichever step answers first. It used
+    /// to be the whole match, which is how a Pack the reader was not on could
+    /// win by being the more recently installed.
+    private static func intactRecord(for remembered: ActivePackIdentity.Remembered,
+                                     among stored: [InstalledPack]) -> InstalledPack? {
+        let narrowestFirst: [(InstalledPack) -> Bool] = [
+            { $0.builtinFileName != nil && $0.builtinFileName == remembered.builtinFileName },
+            { $0.field == remembered.field && $0.packOrigin == remembered.origin },
+            { $0.field == remembered.field },
+        ]
+        for names in narrowestFirst {
+            if let intact = stored.filter(names).max(by: { $0.installedAt < $1.installedAt }) {
+                return intact
+            }
+        }
+        return nil
     }
 
     /// Installs a Pack that ships with the app.

@@ -618,6 +618,111 @@ struct PackMigrationTests {
         #expect(recordedVersion == 0)
     }
 
+    // MARK: - Two Packs that share a field (#39)
+
+    /// The reader has both: a built-in, and a Pack of their own that calls
+    /// itself the same field. Since #18 the store keeps one record per (field,
+    /// origin) pair, so this is two records the reader really has, not junk.
+    ///
+    /// `laterIs` says which of them was installed second, because that is what
+    /// the tiebreak between two records of one field goes on — and so it is
+    /// what decides which one a match on field alone comes back with.
+    private func bothPacksSharingAField(_ context: ModelContext,
+                                        laterIs: PackOrigin) throws -> BuiltinPacks.Builtin {
+        let security = try builtin(BuiltinPacks.securityEngineeringFileName)
+        if laterIs == .builtin {
+            try PackInstaller.install(security.pack, origin: .imported, context: context)
+            try PackMigration.installBuiltin(security, context: context)
+        } else {
+            try PackMigration.installBuiltin(security, context: context)
+            try PackInstaller.install(security.pack, origin: .imported, context: context)
+        }
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).count == 2)
+        return security
+    }
+
+    private func record(origin: PackOrigin, in context: ModelContext) throws -> InstalledPack {
+        try #require(try context.fetch(FetchDescriptor<InstalledPack>())
+            .first { $0.packOrigin == origin })
+    }
+
+    /// The active flag, and only that, lost — a Pack switch that did not
+    /// finish. Every record is still whole, so nothing needs rebuilding.
+    private func loseTheActiveFlag(_ context: ModelContext) throws {
+        for stored in try context.fetch(FetchDescriptor<InstalledPack>()) {
+            stored.isActive = false
+        }
+        try context.save()
+        ActivePack.resetCache()
+    }
+
+    @Test("a reader who was on their own Pack is reactivated onto it, not onto the built-in")
+    func rememberedImportWinsOverALaterBuiltin() throws {
+        let context = try makeContext()
+        // Their own Pack first, so the built-in is the later record — which is
+        // what the tiebreak between two records of one field goes on.
+        let security = try bothPacksSharingAField(context, laterIs: .builtin)
+        // The reader switches back to their own Pack, and the next launch
+        // writes that down: reactivating changes the flag, not `installedAt`.
+        try PackInstaller.reactivate(try record(origin: .imported, in: context),
+                                     context: context)
+        PackMigration.ensureBuiltinInstalled(context: context)
+        try loseTheActiveFlag(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try activeRecord(context)
+        #expect(active.packOrigin == .imported)
+        // Reactivated, not rebuilt: both records are still there, and the one
+        // the reader is on kept the Stages a rebuild from the map would lose.
+        #expect(active.stages.count == security.pack.stages.count)
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).count == 2)
+    }
+
+    @Test("a reader who was on the built-in is reactivated onto it, not onto their own Pack")
+    func rememberedBuiltinWinsOverALaterImport() throws {
+        let context = try makeContext()
+        // Their own Pack is the later record this time. And the built-in was
+        // installed by a build before file names (#19), so the file name — the
+        // one identifier that would settle this on its own — is not available:
+        // the origin is what has to tell the two records apart.
+        let security = try bothPacksSharingAField(context, laterIs: .imported)
+        let asWritten = try record(origin: .builtin, in: context)
+        asWritten.builtinFileName = nil
+        try context.save()
+        ActivePackIdentity.remember(field: security.pack.field, origin: .builtin)
+        try loseTheActiveFlag(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try activeRecord(context)
+        #expect(active.packOrigin == .builtin)
+        #expect(active.stages.count == security.pack.stages.count)
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).count == 2)
+    }
+
+    @Test("a Pack remembered before origins were written down still finds its record")
+    func rememberedWithoutAnOriginStillFindsItsRecord() throws {
+        let context = try makeContext()
+        let security = try builtin(BuiltinPacks.securityEngineeringFileName)
+        try PackMigration.installBuiltin(security, context: context)
+        // A memory as a build before #37's origin — and before #19's file name
+        // — left it. `recalled` reads an unrecorded origin as `.imported`,
+        // which is not what this reader was on, so the pair cannot match and
+        // the field alone is what has to find their record.
+        ActivePackIdentity.remember(field: security.pack.field, origin: .imported)
+        try loseTheActiveFlag(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        // Reactivated rather than rebuilt from the map: `adoptSurvivingMap` is
+        // the last resort, and it comes back without Stages.
+        let active = try activeRecord(context)
+        #expect(active.field == security.pack.field)
+        #expect(active.stages.count == security.pack.stages.count)
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).count == 1)
+    }
+
     // MARK: - The engines now read the installed Pack
 
     @Test("after migration the engines read the installed Pack, not the compiled one")
