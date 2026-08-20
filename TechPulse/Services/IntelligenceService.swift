@@ -178,15 +178,14 @@ enum IntelligenceService {
         guard let result, !result.definition.isEmpty else { return nil }
 
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var cache = Dictionary(allConcepts.map { ($0.name.lowercased(), $0) },
-                               uniquingKeysWith: { first, _ in first })
+        var index = ConceptIndex(allConcepts)
 
         // Prefer the model's canonical name, but never let it drift into
         // something unrelated to what the reader actually selected.
         let name = result.name.isEmpty ? term : result.name
         guard let concept = KnowledgeEngine.findOrCreateConcept(
             named: name, category: WordSelection.cluster,
-            definition: result.definition, context: context, cache: &cache
+            definition: result.definition, context: context, index: &index
         ) else { return nil }
 
         // Asked of the concept that came back, not of the name that went in:
@@ -228,15 +227,14 @@ enum IntelligenceService {
         }
 
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var cache = Dictionary(allConcepts.map { ($0.name.lowercased(), $0) },
-                               uniquingKeysWith: { first, _ in first })
+        var index = ConceptIndex(allConcepts)
         var added: [Concept] = []
         for extracted in items.prefix(5) {
             guard let child = KnowledgeEngine.findOrCreateConcept(
                 named: extracted.name,
                 category: concept.category,     // grow on the parent's island
                 definition: extracted.definition,
-                context: context, cache: &cache
+                context: context, index: &index
             ), child.name != concept.name else { continue }
             // Asked of the concept that came back, not of the name that went
             // in: an embedding match returns a concept named something else.
@@ -260,14 +258,13 @@ enum IntelligenceService {
         article.summary = analysis.summary
 
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var cache = Dictionary(allConcepts.map { ($0.name.lowercased(), $0) },
-                               uniquingKeysWith: { first, _ in first })
+        var index = ConceptIndex(allConcepts)
 
         var attached: [Concept] = []
         for extracted in analysis.concepts where attached.count < 8 {
             guard let concept = KnowledgeEngine.findOrCreateConcept(
                 named: extracted.name, category: extracted.category,
-                definition: extracted.definition, context: context, cache: &cache
+                definition: extracted.definition, context: context, index: &index
             ) else { continue }
             if !attached.contains(where: { $0.name == concept.name }) {
                 attached.append(concept)

@@ -49,3 +49,11 @@ De-duplication currently gives up above 500 Concepts
 (`guard cache.count < 500` in `KnowledgeEngine.embeddingMatch`). Semantic Links
 raise the stakes on that cliff: near-duplicate Concepts would gain strong
 Semantic Links to each other and visibly clutter the map.
+
+**Amended (2026-08-20):** the cliff is gone — `ConceptIndex` holds each name's
+meaning instead of recomputing it, which is what made the scan unaffordable and
+bought the ceiling (#11). The stakes this consequence names are not yet
+answered, though: measured against the shipped threshold, the embedding merges
+neither a plural nor an abbreviation, so near-duplicates still accumulate at
+every map size rather than only above 500. Calibrating that threshold against
+real Concept names is the open half.

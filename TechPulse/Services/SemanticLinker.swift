@@ -67,11 +67,41 @@ enum SemanticLinker {
     /// install would cost more than the linking does.
     private static let sharedEmbedding = NLEmbedding.sentenceEmbedding(for: .english)
 
+    /// The distance between two names, on the scale `NLEmbedding.distance`
+    /// reports — which is **not** cosine distance, however it is spelled.
+    ///
+    /// `NLDistanceType.cosine` returns the Euclidean distance between the
+    /// L2-normalised vectors, `sqrt(2·(1 − cos))`, over 0…2. Computing `1 − cos`
+    /// and keeping a threshold calibrated against the other is how a radius set
+    /// at 0.25 became 0.707 — eight times wider — and merged "supervised
+    /// learning" into "unsupervised learning" (#11). Measured against
+    /// `NLEmbedding` over 2,211 pairs, this agrees to within 1.2e-06.
+    static func distance(between left: [Double], and right: [Double]) -> Double? {
+        guard left.count == right.count, !left.isEmpty else { return nil }
+        let dot = zip(left, right).reduce(0) { $0 + $1.0 * $1.1 }
+        let magnitude = (left.reduce(0) { $0 + $1 * $1 }).squareRoot()
+            * (right.reduce(0) { $0 + $1 * $1 }).squareRoot()
+        guard magnitude > 0 else { return nil }
+        return (2 * (1 - dot / magnitude)).squareRoot()
+    }
+
+    /// Vectors already computed this launch. A Concept's name does not change,
+    /// and the same names are embedded over and over: de-duplication builds an
+    /// index per Article analysed, so a 600-Concept map was paying 600
+    /// embeddings eight times for one batch (#11).
+    ///
+    /// Bounded by how many distinct names the app has seen — a large map is a
+    /// few megabytes of Double, against ~3.5 ms saved per hit.
+    private static var vectorCache: [String: [Double]] = [:]
+
     /// Where vectors come from unless a caller substitutes its own. Returns
     /// nil on hardware or in a language the embedding has no model for — the
     /// map is poorer, the install still works.
     static func embed(_ text: String) -> [Double]? {
-        sharedEmbedding?.vector(for: text)
+        if let known = vectorCache[text] { return known }
+        guard let computed = sharedEmbedding?.vector(for: text) else { return nil }
+        vectorCache[text] = computed
+        return computed
     }
 
     /// The Semantic Links for one Pack's Concepts, strongest first.

@@ -10,6 +10,70 @@
 
 ---
 
+## 2026-08-20 — The ceiling was real, and the threshold under it was doing nothing (#11)
+
+**Built**
+- **`guard cache.count < 500` is gone**, and with it the thing that made it
+  necessary. `NLEmbedding.distance(between:and:)` embeds *both* arguments on
+  every call, so matching one name against a 500-Concept map cost a thousand
+  embeddings — and analysis attaches up to eight Concepts per Article.
+  `ConceptIndex` holds each name's meaning instead of recomputing it, and
+  `SemanticLinker.embed` memoises across passes, so the second Article in a
+  batch pays arithmetic rather than the whole map again.
+- **One metric, in one place, on the right scale.** `NLDistanceType.cosine` does
+  not return cosine distance: it returns the Euclidean distance between
+  L2-normalised vectors, `sqrt(2·(1 − cos))`, over 0…2. Computing `1 − cos` and
+  keeping a threshold calibrated against the other made the radius eight times
+  wider, and the first draft of this merged **"supervised learning" into
+  "unsupervised learning"** — taking its Mastery and its history with it. Also
+  "layer normalization" into "quantization", and RLHF into RL.
+- **`ConceptDedupeTests` runs the real embedding**, which nothing did before.
+  Every other test here injects vectors, so the threshold had never met the
+  model that ships.
+
+**What the measurement actually said, which is the finding**
+
+At the shipped threshold of 0.25, on `NLEmbedding`'s own scale:
+
+| pair | distance |
+| --- | --- |
+| `world model` ~ `world models` | 0.449 |
+| `large language models` ~ `large language model` | 0.421 |
+| `supervised learning` ~ `unsupervised learning` | 0.691 |
+| `llm` ~ `large language models` | 1.262 |
+| `rag` ~ `retrieval augmented generation` | 1.322 |
+
+Nothing merges. Not a plural, and not the example the doc comment has advertised
+since it was written — "LLM" ≈ "Large Language Models" sits five times outside
+the threshold it claims to be inside. So the ceiling was never the only reason
+near-duplicates accumulate: below it, matching by meaning has been doing nothing
+that matching by name did not already do.
+
+The threshold is left exactly where it was. Widening it is destructive if it is
+wrong — a merge takes a reader's history — and the honest version is a
+calibration against real Concept names, the way `SemanticLinker`'s floor was
+derived and written up. That is the open half, and ADR-0002's consequence about
+the cliff is amended in place to say so.
+
+**Verified** 372 unit tests, 7 new. The pairs that must stay apart are asserted
+against the real embedding, and so is the limit: a plural is not caught. All four
+UI journeys pass. The unit suite dropped from 21s to 8s, because the memo speeds
+up every test that embeds anything.
+
+**Not met: "does not noticeably slow down analysis at realistic map sizes."**
+The first non-exact lookup on a 600-Concept map embeds all 600 names inline —
+2.1s, on the main actor, with no suspension point, once per launch. Every pass
+after it is free. Moving that off the main actor is real work and wants its own
+ticket rather than being smuggled in here.
+
+**Learned** Three of this session's tickets have now turned on a claim that was
+never measured: a glossary forbidding its own word, an ADR denying a seam beside
+it, and now a similarity threshold advertising a match it has never made. The
+tell each time was a sentence describing behaviour, sitting where a number could
+have been printed instead.
+
+---
+
 ## 2026-08-20 — A term the field keeps saying, offered rather than added (#13)
 
 **Built**

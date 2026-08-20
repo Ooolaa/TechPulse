@@ -175,12 +175,6 @@ enum HotTopics {
     /// a reader shown twenty things to add adds none of them.
     static let candidateLimit = 3
 
-    /// The distance below which two names are the same idea said twice. Matches
-    /// `KnowledgeEngine.embeddingMatch`, and is conservative for the same
-    /// reason it gives: two Concepts stored separately is a smaller harm than
-    /// two ideas silently merged.
-    static let sameIdeaDistance = 0.25
-
     /// Rising terms the reader's map has no room for yet.
     ///
     /// A term is already on the map if a Concept is named it, contains it as
@@ -224,7 +218,8 @@ enum HotTopics {
             if mapVectors == nil { mapVectors = names.map { vector($0) ?? [] } }
             let termVector = vector(text) ?? []
             let meant = zip(names, mapVectors ?? []).contains { _, mapVector in
-                cosineDistance(termVector, mapVector).map { $0 < sameIdeaDistance } ?? false
+                SemanticLinker.distance(between: termVector, and: mapVector)
+                    .map { $0 < ConceptIndex.sameIdeaDistance } ?? false
             }
             if !meant { offered.append(term) }
         }
@@ -239,18 +234,6 @@ enum HotTopics {
         return (0...(haystack.count - needle.count)).contains { start in
             Array(haystack[start..<(start + needle.count)]) == needle
         }
-    }
-
-    /// 0 when two vectors point the same way, 1 when they are unrelated — the
-    /// same scale `NLEmbedding.distance` reports, so `sameIdeaDistance` means
-    /// what it means everywhere else in the app.
-    private static func cosineDistance(_ left: [Double], _ right: [Double]) -> Double? {
-        guard left.count == right.count, !left.isEmpty else { return nil }
-        let dot = zip(left, right).reduce(0) { $0 + $1.0 * $1.1 }
-        let magnitude = (left.reduce(0) { $0 + $1 * $1 }).squareRoot()
-            * (right.reduce(0) { $0 + $1 * $1 }).squareRoot()
-        guard magnitude > 0 else { return nil }
-        return 1 - dot / magnitude
     }
 
     /// Puts an accepted candidate on the map, or hands back the Concept that
@@ -272,11 +255,10 @@ enum HotTopics {
     @discardableResult
     static func adopt(_ term: HotTerm, context: ModelContext) -> Concept? {
         let prior = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var cache = Dictionary(prior.map { ($0.name.lowercased(), $0) },
-                               uniquingKeysWith: { first, _ in first })
+        var index = ConceptIndex(prior)
         guard let concept = KnowledgeEngine.findOrCreateConcept(
             named: adoptedName(term), category: adoptedCluster, definition: "",
-            context: context, cache: &cache
+            context: context, index: &index
         ) else { return nil }
 
         // Unlit, the way `PackInstaller` starts a Pack's Concepts — accepting

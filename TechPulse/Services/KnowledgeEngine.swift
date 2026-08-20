@@ -11,46 +11,40 @@ enum KnowledgeEngine {
 
     // MARK: Concept matching
 
-    /// Case-insensitive match first, then embedding similarity to catch
-    /// near-duplicates ("LLM" ≈ "Large Language Models"). Creates when new.
+    /// Case-insensitive match first, then meaning. Creates when new.
+    ///
+    /// This used to say it catches "LLM" ≈ "Large Language Models". Measured,
+    /// the embedding puts that pair at 1.26 against a threshold of 0.25 — five
+    /// times outside it — and a plural at 0.42. So the meaning half currently
+    /// merges nothing a name match would miss, which `ConceptDedupeTests`
+    /// records. Removing the 500-Concept ceiling (#11) makes the scan run at
+    /// any map size; what it admits is a separate question, and answering it
+    /// means calibrating the threshold against real Concept names the way
+    /// `SemanticLinker` calibrated its floor.
+    ///
+    /// Both halves live in `ConceptIndex`, which holds each name's meaning
+    /// rather than recomputing it — the cost that used to make this give up
+    /// entirely above 500 Concepts (#11).
     static func findOrCreateConcept(named rawName: String, category: String,
                                     definition: String, context: ModelContext,
-                                    cache: inout [String: Concept]) -> Concept? {
+                                    index: inout ConceptIndex) -> Concept? {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard name.count > 1 else { return nil }
 
-        if let exact = cache[name.lowercased()] { return exact }
-        if let similar = embeddingMatch(for: name, in: cache) { return similar }
+        if let existing = index.match(name) { return existing }
 
         let concept = Concept(name: name, category: category, definition: definition)
         context.insert(concept)
-        cache[name.lowercased()] = concept
+        index.insert(concept)
         return concept
     }
 
     /// True when `concept` wasn't in the store before this dedup pass.
     /// Checked by identity, not name: `findOrCreateConcept` may return a
-    /// pre-existing concept matched via embedding similarity, whose name
-    /// won't equal the lowercased key a caller checked beforehand.
+    /// pre-existing concept matched by meaning, whose name won't equal the
+    /// lowercased key a caller checked beforehand.
     static func isNewlyCreated(_ concept: Concept, priorConcepts: [Concept]) -> Bool {
         !priorConcepts.contains { $0 === concept }
-    }
-
-    private static func embeddingMatch(for name: String, in cache: [String: Concept]) -> Concept? {
-        // O(n) scan is fine at personal-knowledge-base scale; skip past it.
-        guard cache.count < 500,
-              let embedding = NLEmbedding.sentenceEmbedding(for: .english) else { return nil }
-        var best: (concept: Concept, distance: Double)?
-        for concept in cache.values {
-            let distance = embedding.distance(between: name.lowercased(),
-                                              and: concept.name.lowercased())
-            // Conservative threshold: merging distinct concepts is worse than
-            // occasionally storing near-duplicates.
-            if distance < 0.25, distance < (best?.distance ?? .infinity) {
-                best = (concept, distance)
-            }
-        }
-        return best?.concept
     }
 
     // MARK: Mastery events

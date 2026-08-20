@@ -78,10 +78,12 @@
 		8AFEE669B1C367C2D32B8F64 /* QuizView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BC5918EC41E2DC2BE2E6884 /* QuizView.swift */; };
 		8ED69BE743E9A55FDF347BA3 /* RSSParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 913AB0648317CE52447B34D6 /* RSSParser.swift */; };
 		8FFEF7536EEB88B4ADF5CB65 /* ExplainPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F70C6D332EB69325A6D616 /* ExplainPromptTests.swift */; };
+		938581CBF227CC39C384011A /* ConceptIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = BECB04F99A18ECBBB5965356 /* ConceptIndex.swift */; };
 		938F03142455C084AD92D02F /* UITestLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0188A6A2C5F1053026243BEF /* UITestLaunch.swift */; };
 		96315EB538495DDC2CEFAAF0 /* TechPulseUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE45300FDDCED3CAA7416DFF /* TechPulseUITests.swift */; };
 		9796E0FC34C8CE54E14845DA /* AppSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26205B32A6979E490DE69772 /* AppSchema.swift */; };
 		9848C18B912609D6E3D7B298 /* ReadingIntentionStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB60F3E901FF8730E738F48 /* ReadingIntentionStep.swift */; };
+		99715D001325FB55EC6D6E5B /* ConceptDedupeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BD77601009A408D4C15A54 /* ConceptDedupeTests.swift */; };
 		9A027009EB10BC820E82765E /* PackFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F41B56AE8558577F90FF07 /* PackFile.swift */; };
 		9A63C654F78898F6D8AC58E3 /* TechPulseWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0589963A0AE4B696E53ADA0C /* TechPulseWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9FEFD5F2EBDE54F3A8D21D9D /* PackLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571D5671CDF5C25BAA89D44C /* PackLibraryView.swift */; };
@@ -231,11 +233,13 @@
 		AA24EEF0465D07C0890488BB /* BuiltinPacksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltinPacksTests.swift; sourceTree = "<group>"; };
 		AFF3E26CD07C160305C33BD7 /* CoreadScoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreadScoringTests.swift; sourceTree = "<group>"; };
 		B0B5916628B4441F136B85D0 /* QuizEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizEngine.swift; sourceTree = "<group>"; };
+		B0BD77601009A408D4C15A54 /* ConceptDedupeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConceptDedupeTests.swift; sourceTree = "<group>"; };
 		B0C953F9F7D4CD1763700407 /* ConceptNeighbours.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConceptNeighbours.swift; sourceTree = "<group>"; };
 		B2DB7FEBA756BC17F361DBE8 /* TechPulseTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TechPulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B598CFA675FB447CD64B2FDB /* FullMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullMapView.swift; sourceTree = "<group>"; };
 		B7AFED9D8872B5FDC7820298 /* PackRetirementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackRetirementTests.swift; sourceTree = "<group>"; };
 		BD1DAA70ADF0D37270B455AB /* UITestLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestLaunchTests.swift; sourceTree = "<group>"; };
+		BECB04F99A18ECBBB5965356 /* ConceptIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConceptIndex.swift; sourceTree = "<group>"; };
 		C026D81A3625A7A0FFB671BA /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
 		C4F10364098E372489FBE22C /* TechPulseUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TechPulseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C8A2065B7BBA8ED32EDE997E /* PackSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackSelectionTests.swift; sourceTree = "<group>"; };
@@ -353,6 +357,7 @@
 				4485958AD477220A541E32BA /* AnalysisEligibilityTests.swift */,
 				AA24EEF0465D07C0890488BB /* BuiltinPacksTests.swift */,
 				C93199D96AE63A2E77A0E374 /* ByoKeyTests.swift */,
+				B0BD77601009A408D4C15A54 /* ConceptDedupeTests.swift */,
 				3F5D3331A670C12BFE8FBFBC /* ConceptNeighboursTests.swift */,
 				AFF3E26CD07C160305C33BD7 /* CoreadScoringTests.swift */,
 				43F70C6D332EB69325A6D616 /* ExplainPromptTests.swift */,
@@ -422,6 +427,7 @@
 				5B6DF539383E82CC21814150 /* ActivePackIdentity.swift */,
 				2015A82A0B6F08CC61ADBD74 /* AnthropicClient.swift */,
 				6815B261815EC1E6FBE543C3 /* BuiltinPacks.swift */,
+				BECB04F99A18ECBBB5965356 /* ConceptIndex.swift */,
 				B0C953F9F7D4CD1763700407 /* ConceptNeighbours.swift */,
 				F9AE706BA6F2E2DA1455EF3C /* CoreadScoring.swift */,
 				2586ABA9BB3FC1C928EC6AEC /* ExplainPrompt.swift */,
@@ -628,6 +634,7 @@
 				BB1D79BDECE8CE27E84DEC9F /* AnalysisEligibilityTests.swift in Sources */,
 				29366D66A8D6279112D25EEE /* BuiltinPacksTests.swift in Sources */,
 				337B1E17767E138AF44EA8D4 /* ByoKeyTests.swift in Sources */,
+				99715D001325FB55EC6D6E5B /* ConceptDedupeTests.swift in Sources */,
 				50B400064F30885F51D232DB /* ConceptNeighboursTests.swift in Sources */,
 				F5887E0869B482BB64DF7D0E /* CoreadScoringTests.swift in Sources */,
 				8FFEF7536EEB88B4ADF5CB65 /* ExplainPromptTests.swift in Sources */,
@@ -676,6 +683,7 @@
 				DDDAC96BF310C5958D0DB6C5 /* ClusterDetailView.swift in Sources */,
 				C1F65670F6E83E3C7C1D4C31 /* Concept.swift in Sources */,
 				865E0ABD1E3F4054EC686A96 /* ConceptDependency.swift in Sources */,
+				938581CBF227CC39C384011A /* ConceptIndex.swift in Sources */,
 				86998CFB655967C45D6C4841 /* ConceptLink.swift in Sources */,
 				356B8957E17E8D8116C8CBA2 /* ConceptNeighbours.swift in Sources */,
 				11952B7F3953AE8B946E7181 /* ConceptSheetView.swift in Sources */,
