@@ -45,6 +45,15 @@ final class InstalledPack {
     var sideQuestConcepts: [String] = []
     /// Where the Pack came from, as a `PackOrigin` raw value.
     var origin: String
+    /// Which built-in Pack file this record is the app's copy of, for a Pack
+    /// that came with the app. This is what says a record and a shipped Pack
+    /// file are the same Pack: the file name is an identifier the app controls,
+    /// where `field` is prose its author may rewrite (#19).
+    ///
+    /// Nil for a Pack the reader imported or generated, and for a built-in
+    /// installed by a build that did not record it — `PackMigration` recognises
+    /// those by field the once and writes the file name onto them.
+    var builtinFileName: String?
     var isActive: Bool
     var installedAt: Date
 
@@ -54,7 +63,8 @@ final class InstalledPack {
 
     init(field: String, specialtyCluster: String?, clusterOrder: [String],
          stages: [PackFile.PackStage], suggestedSources: [PackFile.PackSource],
-         conceptNames: [String], sideQuestConcepts: [String], origin: PackOrigin) {
+         conceptNames: [String], sideQuestConcepts: [String], origin: PackOrigin,
+         builtinFileName: String? = nil) {
         self.field = field
         self.specialtyCluster = specialtyCluster
         self.clusterOrder = clusterOrder
@@ -63,6 +73,7 @@ final class InstalledPack {
         self.conceptNames = conceptNames
         self.sideQuestConcepts = sideQuestConcepts
         self.origin = origin.rawValue
+        self.builtinFileName = builtinFileName
         self.isActive = true
         self.installedAt = .now
     }

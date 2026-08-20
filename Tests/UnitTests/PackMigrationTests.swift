@@ -449,6 +449,175 @@ struct PackMigrationTests {
                 == PackMigration.builtinPackVersion)
     }
 
+    // MARK: - Staying on the built-in Pack's update path (#19)
+
+    private func builtin(_ fileName: String) throws -> BuiltinPacks.Builtin {
+        try #require(BuiltinPacks.named(fileName))
+    }
+
+    /// The record for the Pack the reader is on. These tests edit it to stand
+    /// in for the two things they cannot stage directly: a Pack file whose
+    /// `field` the app has since rewritten, and a record written by a build
+    /// that did not know which file its Pack came from.
+    private func activeRecord(_ context: ModelContext) throws -> InstalledPack {
+        try #require(try context.fetch(FetchDescriptor<InstalledPack>()).first { $0.isActive })
+    }
+
+    private var recordedVersion: Int {
+        UserDefaults.standard.integer(forKey: "builtinPackVersion")
+    }
+
+    @Test("choosing a built-in from the library records its version, so launch has nothing to redo")
+    func libraryInstallRecordsTheVersion() throws {
+        let context = try makeContext()
+        try PackMigration.installBuiltin(try builtin(BuiltinPacks.securityEngineeringFileName),
+                                         context: context)
+        #expect(recordedVersion == PackMigration.builtinPackVersion)
+
+        // The Dependency rows are the observable: a reinstall deletes and
+        // recreates every one of them, so surviving rows are a launch that
+        // knew there was nothing to do.
+        let before = Set(try context.fetch(FetchDescriptor<ConceptDependency>())
+            .map(\.persistentModelID))
+        #expect(!before.isEmpty)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        #expect(Set(try context.fetch(FetchDescriptor<ConceptDependency>())
+            .map(\.persistentModelID)) == before)
+    }
+
+    @Test("renaming a built-in Pack's field leaves the reader receiving its updates")
+    func renamedBuiltinStillReceivesUpdates() throws {
+        let context = try makeContext()
+        let security = try builtin(BuiltinPacks.securityEngineeringFileName)
+        try PackMigration.installBuiltin(security, context: context)
+
+        // A Pack's field is reader-visible prose, so rewriting one is a normal
+        // thing to want to do. The reader's record still says what the field
+        // was called on the day they installed it.
+        let record = try activeRecord(context)
+        record.field = "Security Engineering (2025)"
+        try context.save()
+        ActivePack.resetCache()
+        // And the app ships a new version of the Pack file.
+        UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == security.pack.field)
+        #expect(active.origin == .builtin)
+        #expect(recordedVersion == PackMigration.builtinPackVersion)
+        // The refreshed record replaces the one under the old name rather than
+        // leaving it behind — the same Pack, so the same one record (#18).
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).count == 1)
+    }
+
+    @Test("a built-in installed before file names were recorded is adopted onto one")
+    func recordFromBeforeFileNamesIsAdopted() throws {
+        let context = try makeContext()
+        let security = try builtin(BuiltinPacks.securityEngineeringFileName)
+        try PackMigration.installBuiltin(security, context: context)
+        // A record as an older build wrote it: a built-in known only by field.
+        let asWritten = try activeRecord(context)
+        asWritten.builtinFileName = nil
+        try context.save()
+
+        // Nothing to install — the version is current — but the file name is
+        // written down while the field still matches.
+        PackMigration.ensureBuiltinInstalled(context: context)
+        #expect(try activeRecord(context).builtinFileName == security.fileName)
+
+        // From then on the field is free to move.
+        let adopted = try activeRecord(context)
+        adopted.field = "Security Engineering (2025)"
+        try context.save()
+        ActivePack.resetCache()
+        UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        #expect(ActivePack.load(context: context)?.field == security.pack.field)
+    }
+
+    @Test("a lost record comes back as the reader's own built-in, whatever its field is called now")
+    func lostRecordRestoresARenamedBuiltin() throws {
+        let context = try makeContext()
+        let security = try builtin(BuiltinPacks.securityEngineeringFileName)
+        try PackMigration.installBuiltin(security, context: context)
+        // What #21 left behind, for a reader whose Pack has since been renamed:
+        // the record is gone and the name outside the store is the old one.
+        ActivePackIdentity.remember(field: "Security Engineering (2025)", origin: .builtin,
+                                    builtinFileName: security.fileName)
+        try loseThePackRecord(context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == security.pack.field)
+        #expect(!active.stages.isEmpty)
+    }
+
+    @Test("a built-in whose file no longer ships is still recognised by its field")
+    func builtinFileThatIsGoneFallsBackToTheField() throws {
+        let context = try makeContext()
+        let security = try builtin(BuiltinPacks.securityEngineeringFileName)
+        try PackMigration.installBuiltin(security, context: context)
+        // The Pack file was renamed — a code change, not the reader-visible
+        // rewrite this all guards against, but the record still names the old
+        // one. The field is what is left to recognise them by.
+        let record = try activeRecord(context)
+        record.builtinFileName = "security-engineering-v1"
+        try context.save()
+        ActivePack.resetCache()
+        UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        #expect(try activeRecord(context).builtinFileName == security.fileName)
+        #expect(recordedVersion == PackMigration.builtinPackVersion)
+    }
+
+    @Test("a record whose field has moved is reactivated, not rebuilt from the file")
+    func inactiveRecordIsFoundByFileNameNotField() throws {
+        let context = try makeContext()
+        let security = try builtin(BuiltinPacks.securityEngineeringFileName)
+        try PackMigration.installBuiltin(security, context: context)
+        // The record is intact, only its flag says otherwise — and its field no
+        // longer matches the name the Pack was remembered under. Nothing was
+        // lost, so nothing needs rebuilding: the file name says it is the same
+        // Pack, and reactivating keeps the record exactly as the reader has it.
+        let record = try activeRecord(context)
+        record.field = "Security Engineering (2025)"
+        record.isActive = false
+        try context.save()
+        ActivePack.resetCache()
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == "Security Engineering (2025)")
+        #expect(active.stages.count == security.pack.stages.count)
+        #expect(try context.fetch(FetchDescriptor<InstalledPack>()).count == 1)
+    }
+
+    @Test("a Pack the reader imported is no built-in, however its field is spelled")
+    func importedPackIsNeverMatchedToABuiltin() throws {
+        let context = try makeContext()
+        let security = try builtin(BuiltinPacks.securityEngineeringFileName)
+        // The same field a built-in covers, brought in as a file of their own.
+        try PackInstaller.install(security.pack, origin: .imported, context: context)
+
+        PackMigration.ensureBuiltinInstalled(context: context)
+
+        let record = try activeRecord(context)
+        #expect(record.packOrigin == .imported)
+        #expect(record.builtinFileName == nil)
+        // Nor does a Pack of their own put them on the built-in's version.
+        #expect(recordedVersion == 0)
+    }
+
     // MARK: - The engines now read the installed Pack
 
     @Test("after migration the engines read the installed Pack, not the compiled one")

@@ -88,13 +88,13 @@ struct PackLibraryView: View {
         Section {
             ForEach(BuiltinPacks.all, id: \.fileName) { builtin in
                 Button {
-                    install(builtin.pack, origin: .builtin)
+                    install(builtin)
                 } label: {
                     packRow(field: builtin.pack.field,
                             detail: summary(concepts: builtin.pack.concepts.count,
                                             clusters: builtin.pack.clusterOrder.count,
                                             origin: nil),
-                            isActive: isActive(builtin.pack))
+                            isActive: isActive(builtin))
                 }
                 .accessibilityIdentifier("builtinPack")
             }
@@ -141,12 +141,11 @@ struct PackLibraryView: View {
 
     // MARK: - Installing
 
-    /// Two built-in Packs never cover the same field, so among the built-in
-    /// rows the field is what tells the reader which one they are on. An
-    /// imported Pack covering the same field is not this row's Pack, however
-    /// it is named, so where it came from has to match too.
-    private func isActive(_ pack: PackFile) -> Bool {
-        active?.packOrigin == .builtin && active?.field == pack.field
+    /// Which row carries the tick. An imported Pack covering the same field is
+    /// not this row's Pack however it is named, and a built-in stays this row's
+    /// Pack however its field is renamed — both are `BuiltinPacks.matching`.
+    private func isActive(_ builtin: BuiltinPacks.Builtin) -> Bool {
+        active.flatMap(BuiltinPacks.matching)?.fileName == builtin.fileName
     }
 
     private func summary(concepts: Int, clusters: Int, origin: PackOrigin?) -> String {
@@ -155,9 +154,28 @@ struct PackLibraryView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func install(_ pack: PackFile, origin: PackOrigin) {
+    /// A built-in goes in through `PackMigration`, never straight to
+    /// `PackInstaller`: that is what records the Pack file's version, and a
+    /// version left unrecorded has the next launch reinstall the Pack the
+    /// reader just chose (#19).
+    private func install(_ builtin: BuiltinPacks.Builtin) {
+        installing(builtin.pack) {
+            try PackMigration.installBuiltin(builtin, context: modelContext)
+        }
+    }
+
+    private func install(imported pack: PackFile) {
+        installing(pack) {
+            try PackInstaller.install(pack, origin: .imported, context: modelContext)
+        }
+    }
+
+    /// What both of those do around the install itself: refresh what the reader
+    /// sees, or say why nothing changed. The Pack is here for what it suggests,
+    /// not to be installed — `perform` is what installs it.
+    private func installing(_ pack: PackFile, _ perform: () throws -> Void) {
         do {
-            try PackInstaller.install(pack, origin: origin, context: modelContext)
+            try perform()
             // The map changed, so what the widget says about it is stale.
             WidgetRefresh.refresh(context: modelContext)
             let pending = PackSourceOffer.pending(pack.suggestedSources, context: modelContext)
@@ -180,7 +198,7 @@ struct PackLibraryView: View {
 
         do {
             let pack = try PackValidator.decodeAndValidate(try Data(contentsOf: url))
-            install(pack, origin: .imported)
+            install(imported: pack)
         } catch let error as PackValidationError {
             rejection = error.localizedDescription
         } catch {

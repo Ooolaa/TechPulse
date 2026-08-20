@@ -99,8 +99,14 @@ struct ActivePack {
     }
 
     static func load(context: ModelContext) -> ActivePack? {
+        activeRecord(context: context).map(ActivePack.init)
+    }
+
+    /// The stored record behind the active Pack, for the callers that need the
+    /// row itself rather than what it describes — `PackMigration` writes to it.
+    static func activeRecord(context: ModelContext) -> InstalledPack? {
         let descriptor = FetchDescriptor<InstalledPack>(predicate: #Predicate { $0.isActive })
-        return (try? context.fetch(descriptor))?.first.map(ActivePack.init)
+        return (try? context.fetch(descriptor))?.first
     }
 
     /// The order Concepts should be met in — what reduces a Frontier holding
@@ -185,10 +191,18 @@ enum PackInstaller {
     /// Pack's corrected definition and Cluster. A Concept the new Pack drops is
     /// left alone entirely — it stops being part of the Pack, it is not deleted.
     ///
+    /// `builtinFileName` names the shipped file a built-in Pack was read from,
+    /// which is what later recognises this record as that Pack — see
+    /// `BuiltinPacks.matching`. `PackMigration.installBuiltin` is what fills it
+    /// in, and is how the app installs a built-in; a built-in installed through
+    /// here without one is recognised by field until the next launch adopts it
+    /// onto its file, so a caller that omits it loses nothing permanently.
+    ///
     /// `vector` exists so tests can install a Pack without Apple's embedding
     /// having an opinion; production always uses the default.
     @discardableResult
     static func install(_ pack: PackFile, origin: PackOrigin,
+                        builtinFileName: String? = nil,
                         context: ModelContext,
                         vector: @MainActor (String) -> [Double]? = SemanticLinker.embed
     ) throws -> InstalledPack {
@@ -203,7 +217,8 @@ enum PackInstaller {
             // And drop any earlier record of *this* Pack, which the one being
             // written replaces. Switching Packs is a tap, so without this every
             // tap left a full record behind and storage only climbed (#18).
-            pruneEarlierRecords(ofField: pack.field, origin: origin, context: context)
+            pruneEarlierRecords(ofField: pack.field, origin: origin,
+                                builtinFileName: builtinFileName, context: context)
 
             let existing = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
             let byExactName = Dictionary(existing.map { ($0.name, $0) },
@@ -295,7 +310,8 @@ enum PackInstaller {
                 sideQuestConcepts: pack.concepts
                     .filter { $0.cluster == pack.specialtyCluster }
                     .compactMap { resolved[$0.name]?.name },
-                origin: origin)
+                origin: origin,
+                builtinFileName: builtinFileName)
             context.insert(record)
             try context.save()
             // An Article analysis found nothing in is offered to it again, now
@@ -307,7 +323,8 @@ enum PackInstaller {
             reopenUnanalyzedArticles(context: context)
             // A second copy of which Pack this is, outside the store, so losing
             // the record is losing the Pack's detail and not its name (#37).
-            ActivePackIdentity.remember(field: pack.field, origin: origin)
+            ActivePackIdentity.remember(field: pack.field, origin: origin,
+                                        builtinFileName: builtinFileName)
             // The engines read a cached Pack; installing one that nobody can
             // see would be worse than not installing it.
             ActivePack.refresh(context: context)
@@ -421,11 +438,22 @@ enum PackInstaller {
     ///
     /// A record holds no Mastery: that lives on `Concept`, which install leaves
     /// alone. So nothing the reader learned is at stake here.
+    ///
+    /// A built-in is superseded by file name rather than by field, so the copy
+    /// installed under the Pack's old name goes when the Pack is renamed —
+    /// matching on field alone would leave a record per name it ever had (#19).
     private static func pruneEarlierRecords(ofField field: String, origin: PackOrigin,
+                                            builtinFileName: String?,
                                             context: ModelContext) {
         for record in (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? []
-        where record.field == field && record.packOrigin == origin {
-            context.delete(record)
+        where record.packOrigin == origin {
+            let supersedes: Bool
+            if let builtinFileName, let stored = record.builtinFileName {
+                supersedes = stored == builtinFileName
+            } else {
+                supersedes = record.field == field
+            }
+            if supersedes { context.delete(record) }
         }
     }
 

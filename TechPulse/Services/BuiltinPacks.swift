@@ -61,4 +61,52 @@ enum BuiltinPacks {
     static func aiEngineer() throws -> PackFile {
         try load(aiEngineerFileName)
     }
+
+    /// The flagship as something installable: its Pack alongside the file name
+    /// that keeps it on the update path.
+    ///
+    /// Read rather than taken from `all`, which leaves out a file that failed
+    /// to load — the fallback every lost reader lands on should throw the
+    /// reason rather than quietly not being there.
+    static func aiEngineerBuiltin() throws -> Builtin {
+        Builtin(fileName: aiEngineerFileName, pack: try aiEngineer())
+    }
+
+    /// The built-in shipped under this file name, if this build ships one.
+    static func named(_ fileName: String) -> Builtin? {
+        all.first { $0.fileName == fileName }
+    }
+
+    /// The built-in Pack a stored record is the app's copy of, if it is one.
+    ///
+    /// Matched on file name, which the app controls. Matching on `field` — copy
+    /// the Pack's author may rewrite — meant a rename ended that reader's
+    /// built-in Pack updates for good, because nothing would ever recognise
+    /// their record again (#19).
+    static func matching(_ record: InstalledPack) -> Builtin? {
+        guard record.packOrigin == .builtin else { return nil }
+        return matching(fileName: record.builtinFileName, field: record.field)
+    }
+
+    /// The same question asked of what survives outside the store (#37), so a
+    /// reader whose record was destroyed is rebuilt onto the Pack they were on
+    /// rather than the flagship, however its field reads by then.
+    @MainActor
+    static func matching(_ remembered: ActivePackIdentity.Remembered) -> Builtin? {
+        guard remembered.origin == .builtin else { return nil }
+        return matching(fileName: remembered.builtinFileName, field: remembered.field)
+    }
+
+    /// File name, then field — one rule, so the two callers above cannot drift.
+    ///
+    /// The field is what answers for a Pack installed before the file name was
+    /// stored: `PackMigration` recognises such a record the once and writes the
+    /// file name onto it, after which the field is free to change. It is also
+    /// the answer for a file name this build no longer ships, where the field
+    /// is all that is left to go on — renaming a Pack *file* is a code change
+    /// and not the reader-visible rewrite this all guards against, but a Pack
+    /// that can still be recognised should be.
+    private static func matching(fileName: String?, field: String) -> Builtin? {
+        fileName.flatMap(named) ?? all.first { $0.pack.field == field }
+    }
 }

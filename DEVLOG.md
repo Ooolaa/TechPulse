@@ -10,6 +10,61 @@
 
 ---
 
+## 2026-08-20 — A Pack's field is copy, and copy gets rewritten (#19)
+
+**Built**
+- **Every built-in install goes through one door.** `PackMigration.installBuiltin`
+  is now the only way a Pack that ships with the app gets installed — launch and
+  the library both. The version it records is the point: `PackLibraryView` called
+  `PackInstaller.install` straight, so a reader who picked a built-in out of the
+  library while the stored version was stale had the next launch re-run a full
+  install of the Pack they had just installed, deleting and recreating every
+  `ConceptDependency` row for nothing.
+- **A built-in is recognised by its file name, not by its `field`.**
+  `InstalledPack` records which shipped file it is a copy of, and
+  `BuiltinPacks.matching` is the one place that answers "is this record that
+  Pack?" — for the launch refresh, for the rebuild after a lost record (#37),
+  for superseding an earlier record (#18), and for the tick in the library.
+- **The thing a rename could not survive.** A Pack's `field` is reader-visible
+  prose, so rewriting one is a normal thing to want to do — and matching on it
+  meant that the moment anyone did, no launch would recognise that reader's
+  record again. Not a stale Pack: no built-in Pack updates, ever, silently, with
+  no way back short of switching Packs by hand.
+- **Records written before this get adopted, not stranded.** A built-in record
+  with no file name is recognised by field the once and has the file name
+  written onto it, whether or not there is anything to install — so the single
+  field-based match each such record ever needs is spent on the first launch
+  after this ships, while the field still matches. Which is the one ordering
+  rule this carries, and it is written where it can be acted on: **a built-in's
+  `field` must not be rewritten in the same build that first stores file
+  names.** One shipped build apart is enough.
+- **`ActivePackIdentity` remembers the file name too**, so a reader whose record
+  is destroyed (#21) comes back on their own Pack rather than the flagship,
+  however it is called by then — and a record that is merely inactive is
+  reactivated by file name rather than rebuilt narrower.
+
+**What the review changed**
+
+Both axes ran against the finished diff, and three findings were real. The
+"file name, else field" rule had been written twice and could drift, so it is
+one private function two call sites share. Matching a stored file name this
+build no longer ships used to return nothing at all — the same permanent stall,
+reachable by renaming the JSON instead of the copy — and now falls back to the
+field. And `current`, for the built-in behind the active record, was the one
+word `CONTEXT.md` tells us not to use for a Pack.
+
+**Verified** 379 unit tests, 7 new. Each new test was first run against a
+mutated implementation — the version write removed, the match put back on
+`field` — and each failed there before passing here. All four UI journeys pass,
+including the Pack selection journey that drives the library.
+
+**Learned** An identifier the app controls and a string the reader reads are two
+different things, and `field` was quietly doing both jobs. The failure mode that
+matters is not landing on the wrong Pack — it is a guard that falls through
+forever and takes a reader off the update path with no symptom at all.
+
+---
+
 ## 2026-08-20 — The ceiling was real, and the threshold under it was doing nothing (#11)
 
 **Built**

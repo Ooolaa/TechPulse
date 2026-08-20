@@ -40,19 +40,22 @@ enum PackMigration {
         defer { ActivePack.refresh(context: context) }
 
         do {
-            guard let active = ActivePack.load(context: context) else {
+            guard let record = ActivePack.activeRecord(context: context) else {
                 return try openOnTheRememberedPack(context: context)
             }
-            // Only the built-in Pack the reader is on is refreshed, and a
-            // built-in is found by its field: two of them never cover one.
+            // Only the built-in Pack the reader is on is refreshed, and which
+            // one that is comes from `BuiltinPacks.matching` — by file name,
+            // not by the field the reader sees (#19). A record from a build
+            // that stored no file name is recognised by field this once and
+            // adopted onto its file, so the field may move afterwards.
+            let activeBuiltin = adoptBuiltinFileName(of: record, context: context)
             // Readers who upgrade into this build installed their Pack before
             // anything wrote the memory down; this is where they get one.
-            ActivePackIdentity.remember(field: active.field, origin: active.origin)
+            ActivePackIdentity.remember(field: record.field, origin: record.packOrigin,
+                                        builtinFileName: record.builtinFileName)
             let installed = UserDefaults.standard.integer(forKey: installedVersionKey)
-            guard installed < builtinPackVersion, active.origin == .builtin,
-                  let current = BuiltinPacks.all.first(where: { $0.pack.field == active.field })
-            else { return }
-            try install(current.pack, context: context)
+            guard installed < builtinPackVersion, let activeBuiltin else { return }
+            try installBuiltin(activeBuiltin, context: context)
         } catch {
             // A broken built-in Pack is a broken build, but crashing a
             // returning reader's launch over it would be worse than opening
@@ -70,36 +73,76 @@ enum PackMigration {
     /// bury a map the reader chose.
     private static func openOnTheRememberedPack(context: ModelContext) throws {
         guard let remembered = ActivePackIdentity.recalled else {
-            return try install(BuiltinPacks.aiEngineer(), context: context)
+            return try installBuiltin(BuiltinPacks.aiEngineerBuiltin(), context: context)
         }
         // The record may be intact and merely not active — a Pack switch that
         // did not finish, say. Nothing was lost, so nothing needs rebuilding.
+        // Recognised by file name where both sides have one, so a built-in
+        // renamed since it was installed is still found; by field otherwise.
         let stored = (try? context.fetch(FetchDescriptor<InstalledPack>())) ?? []
-        if let intact = stored.filter({ $0.field == remembered.field })
-            .max(by: { $0.installedAt < $1.installedAt }) {
+        let sameFile = stored.filter {
+            $0.builtinFileName != nil && $0.builtinFileName == remembered.builtinFileName
+        }
+        let candidates = sameFile.isEmpty ? stored.filter { $0.field == remembered.field }
+                                          : sameFile
+        if let intact = candidates.max(by: { $0.installedAt < $1.installedAt }) {
             return try PackInstaller.reactivate(intact, context: context)
         }
         // A built-in ships with the app, so it comes back whole — Stages,
-        // specialty Cluster, suggested Sources and all.
+        // specialty Cluster, suggested Sources and all. Which one it is comes
+        // from the file name where there is one, so a reader whose Pack has
+        // been renamed since gets their Pack back rather than the flagship.
         if remembered.origin == .builtin {
-            let builtin = BuiltinPacks.all.first { $0.pack.field == remembered.field }
-            // A built-in whose field no longer ships cannot be rebuilt as one:
-            // the version bump finds a built-in *by field*, so a record naming
-            // a Pack no build has could never be updated again. The flagship is
-            // the honest answer, and it is what this reader got before.
-            return try install(builtin?.pack ?? BuiltinPacks.aiEngineer(), context: context)
+            // A Pack no build ships cannot be rebuilt as a built-in: nothing
+            // would recognise the record again, so it could never be updated.
+            // The flagship is the honest answer, and it is what this reader
+            // got before.
+            return try installBuiltin(BuiltinPacks.matching(remembered)
+                                      ?? BuiltinPacks.aiEngineerBuiltin(),
+                                      context: context)
         }
         // A Pack the reader brought or generated is not kept as a file, so it
         // cannot be reinstalled — but the map it made outlived it.
         if try PackInstaller.adoptSurvivingMap(remembered, context: context) != nil { return }
         // Nothing survived either: an empty store that remembers a Pack is a
         // reader who has been reset, not one who lost anything.
-        try install(BuiltinPacks.aiEngineer(), context: context)
+        try installBuiltin(BuiltinPacks.aiEngineerBuiltin(), context: context)
     }
 
-    private static func install(_ pack: PackFile, context: ModelContext) throws {
-        try PackInstaller.install(pack, origin: .builtin, context: context)
+    /// Installs a Pack that ships with the app.
+    ///
+    /// Every built-in install goes through here, wherever the reader chose it
+    /// — launch, or picking one out of the library. Recording the version is
+    /// why: a version left unrecorded has the next launch re-run a full install
+    /// of the Pack the reader just installed, deleting and recreating every
+    /// Dependency for nothing (#19).
+    static func installBuiltin(_ builtin: BuiltinPacks.Builtin,
+                               context: ModelContext) throws {
+        try PackInstaller.install(builtin.pack, origin: .builtin,
+                                  builtinFileName: builtin.fileName, context: context)
         UserDefaults.standard.set(builtinPackVersion, forKey: installedVersionKey)
+    }
+
+    /// The built-in Pack this record is the app's copy of, writing the file
+    /// name onto a record that predates it.
+    ///
+    /// The write is the point: it happens whether or not there is anything to
+    /// install, so the one field-based match each such record ever needs is
+    /// spent on the launch after this ships — while the field still matches.
+    ///
+    /// Which is the one ordering rule this carries: **a built-in Pack's `field`
+    /// must not be rewritten in the same build that first stores file names**,
+    /// or a reader upgrading straight into that build has their single match
+    /// tried against a field that has already moved, and is stranded by exactly
+    /// the bug this closes. One shipped build apart is enough.
+    private static func adoptBuiltinFileName(of record: InstalledPack,
+                                             context: ModelContext) -> BuiltinPacks.Builtin? {
+        guard let builtin = BuiltinPacks.matching(record) else { return nil }
+        if record.builtinFileName != builtin.fileName {
+            record.builtinFileName = builtin.fileName
+            try? context.save()
+        }
+        return builtin
     }
 
     /// Gives an already-installed Pack the Semantic Links it never got.
