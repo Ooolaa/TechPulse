@@ -19,6 +19,7 @@ final class TechPulseUITests: XCTestCase {
     func testCoreJourney() throws {
         let journey = Journey("core journey", steps: [
             .required("0-onboarding"),
+            .required("0b-reading-intention"),
             .required("1-feed"),
             .required("1b-hot-topics-filter"),
             .required("2-article"),
@@ -56,7 +57,20 @@ final class TechPulseUITests: XCTestCase {
         journey.snap("0-onboarding")
         XCTAssertTrue(continueButton.isEnabled, "Continue disabled despite preselected topics")
         continueButton.tap()
-        journey.waitUntilGone(continueButton, "onboarding never dismissed")
+        journey.waitUntilGone(continueButton, "the topics step never gave way")
+
+        // Then the Reading Intention: when reading happens, and the routine it
+        // follows (#15). Skipped rather than accepted, because accepting raises
+        // the system's permission alert, which is not this app's to dismiss —
+        // and "declining changes nothing else" is the property worth walking.
+        let routine = app.buttons["routineChip"].firstMatch
+        journey.waitFor(routine, "the Reading Intention step never appeared")
+        journey.tap(routine, "a suggested routine")
+        journey.snap("0b-reading-intention")
+        let skip = app.buttons["intentionSkip"].firstMatch
+        journey.waitFor(skip, "the intention step offered no way past it")
+        skip.tap()
+        journey.waitUntilGone(skip, "onboarding never dismissed")
 
         // The first Article means the first Source landed, not that the sync
         // finished — the header says which, so wait for what it says.

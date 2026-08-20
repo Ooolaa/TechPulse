@@ -96,7 +96,10 @@ _Avoid_: feed, channel, subscription, publisher
 
 **Reading Intention**:
 The user's own stated plan for when reading happens — a time, and the existing
-routine it follows. Declared once, and the thing a reminder is derived from.
+routine it follows. Stated by the reader rather than inferred from their
+behaviour, changeable afterwards, and the thing a reminder is derived from. The
+notification itself is a **reminder** — that word names what arrives, never the
+intention it came from.
 _Avoid_: reminder, schedule, goal, notification setting
 
 **Streak**:

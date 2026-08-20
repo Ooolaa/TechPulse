@@ -22,6 +22,13 @@ Streak, today's count, the number of Lit Concepts and the Next Dot's name — in
 an App Group container shared with the TechPulse widget. It stays on the device
 and is readable only by this app and its own widget.
 
+Your Reading Intention — the time you said you read, and the routine you said it
+follows — is kept in the app's own preferences, and the reminder derived from it
+is a **local** notification: scheduled on this device, delivered by this device.
+No push service is involved, so nothing about when or whether you read is sent
+anywhere. Turning the reminder off, or refusing the permission, changes nothing
+else in the app.
+
 ## Network traffic
 
 This section is the whole of it. Everything the app sends off the device has a

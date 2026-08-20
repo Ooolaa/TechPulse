@@ -2,7 +2,10 @@ import Foundation
 import SwiftData
 import WidgetKit
 
-/// Bridges the app's store to the widget's snapshot file.
+/// Bridges the app's store to what the reader sees while they are not in the
+/// app: the widget's snapshot file, and the reminder their Reading Intention
+/// asks for. Both are the same day's state pointed outward, and both are wrong
+/// the moment a read lands and nothing tells them.
 ///
 /// Kept apart from `HabitEngine` so that engine stays free of WidgetKit.
 @MainActor
@@ -28,6 +31,19 @@ enum WidgetRefresh {
                                             concepts: concepts,
                                             dependencies: dependencies,
                                             dailyGoal: dailyGoal)
+
+        // Ahead of the widget's own change check: a read that leaves the
+        // snapshot identical still moves the reminder to tomorrow, because what
+        // it asks for has been done. What is *waiting* is what arrived recently
+        // and has not been read — the feed the reader would actually open, not
+        // every unread row the store has ever held.
+        let recent = Calendar.current.date(byAdding: .day, value: -2, to: .now) ?? .distantPast
+        let unread = articles.count { !$0.isRead && $0.publishedAt >= recent }
+        Task {
+            await ReminderScheduler.reschedule(waiting: unread,
+                                               streakDays: snapshot.streakDays,
+                                               hasReadToday: snapshot.readToday > 0)
+        }
 
         // generatedAt always differs; compare everything else.
         if var previous = WidgetSnapshot.load() {

@@ -10,6 +10,65 @@
 
 ---
 
+## 2026-08-20 — The cue that reaches you (#15)
+
+**Built**
+- **A Reading Intention, stated at onboarding.** A third step asks when reading
+  happens and what it follows — four suggested routines and "something else"
+  with a field, then a time. Atomic Habits' point is that a new habit sticks to
+  an existing one, so the reminder names the thing the reader already does:
+  *"After your evening coffee — read one article to keep your 12-day streak."*
+- **Every decision is in `ReadingReminder`, which is pure.** When it fires, what
+  it says, whether it fires at all, all taking an injected `now` and `Calendar`.
+  So the arithmetic is testable and the system call is not worth testing: 21:00
+  stays 21:00 across a daylight-saving change and across time zones, because the
+  fire time is matched on wall-clock components rather than by adding a day's
+  worth of seconds.
+- **Quiet on a day already read.** `WidgetRefresh` re-arms the reminder from the
+  same snapshot it hands the widget — both are the day's state pointed outward,
+  and both are wrong the moment a read lands and nothing tells them.
+- **Local, and nothing new leaves the device.** `Egress` is unchanged: a local
+  notification is scheduled on the device by the device. `PRIVACY.md` says so
+  under "Where your data lives" rather than in the enumerated list, because
+  there is nothing to enumerate.
+
+**What review caught, which was most of the value**
+- **The first evening's reminder would never have arrived.** Onboarding stored
+  the intention and armed nothing; the only other caller runs at launch, before
+  onboarding is on screen.
+- **A reader who stopped opening the app would have got exactly one reminder,
+  ever** — a single non-repeating request, re-armed only by a read or a launch.
+  That is precisely the reader this feature exists for. Now a week of days is
+  armed at once, one request each, so being quiet on a read day stays possible;
+  a repeating trigger cannot skip a day.
+- **"Asking again is free once refused" was false.** iOS asks once, and a later
+  request returns a silent no — leaving a switch on with nothing behind it.
+  Settings now says where the switch really lives.
+- **`replacingOccurrences(of: "my ")` is a substring match**, so "after my tummy
+  time" became "after your tuyour time". And an empty routine — what "something
+  else" sets before anything is typed — rendered a notification with no title at
+  all. Both are `ReadingIntention.displayRoutine` now, matched on a word
+  boundary and treating whitespace as nothing stated.
+- **A midnight intention lost a day** on an already-read day: `startOfDay` plus
+  an exclusive search skipped the day it belonged to.
+- Typing a routine in Settings re-ran a three-model store fetch, a snapshot and a
+  widget reload **per keystroke**. Storing is cheap and still per-edit; arming
+  waits for the time to move or the section to close.
+
+**Verified** 333 unit tests, 17 new — the whole of the scheduling and the copy,
+including the day boundary, the daylight-saving change, the time-zone move, the
+seven-day window, and the promise that the reminder never scolds. All four UI
+journeys pass, with `0b-reading-intention` as a required step whose screenshot
+has to be from this run.
+
+**Learned** The two product decisions worth asking about — how the routine is
+captured, and what the reminder says — took one question each and would have
+been guesses otherwise. Everything after that was mine to get wrong, and the
+review found six of them, four in the seam between a correct pure function and
+the system that was supposed to call it. The arithmetic was never the risk.
+
+---
+
 ## 2026-08-20 — The filed hypothesis was wrong, and two real ways to reach the symptom were under it (#38)
 
 **Built**

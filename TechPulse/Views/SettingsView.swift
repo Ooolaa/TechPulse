@@ -10,6 +10,8 @@ struct SettingsView: View {
     @AppStorage("dailyReadingGoal") private var dailyGoal = 3
     @State private var keyInput = ""
     @State private var hasKey = KeychainStore.hasAnthropicKey
+    @State private var intention = ReminderScheduler.intention
+    @State private var notificationsRefused = false
 
     private var lastSynced: Date? {
         sources.compactMap(\.lastFetched).max()
@@ -23,6 +25,13 @@ struct SettingsView: View {
     private var storageUsed: String {
         ByteCountFormatter.string(fromByteCount: StoreSize.onDisk(StoreSize.appStoreURL),
                                   countStyle: .file)
+    }
+
+    /// Re-arms the reminder from the current intention. Separate from storing
+    /// it, because storing is a `UserDefaults` write and arming walks the store.
+    private func rearmReminder() {
+        ReminderScheduler.intention = intention
+        WidgetRefresh.refresh(context: modelContext)
     }
 
     private var grouped: [(category: String, sources: [FeedSource])] {
@@ -85,6 +94,51 @@ struct SettingsView: View {
                     LabeledContent("Storage used", value: storageUsed)
                 } header: {
                     SettingsHeader("Sync & Storage")
+                }
+                Section {
+                    Toggle("Remind me to read", isOn: Binding(
+                        get: { intention.isOn },
+                        set: { isOn in
+                            intention.isOn = isOn
+                            ReminderScheduler.intention = intention
+                            if isOn {
+                                Task {
+                                    // The system asks once. After a refusal
+                                    // this returns false having shown nothing,
+                                    // so the only honest thing is to say where
+                                    // the switch actually lives.
+                                    await ReminderScheduler.requestPermission()
+                                    notificationsRefused = await ReminderScheduler.permissionRefused()
+                                    WidgetRefresh.refresh(context: modelContext)
+                                }
+                            } else {
+                                notificationsRefused = false
+                                ReminderScheduler.cancel()
+                            }
+                        }
+                    ))
+                    .accessibilityIdentifier("reminderToggle")
+                    if intention.isOn {
+                        ReadingIntentionStep(intention: $intention, showsHeading: false)
+                            // Stored on every edit, which is cheap; re-armed
+                            // only when the *time* moves or the section is
+                            // left, so typing a routine does not re-run a store
+                            // fetch and a widget reload per keystroke.
+                            .onChange(of: intention) { ReminderScheduler.intention = intention }
+                            .onChange(of: intention.hour) { rearmReminder() }
+                            .onChange(of: intention.minute) { rearmReminder() }
+                            .onDisappear { rearmReminder() }
+                        if notificationsRefused {
+                            Link("Notifications are off for TechPulse — turn them on in Settings",
+                                 destination: URL(string: UIApplication.openSettingsURLString)!)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.stateLearning)
+                        }
+                    }
+                } header: {
+                    SettingsHeader("Reading Intention")
+                } footer: {
+                    Text("The reminder is a local notification, scheduled on this device. It stays quiet on days you have already read.")
                 }
                 Section {
                     Picker("Text size", selection: $textSize) {

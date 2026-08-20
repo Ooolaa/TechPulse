@@ -58,7 +58,7 @@ enum UITestSupport {
     /// onboarding in whatever state the last run left them.
     private static let seedingDefaultsKeys = [
         "hasOnboarded", "resumeKnowledgeSeeded", "builtinPackVersion", "knowledgePackVersion",
-    ]
+    ] + ReminderScheduler.defaultsKeys
 
     static var isResetRequested: Bool {
         ProcessInfo.processInfo.arguments.contains(resetStoreArgument)

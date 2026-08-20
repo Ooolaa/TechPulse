@@ -2,12 +2,15 @@ import SwiftUI
 import SwiftData
 
 /// First-run onboarding (design 3a): pick ≥3 topics and toggle suggested
-/// sources. Topics are stored for feed personalization; source toggles bind
-/// directly to the seeded FeedSources.
+/// sources, then say when reading happens. Topics are stored for feed
+/// personalization; source toggles bind directly to the seeded FeedSources;
+/// the Reading Intention is what the reader's reminder is derived from (#15).
 struct OnboardingView: View {
     @Query(sort: \FeedSource.name) private var sources: [FeedSource]
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @AppStorage("selectedTopics") private var selectedTopicsData = "LLMs,Agents,On-device AI"
+    @State private var isStatingIntention = false
+    @State private var intention = ReadingIntention.unset
 
     static let allTopics = ["LLMs", "Agents", "Vision", "Interpretability", "Robotics",
                             "Chips & hardware", "Open source", "Policy & safety",
@@ -24,6 +27,66 @@ struct OnboardingView: View {
     }
 
     var body: some View {
+        Group {
+            if isStatingIntention { intentionStep } else { topicsStep }
+        }
+        .padding(.horizontal, 24)
+        .background(Theme.background)
+    }
+
+    /// The reminder the reader just asked for, set up in the moment they asked —
+    /// which is the one point where what the permission is for is on screen.
+    /// Refusing it costs them nothing else: the intention is still theirs, and
+    /// Settings can ask again without a reinstall.
+    private var intentionStep: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 5) {
+                Capsule().fill(Theme.stateLearning).frame(height: 4)
+                Capsule().fill(Theme.stateLearning).frame(height: 4)
+                Capsule().fill(Theme.stateLearning).frame(height: 4)
+            }
+            .padding(.top, 14)
+
+            ReadingIntentionStep(intention: $intention)
+
+            Spacer()
+
+            Button {
+                Task {
+                    if intention.isOn { await ReminderScheduler.requestPermission() }
+                    ReminderScheduler.intention = intention
+                    // Arm it here: the only other caller is `WidgetRefresh`,
+                    // and launch ran it before onboarding existed on screen —
+                    // so without this the first evening's reminder never came.
+                    await ReminderScheduler.reschedule(waiting: 0, streakDays: 0,
+                                                       hasReadToday: false)
+                    hasOnboarded = true
+                }
+            } label: {
+                Text(intention.isOn ? "Remind me then" : "Continue")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(Theme.stateLearning, in: RoundedRectangle(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("intentionContinue")
+
+            Button("Not now") {
+                intention.isOn = false
+                ReminderScheduler.intention = intention
+                hasOnboarded = true
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Theme.textTertiary)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            .accessibilityIdentifier("intentionSkip")
+        }
+    }
+
+    private var topicsStep: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 5) {
                 Capsule().fill(Theme.stateLearning).frame(height: 4)
@@ -84,7 +147,7 @@ struct OnboardingView: View {
             }
 
             Button {
-                hasOnboarded = true
+                isStatingIntention = true
             } label: {
                 Text("Continue · \(selectedTopics.count) topic\(selectedTopics.count == 1 ? "" : "s")")
                     .font(.system(size: 16, weight: .bold))
@@ -109,8 +172,6 @@ struct OnboardingView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 8)
         }
-        .padding(.horizontal, 24)
-        .background(Theme.background)
     }
 
     private func topicChip(_ topic: String) -> some View {
