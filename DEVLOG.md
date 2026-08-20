@@ -10,6 +10,61 @@
 
 ---
 
+## 2026-08-20 — A term the field keeps saying, offered rather than added (#13)
+
+**Built**
+- **`HotTopics.candidates` is what #12 was for.** A rising term with nothing on
+  the map that already means it is offered in the 🔥 lane, where the reader is
+  already looking at the Articles the term came from.
+- **Already on the map means three things**, and the third is why this is not a
+  string comparison: a Concept named it, a Concept whose name covers it, or a
+  Concept that *means* it. "Retrieval augmentation" against a map holding "RAG"
+  is a duplicate the reader would have to notice was a duplicate.
+- **Offered, never added.** ADR-0001 makes the map the reader's; a dot that
+  appeared because an article said something twice would not be. `candidates`
+  writes nothing and a test asserts it, and `adopt` has exactly one caller — a
+  button.
+- **Accepting lands the Concept in its own Cluster.** `WordSelection.cluster` is
+  kept outside `clusterOrder` so looked-up words can never inflate the Pack's
+  progress; a term the reader accepted arrives the same way, so it goes to
+  "Rising" rather than into the flagship's own "Hot Topics" Cluster.
+- **Meaning is judged on vectors, embedded once each.** `NLEmbedding.distance`
+  embeds both arguments per call, so a full lane against the flagship Pack was
+  1,088 embeddings — measured at 3.1s on the main actor, inside a view update.
+  Embedded once each it is 76, and the guard that caught it stays in the suite.
+
+**What review caught**
+- **The membership test was symmetric and should not have been.** It reused
+  `HotTerm.shares(words:)`, which collapses a ranked lane where either direction
+  is the same story. As a map test it also suppressed "attention sinks" for a
+  map holding "Attention" — silencing precisely the extensions this feature
+  exists to catch.
+- **The accepted term was offered again.** The strip re-ran the ranking after
+  adopting, reading `allConcepts` — the `@Query` array of the body pass that had
+  not refreshed yet. Dropping the chip directly is both correct and cheaper.
+- **The chip said "+ world model" and made "World Model".** The offer now names
+  what it will create.
+
+**Verified** 365 unit tests, 14 new. All four UI journeys pass.
+
+**One criterion is not fully met, and it is worth being exact.** "Behaves as any
+other Concept" holds for Mastery, the map, marking known and being lit by
+reading — but an adopted Concept arrives with no definition, and `QuizEngine`
+only asks about Concepts that have one. Writing a definition means asking a
+model, and `IntelligenceService.define` routes through `ExplainTier`, which can
+choose the opt-in path: sending a term to Anthropic because it got hot, rather
+than because the reader asked what it means, is egress ADR-0006 never
+enumerated. That is a decision to take deliberately and record, not a side
+effect of a button, so the ticket ships with the gap named in `adopt`'s own doc.
+
+**Learned** Two of this ticket's defects came from reuse: a symmetric helper
+borrowed for an asymmetric question, and a `@Query` array read a moment before
+it could have been right. Both looked like the tidy option. The one that cost
+three seconds of main-actor time was reuse too — of a convenience API that
+re-does the expensive half of its work on every call.
+
+---
+
 ## 2026-08-20 — What is hot is what your own Sources started saying (#12)
 
 **Built**

@@ -13,6 +13,10 @@ struct FeedView: View {
     /// tokenises every recent Article, and `filteredArticles` is recomputed
     /// whenever this view's body is. Same reason `ActivePack` caches.
     @State private var hotTerms: [String] = []
+    /// Rising terms with nothing on the map that already means them (#13).
+    /// Offered in the 🔥 lane, where the reader is already looking at what the
+    /// terms came from.
+    @State private var candidates: [HotTerm] = []
     @State private var isSyncing = false
     @State private var searchText = ""
     // Atomic Habits: start tiny (3/day), make progress visible, reward completion.
@@ -61,7 +65,9 @@ struct FeedView: View {
     }
 
     private func observeHotTerms() {
-        hotTerms = HotTopics.rising(in: articles).map(\.text)
+        let rising = HotTopics.rising(in: articles)
+        hotTerms = rising.map(\.text)
+        candidates = HotTopics.candidates(from: rising, concepts: allConcepts)
     }
 
     /// Day sections (design 2a): TODAY / YESTERDAY / explicit date.
@@ -85,6 +91,7 @@ struct FeedView: View {
             VStack(spacing: 12) {
                 header
                 categoryChips
+                if showHotOnly && !candidates.isEmpty { candidateStrip }
                 if filteredArticles.isEmpty {
                     // "No articles yet" is about an empty feed. A feed with
                     // plenty in it and nothing rising is a different sentence,
@@ -383,6 +390,50 @@ struct FeedView: View {
             .padding(.bottom, 8)
         }
         .refreshable { await sync() }
+    }
+
+    /// Terms the reader's Sources keep using that their map has no dot for.
+    ///
+    /// An offer, never an addition: ADR-0001 makes the map the reader's, and a
+    /// Concept that appeared because an article said something twice would not
+    /// be. Tapping one puts it on the map; ignoring it is an answer too, and
+    /// costs nothing.
+    private var candidateStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Keeps coming up — add to your map?")
+                .font(.system(size: 12, weight: .bold))
+                .kerning(0.8)
+                .textCase(.uppercase)
+                .foregroundStyle(Theme.textTertiary)
+            FlowLayout(spacing: 7) {
+                ForEach(candidates, id: \.text) { candidate in
+                    Button {
+                        HotTopics.adopt(candidate, context: modelContext)
+                        try? modelContext.save()
+                        // Dropped here rather than by recomputing: `allConcepts`
+                        // is the array this body pass captured, and it does not
+                        // refresh in time — asking again would offer the term
+                        // that was just accepted.
+                        candidates.removeAll { $0.text == candidate.text }
+                    } label: {
+                        // Named as it will be created, so the offer and the dot
+                        // it makes are the same words.
+                        Text("+ \(HotTopics.adoptedName(candidate))")
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundStyle(Theme.textLabel)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(Theme.card, in: Capsule())
+                            .overlay(Capsule().strokeBorder(Theme.cardBorder, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("candidateConceptChip")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 10)
     }
 
     /// The 🔥 lane with nothing in it, which is a normal state rather than a

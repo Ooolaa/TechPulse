@@ -1,5 +1,6 @@
 import Foundation
 import NaturalLanguage
+import SwiftData
 
 /// A term the reader's own Sources have started talking about.
 struct HotTerm: Equatable, Sendable {
@@ -69,8 +70,18 @@ struct HotTerm: Equatable, Sendable {
 @MainActor
 enum HotTopics {
 
-    /// The Cluster the rolling "what the world is doing right now" Concepts sit in.
+    /// The Cluster the flagship Pack's rolling Concepts sit in. Pack data, and
+    /// named here only because the Feed's own copy refers to it.
     static let cluster = "Hot Topics"
+
+    /// Where a term the reader accepted lands.
+    ///
+    /// Deliberately *not* a Cluster any Pack names — "Hot Topics" is one of the
+    /// flagship's own, and adopting into it would inflate that Pack's progress
+    /// ("2 of 13 lit") with dots its author never wrote. `WordSelection.cluster`
+    /// is kept outside `clusterOrder` for exactly this reason, and a term the
+    /// reader accepted arrives the same way a looked-up word does.
+    static let adoptedCluster = "Rising"
 
     /// The window the lane describes.
     static let recentDays = 3
@@ -156,6 +167,137 @@ enum HotTopics {
                       !kept.contains(where: { $0.shares(words: term) }) else { return }
                 kept.append(term)
             }
+    }
+
+    // MARK: Terms with nowhere to go on the map
+
+    /// How many candidates are offered at once. An invitation, not a backlog:
+    /// a reader shown twenty things to add adds none of them.
+    static let candidateLimit = 3
+
+    /// The distance below which two names are the same idea said twice. Matches
+    /// `KnowledgeEngine.embeddingMatch`, and is conservative for the same
+    /// reason it gives: two Concepts stored separately is a smaller harm than
+    /// two ideas silently merged.
+    static let sameIdeaDistance = 0.25
+
+    /// Rising terms the reader's map has no room for yet.
+    ///
+    /// A term is already on the map if a Concept is named it, contains it as
+    /// words, or *means* it — "retrieval augmentation" against a map holding
+    /// "RAG" is a duplicate the reader would have to notice was a duplicate.
+    ///
+    /// Meaning is judged on vectors rather than by asking for a distance per
+    /// pair, and the difference is not academic: `NLEmbedding.distance` embeds
+    /// both of its arguments every call, so a full lane against the flagship
+    /// Pack was 1,088 embeddings and two seconds inside a view update. Embedded
+    /// once each, it is 76 and a few milliseconds. `vector` is injected for the
+    /// same reason `SemanticLinker` injects it — so these rules can be tested
+    /// against vectors a test chooses rather than whatever Apple's model
+    /// believes about AI jargon.
+    ///
+    /// Offers only. Nothing here writes to the store: ADR-0001 keeps the map
+    /// the reader's, and a Concept that appeared because an article mentioned
+    /// something twice is not theirs.
+    static func candidates(from terms: [HotTerm], concepts: [Concept],
+                           vector: @MainActor (String) -> [Double]? = SemanticLinker.embed)
+    -> [HotTerm] {
+        let names = concepts.map { $0.name.lowercased() }
+        // Embedded lazily: a term that matches by name never asks for meaning,
+        // and a reader with nothing rising never embeds anything at all.
+        var mapVectors: [[Double]]?
+
+        var offered: [HotTerm] = []
+        for term in terms where offered.count < candidateLimit {
+            let text = term.text.lowercased()
+            // One direction only. A Concept named "World Model Research" already
+            // covers "world model", so that term is a duplicate — but a map
+            // holding "Attention" does *not* cover "attention sinks", and
+            // suppressing that would silence the extensions this exists to
+            // catch. `shares(words:)` is symmetric because collapsing a ranked
+            // lane wants it to be; membership does not.
+            let named = names.contains { name in
+                name == text || covers(name, text)
+            }
+            if named { continue }
+
+            if mapVectors == nil { mapVectors = names.map { vector($0) ?? [] } }
+            let termVector = vector(text) ?? []
+            let meant = zip(names, mapVectors ?? []).contains { _, mapVector in
+                cosineDistance(termVector, mapVector).map { $0 < sameIdeaDistance } ?? false
+            }
+            if !meant { offered.append(term) }
+        }
+        return offered
+    }
+
+    /// Whether a Concept's name already says the whole of this term, as words.
+    private static func covers(_ name: String, _ term: String) -> Bool {
+        let haystack = name.split(separator: " ")
+        let needle = term.split(separator: " ")
+        guard needle.count <= haystack.count else { return false }
+        return (0...(haystack.count - needle.count)).contains { start in
+            Array(haystack[start..<(start + needle.count)]) == needle
+        }
+    }
+
+    /// 0 when two vectors point the same way, 1 when they are unrelated — the
+    /// same scale `NLEmbedding.distance` reports, so `sameIdeaDistance` means
+    /// what it means everywhere else in the app.
+    private static func cosineDistance(_ left: [Double], _ right: [Double]) -> Double? {
+        guard left.count == right.count, !left.isEmpty else { return nil }
+        let dot = zip(left, right).reduce(0) { $0 + $1.0 * $1.1 }
+        let magnitude = (left.reduce(0) { $0 + $1 * $1 }).squareRoot()
+            * (right.reduce(0) { $0 + $1 * $1 }).squareRoot()
+        guard magnitude > 0 else { return nil }
+        return 1 - dot / magnitude
+    }
+
+    /// Puts an accepted candidate on the map, or hands back the Concept that
+    /// turned out to already be there.
+    ///
+    /// Title-cased, because every other Concept is: a Pack names "World Model",
+    /// and a term lifted from a headline should not sit beside it in lower
+    /// case. New and unlit, like any Concept a Pack brings — what the reader
+    /// knows is theirs to earn, not something accepting an offer grants.
+    ///
+    /// It arrives with no definition, which is the one way it does not behave
+    /// like a Pack's Concept: `QuizEngine` only asks about Concepts that have
+    /// one, so an adopted term cannot be quizzed until something writes it.
+    /// Writing one means asking a model, and `IntelligenceService.define`
+    /// routes through `ExplainTier` — which can choose the opt-in path. Sending
+    /// a term to Anthropic because it got hot, rather than because the reader
+    /// asked what it means, would be egress ADR-0006 never enumerated. That is
+    /// a decision to take deliberately, not a side effect of this button.
+    @discardableResult
+    static func adopt(_ term: HotTerm, context: ModelContext) -> Concept? {
+        let prior = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
+        var cache = Dictionary(prior.map { ($0.name.lowercased(), $0) },
+                               uniquingKeysWith: { first, _ in first })
+        guard let concept = KnowledgeEngine.findOrCreateConcept(
+            named: adoptedName(term), category: adoptedCluster, definition: "",
+            context: context, cache: &cache
+        ) else { return nil }
+
+        // Unlit, the way `PackInstaller` starts a Pack's Concepts — accepting
+        // an offer puts a dot on the map, it does not claim the reader knows
+        // anything. Only for a Concept that was not already there: this may
+        // have matched something they have been reading about for weeks, and
+        // `isNewlyCreated` is the check that tells the two apart.
+        if KnowledgeEngine.isNewlyCreated(concept, priorConcepts: prior) {
+            concept.masteryLevel = 0
+        }
+        return concept
+    }
+
+    /// The name an accepted term will carry on the map — the offer says this,
+    /// so the chip and the dot it makes read the same.
+    static func adoptedName(_ term: HotTerm) -> String { titleCased(term.text) }
+
+    private static func titleCased(_ text: String) -> String {
+        text.split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 
     /// How many of these Articles mention each term — documents, not mentions,
