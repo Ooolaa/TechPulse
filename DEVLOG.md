@@ -61,6 +61,21 @@ seven-day window, and the promise that the reminder never scolds. All four UI
 journeys pass, with `0b-reading-intention` as a required step whose screenshot
 has to be from this run.
 
+**Then somebody looked at it.** 333 tests and four green journeys had passed on
+a screen that was two-thirds empty and used a blue selected chip where the whole
+app uses a near-black one with a tick. The suite proved the arithmetic, the
+wiring and the copy, and had nothing to say about whether anyone would want to
+look at it. The chip now matches the topics step it sits one screen after, and
+the space is filled by the thing the reader is actually agreeing to: a preview
+of the notification, built from the same `ReadingReminder.copy` the notification
+uses, so what is promised on screen cannot drift from what arrives. It also puts
+the "my" → "your" rewrite in front of the reader, which is where a wrong one
+would have been noticed.
+
+The journey now settles before the shutter. Its screenshot had caught the chip
+mid-tap, which cost a round of reading contrast off a pressed state and nearly
+cost a fix to a chip that was never wrong.
+
 **Learned** The two product decisions worth asking about — how the routine is
 captured, and what the reminder says — took one question each and would have
 been guesses otherwise. Everything after that was mine to get wrong, and the

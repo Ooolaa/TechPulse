@@ -66,6 +66,10 @@ final class TechPulseUITests: XCTestCase {
         let routine = app.buttons["routineChip"].firstMatch
         journey.waitFor(routine, "the Reading Intention step never appeared")
         journey.tap(routine, "a suggested routine")
+        // Let the tap finish before the shutter: a screenshot of the pressed
+        // state is evidence of the wrong thing, and reading contrast off one is
+        // how a chip gets "fixed" for a problem it never had.
+        journey.settle("the chosen routine to settle")
         journey.snap("0b-reading-intention")
         let skip = app.buttons["intentionSkip"].firstMatch
         journey.waitFor(skip, "the intention step offered no way past it")

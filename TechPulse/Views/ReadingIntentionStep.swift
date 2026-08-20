@@ -82,18 +82,61 @@ struct ReadingIntentionStep: View {
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 14)
                 .accessibilityIdentifier("intentionTime")
+
+            if showsHeading { preview.padding(.top, 22) }
         }
     }
 
+    /// What will actually arrive, in the shape it will arrive in — built from
+    /// the same `ReadingReminder.copy` the notification uses, so the promise on
+    /// screen cannot drift from the one the reader gets.
+    private var preview: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("You'll see")
+                .font(.system(size: 12, weight: .bold))
+                .kerning(0.8)
+                .textCase(.uppercase)
+                .foregroundStyle(Theme.textTertiary)
+
+            let words = ReadingReminder.copy(for: intention, waiting: 3, streakDays: 0)
+            HStack(alignment: .top, spacing: 11) {
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(Theme.stateLearning)
+                    .frame(width: 38, height: 38)
+                    .overlay(Text("TP").font(.system(size: 13, weight: .heavy))
+                        .foregroundStyle(.white))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(words.title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(words.body)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.textStrong)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.cardBorder, lineWidth: 1))
+
+            Text("Nothing arrives on a day you have already read.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textTertiary)
+        }
+    }
+
+    /// The same chip the topics step uses — a selected one is the dark capsule
+    /// with a tick, not a second visual language for the same gesture.
     private func routineChip(_ label: String, isSelected: Bool,
                              _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(label)
+            Text(isSelected ? "✓ \(label)" : label)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : Theme.textSecondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(isSelected ? Theme.stateLearning : Theme.card, in: Capsule())
+                .foregroundStyle(isSelected ? Theme.card : Theme.textLabel)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(isSelected ? Theme.textPrimary : Theme.card, in: Capsule())
                 .overlay(Capsule().strokeBorder(isSelected ? .clear : Theme.cardBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
