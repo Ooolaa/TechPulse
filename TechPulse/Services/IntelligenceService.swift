@@ -85,7 +85,12 @@ enum IntelligenceService {
                 instructions: "You extract technical concepts from tech/AI news articles."
             )
             let prompt = "\(article.title)\n\n\(body)"
-            if let response = try? await session.respond(to: prompt, generating: ArticleAnalysis.self) {
+            if let response = try? await session.respond(to: prompt, generating: ArticleAnalysis.self),
+               !response.content.concepts.isEmpty {
+                // An answer naming no Concept is not better information than
+                // the Pack's own vocabulary sitting in the text, and taking it
+                // would retire the Article from analysis having attached
+                // nothing (#38).
                 return response.content
             }
         }

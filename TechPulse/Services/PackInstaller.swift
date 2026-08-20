@@ -298,6 +298,13 @@ enum PackInstaller {
                 origin: origin)
             context.insert(record)
             try context.save()
+            // An Article analysis found nothing in is offered to it again, now
+            // that there is a different vocabulary to find. `analyzePending`
+            // takes Articles whose summary is nil, so one that came out of
+            // analysis bare stays bare for good otherwise — however much the
+            // map changes underneath it (#38). Articles that did attach
+            // Concepts keep their summary: it may have cost a model call.
+            reopenUnanalyzedArticles(context: context)
             // A second copy of which Pack this is, outside the store, so losing
             // the record is losing the Pack's detail and not its name (#37).
             ActivePackIdentity.remember(field: pack.field, origin: origin)
@@ -380,6 +387,19 @@ enum PackInstaller {
             // Pack that is not there.
             context.rollback()
             throw error
+        }
+    }
+
+    /// Makes Articles that analysis attached nothing to eligible again.
+    ///
+    /// Being analysed is recorded as having a summary, so an Article the
+    /// analyser saw while there was nothing to match — before this Pack's
+    /// Concepts existed — would never be looked at again. Installing a Pack is
+    /// exactly the event that changes the answer, so it is where they reopen.
+    private static func reopenUnanalyzedArticles(context: ModelContext) {
+        for article in (try? context.fetch(FetchDescriptor<Article>())) ?? []
+        where article.concepts.isEmpty && article.summary != nil {
+            article.summary = nil
         }
     }
 

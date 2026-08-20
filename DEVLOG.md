@@ -10,6 +10,66 @@
 
 ---
 
+## 2026-08-20 — The filed hypothesis was wrong, and two real ways to reach the symptom were under it (#38)
+
+**Built**
+- **The loop came first, and killed the theory.** #38 was filed saying analysis
+  waits on an unbounded model call, so the vocabulary fallback cannot run until
+  the model answers. Forty runs of the real `analyzePending` over the planted
+  Article: slowest 0.57s, nothing empty, and `model did not answer; falling
+  back` every time. The model is *reported* available on this simulator and
+  never answers, so the path the ticket blamed is the one path that was always
+  fast. Filing a hypothesis is cheap; that is the argument for the loop.
+- **A wipe that left the reader's Pack behind.** `-uitest-reset-store` says it
+  leaves the app "exactly as a fresh install". It emptied every table and four
+  seeding defaults, and left the two that say which Pack the reader was on —
+  which live in `UserDefaults` precisely so a store wipe cannot reach them
+  (#37). So a wiped launch called `openOnTheRememberedPack`, found no record,
+  and reinstalled the *remembered* Pack. Plant an Article naming AI
+  Engineering's Concepts into a store that came back on Security Engineering
+  and analysis matches none of them: the reader gets an Article with no chip,
+  which is the 90 seconds the journey spends waiting for one.
+- **An Article analysis found nothing in was retired from it for good.**
+  `analyzePending` offers Articles whose `summary` is nil, and `apply` writes a
+  summary whatever it attached. So one pass with the wrong vocabulary — or none
+  at all — is permanent: the map can change underneath it forever and that
+  Article is never looked at again. Installing a Pack is exactly the event that
+  changes the answer, so it now reopens Articles that came out bare. Ones that
+  did attach Concepts keep their summary, which may have cost a model call.
+- **A model answer naming nothing no longer beats the Pack's own words.** The
+  same trap from the other side, on hardware where the model does reply: an
+  answer with an empty `concepts` array was taken over a fallback that can see
+  seven of the Pack's Concepts in the text, and taking it retired the Article.
+
+**Verified** 316 unit tests, 5 new. The two that carry the diagnosis are
+end-to-end at store level and take 1.3s between them: a wiped store must not
+remember the last run's Pack, and a wiped store plus the app's own seeding must
+leave the planted Article with Concepts. Both were red before the fix, with the
+second reporting `active?.field == "Security Engineering"` and zero Concepts —
+the journey's symptom, in one and a third seconds instead of ninety. All four UI
+journeys pass, core at 112s.
+
+**What is not proven.** Neither defect is confirmed as the trigger of the one
+failure actually observed, on 2026-08-19. The suite papers over the first one:
+`testPackSelectionJourney` deliberately switches back to the flagship at the end
+"so the flagship Pack is what the next launch opens on", so the leftover only
+bites when that journey does not finish — an interrupted or failed run poisoning
+the next one. The run before the failure completed cleanly, so that chain does
+not explain it. Five journey runs since have passed. What can be said is that
+two ways to produce exactly this symptom were real, are gone, and are now
+covered by tests that run in seconds.
+
+**Learned** The ticket I filed yesterday named a mechanism, and writing the loop
+took forty minutes to prove it wrong — which is the whole value. Both real
+causes were in the *setup*: what a wipe forgets, and what analysis records about
+an Article it could not do anything with. Neither is in the model path anyone
+would have stared at. Worth naming as a class: a journey's correctness resting
+on another journey's cleanup is the same defect #26 and #30 were about, and it
+survived both because the compensating switch-back is in the test that cleans
+up, not in the one that depends on it.
+
+---
+
 ## 2026-08-19 — Every Pack switch left a full record behind (#18)
 
 **Built**

@@ -64,16 +64,26 @@ enum UITestSupport {
         ProcessInfo.processInfo.arguments.contains(resetStoreArgument)
     }
 
-    /// Empties every model type and clears the seeding defaults, leaving the app
-    /// exactly as a fresh install — the caller then seeds as it always does.
+    /// Empties every model type, clears the seeding defaults, and forgets which
+    /// Pack the reader was on — leaving the app exactly as a fresh install, the
+    /// caller then seeding as it always does. All three, because a fresh
+    /// install remembers nothing anywhere, and the one this used to miss lives
+    /// in `UserDefaults` precisely so a store wipe cannot reach it.
     ///
     /// Deletes row by row rather than with `delete(model:)`: a batch delete does
     /// not maintain inverse relationships, which is how an earlier version of
     /// this codebase left dangling `ConceptLink` rows behind. Order runs from the
     /// rows that reference others to the rows they reference.
+    @MainActor
     static func resetStoreIfRequested(context: ModelContext) {
         guard isResetRequested else { return }
+        resetStore(context: context)
+    }
 
+    /// Separate from the argument check so a test can wipe without launching
+    /// the app, and assert on what a wiped store opens as.
+    @MainActor
+    static func resetStore(context: ModelContext) {
         deleteAll(LearningEvent.self, in: context)
         deleteAll(ConceptLink.self, in: context)
         deleteAll(SemanticLink.self, in: context)
@@ -86,6 +96,15 @@ enum UITestSupport {
         for key in seedingDefaultsKeys {
             UserDefaults.standard.removeObject(forKey: key)
         }
+        // Which Pack the reader was on is remembered outside the store (#37),
+        // which is the point of it — and it means emptying the store does not
+        // touch it. A wipe that left it behind opened the next launch on a Pack
+        // a *previous* journey had switched to, with none of its Concepts in
+        // the store: `openOnTheRememberedPack` reinstalls the remembered Pack,
+        // so the planted Article was matched against the wrong vocabulary and
+        // reached the reader bare (#38).
+        ActivePackIdentity.forget()
+        ActivePack.resetCache()
         try? context.save()
     }
 
