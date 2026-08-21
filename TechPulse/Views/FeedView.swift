@@ -17,6 +17,8 @@ struct FeedView: View {
     /// Offered in the 🔥 lane, where the reader is already looking at what the
     /// terms came from.
     @State private var candidates: [HotTerm] = []
+    /// The pass that fills `candidates`, kept so the next one can cancel it.
+    @State private var hotObservation: Task<Void, Never>?
     @State private var isSyncing = false
     @State private var searchText = ""
     // Atomic Habits: start tiny (3/day), make progress visible, reward completion.
@@ -64,10 +66,45 @@ struct FeedView: View {
         return hotTerms.contains(where: text.contains)
     }
 
+    /// The lane's vocabulary, and the offers that go beside it.
+    ///
+    /// Split across a suspension on purpose. `rising` tokenises Articles
+    /// already in memory and stays here, so the 🔥 filter has its terms the
+    /// moment the feed changes. `candidates` weighs each of them against the
+    /// whole map by meaning, which is two seconds of embedding on a large one —
+    /// and both of this method's callers hold the main actor: `task`, which
+    /// reaches here with nothing awaited in front of it on a launch where no
+    /// Article is pending analysis, and `onChange`, which cannot await at all.
+    /// So it is awaited in a `Task` rather than run here (#49).
+    ///
+    /// The strip is filled only when the whole pass has run. Showing what the
+    /// spelling check alone admits would put chips in front of the reader that
+    /// the meaning check is about to withdraw — the suppression is the point of
+    /// the offer, not a refinement of it. The offer already on screen is left
+    /// standing meanwhile rather than cleared: a sync arrives while the reader
+    /// is looking at the lane, and collapsing the strip on every one of them
+    /// would move the article list under their thumb to say nothing. What is
+    /// shown for that second is what a feed one sync older was rising toward,
+    /// which is where it came from anyway.
+    ///
+    /// A pass still in flight is cancelled, which drops its *result* rather
+    /// than its work — `HotTopics.candidates` has no cancellation check in it,
+    /// and the batch it is inside is one call. That is the whole of what the
+    /// cancellation is for: a sync landing mid-pass would otherwise race it,
+    /// and the older one finishing last would offer terms from a feed that has
+    /// moved on. The work it finishes anyway costs the next pass nothing, since
+    /// `SemanticLinker.embed` memoises across the launch.
     private func observeHotTerms() {
         let rising = HotTopics.rising(in: articles)
         hotTerms = rising.map(\.text)
-        candidates = HotTopics.candidates(from: rising, concepts: allConcepts)
+
+        let concepts = allConcepts
+        hotObservation?.cancel()
+        hotObservation = Task {
+            let offered = await HotTopics.candidates(from: rising, concepts: concepts)
+            guard !Task.isCancelled else { return }
+            candidates = offered
+        }
     }
 
     /// Day sections (design 2a): TODAY / YESTERDAY / explicit date.
@@ -422,6 +459,13 @@ struct FeedView: View {
                             // `allConcepts` is the array this body pass
                             // captured, and it does not refresh in time —
                             // asking again would offer the term just accepted.
+                            //
+                            // Any observation still in flight was started from
+                            // a map without this Concept on it, so letting it
+                            // land would put the chip back after the reader
+                            // took it. Cancelled for the same reason the line
+                            // below does not recompute.
+                            hotObservation?.cancel()
                             candidates.removeAll { $0.text == candidate.text }
                         }
                     } label: {

@@ -36,23 +36,23 @@ struct HotCandidateTests {
     // MARK: What is offered
 
     @Test("a term with nothing like it on the map is a candidate")
-    func unmatchedTermIsOffered() {
-        let candidates = HotTopics.candidates(from: [term("world model")],
+    func unmatchedTermIsOffered() async {
+        let candidates = await HotTopics.candidates(from: [term("world model")],
                                               concepts: [concept("Attention")],
                                               vector: strangers)
         #expect(candidates.map(\.text) == ["world model"])
     }
 
     @Test("a term the map already has by name is not offered again")
-    func exactMatchIsNotOffered() {
-        let candidates = HotTopics.candidates(from: [term("world model")],
+    func exactMatchIsNotOffered() async {
+        let candidates = await HotTopics.candidates(from: [term("world model")],
                                               concepts: [concept("World Model")],
                                               vector: strangers)
         #expect(candidates.isEmpty, "matched on name, ignoring case")
     }
 
     @Test("a rising term the map does not mean is offered, judged by the real embedding")
-    func realEmbeddingStillOffersWhatIsGenuinelyNew() throws {
+    func realEmbeddingStillOffersWhatIsGenuinelyNew() async throws {
         // The other side of the threshold move (#41). Widening it from 0.25 to
         // 0.50 suppresses more, and what it must not suppress is the growth
         // this feature exists to catch. The real embedding, against the whole
@@ -65,20 +65,20 @@ struct HotCandidateTests {
                       "small models"]
 
         for text in rising {
-            let candidates = HotTopics.candidates(from: [term(text)], concepts: concepts)
+            let candidates = await HotTopics.candidates(from: [term(text)], concepts: concepts)
             #expect(candidates.map(\.text) == [text],
                     "“\(text)” was taken for something the map already has")
         }
     }
 
     @Test("a term the map already has, spelled another way, is not offered")
-    func foldedSpellingIsNotOffered() {
+    func foldedSpellingIsNotOffered() async {
         // The plural of a one-word name is further from it, under the
         // embedding, than two distinct ideas are (#41) — so this is the fold's
         // to catch, here as in `ConceptIndex.match`. Offering it would put a
         // chip in front of the reader that adds nothing when tapped: adopting
         // it merges straight back into the Concept they already have.
-        let candidates = HotTopics.candidates(from: [term("benchmarks"), term("kv cache")],
+        let candidates = await HotTopics.candidates(from: [term("benchmarks"), term("kv cache")],
                                               concepts: [concept("Benchmark"),
                                                          concept("KV-Cache")],
                                               vector: strangers)
@@ -86,20 +86,20 @@ struct HotCandidateTests {
     }
 
     @Test("a term the map already has inside a longer Concept name is not offered")
-    func containedNameIsNotOffered() {
-        let candidates = HotTopics.candidates(from: [term("world model")],
+    func containedNameIsNotOffered() async {
+        let candidates = await HotTopics.candidates(from: [term("world model")],
                                               concepts: [concept("World Model Research")],
                                               vector: strangers)
         #expect(candidates.isEmpty)
     }
 
     @Test("a term extending something on the map is still offered")
-    func extensionOfAKnownConceptIsOffered() {
+    func extensionOfAKnownConceptIsOffered() async {
         // The map has "Attention"; the field has started saying "attention
         // sinks". That is the growth this feature exists for, and suppressing
         // it because the shorter name is inside the longer one would silence
         // exactly the terms worth catching.
-        let candidates = HotTopics.candidates(from: [term("attention sinks")],
+        let candidates = await HotTopics.candidates(from: [term("attention sinks")],
                                               concepts: [concept("Attention")],
                                               vector: strangers)
         #expect(candidates.map(\.text) == ["attention sinks"])
@@ -118,11 +118,11 @@ struct HotCandidateTests {
     }
 
     @Test("a term the map already means, in other words, is not offered")
-    func meaningMatchIsNotOffered() {
+    func meaningMatchIsNotOffered() async {
         // "retrieval augmentation" and "RAG" are the same thing said twice.
         // The map has one; offering the other would be a duplicate the reader
         // has to notice is a duplicate.
-        let candidates = HotTopics.candidates(
+        let candidates = await HotTopics.candidates(
             from: [term("retrieval augmentation")], concepts: [concept("RAG")],
             vector: { name in
                 ["retrieval augmentation", "rag"].contains(name) ? [1, 0, 0] : [0, 1, 0]
@@ -131,12 +131,12 @@ struct HotCandidateTests {
     }
 
     @Test("a term merely near something on the map is still offered")
-    func distantMeaningIsStillOffered() {
+    func distantMeaningIsStillOffered() async {
         // The threshold is conservative on purpose: two Concepts stored
         // separately is a smaller harm than two ideas silently merged.
         // Pointing partly the same way — nearer than a stranger, further than
         // the same idea said twice.
-        let candidates = HotTopics.candidates(from: [term("world model")],
+        let candidates = await HotTopics.candidates(from: [term("world model")],
                                               concepts: [concept("RAG")],
                                               vector: { name in
                                                   name == "world model" ? [1, 1, 0] : [1, 0, 0]
@@ -145,18 +145,18 @@ struct HotCandidateTests {
     }
 
     @Test("the offer is bounded, because it is an invitation and not a backlog")
-    func offerIsBounded() {
+    func offerIsBounded() async {
         let terms = (0..<10).map { term("topic \($0)") }
-        #expect(HotTopics.candidates(from: terms, concepts: [], vector: strangers).count
-                <= HotTopics.candidateLimit)
+        let candidates = await HotTopics.candidates(from: terms, concepts: [], vector: strangers)
+        #expect(candidates.count <= HotTopics.candidateLimit)
     }
 
     // MARK: Only offered
 
     @Test("asking what the candidates are does not add any of them")
-    func candidatesAreNotAdded() throws {
+    func candidatesAreNotAdded() async throws {
         let context = try context()
-        _ = HotTopics.candidates(from: [term("world model")], concepts: [], vector: strangers)
+        _ = await HotTopics.candidates(from: [term("world model")], concepts: [], vector: strangers)
         #expect(try context.fetch(FetchDescriptor<Concept>()).isEmpty)
     }
 
@@ -221,11 +221,12 @@ struct HotCandidateTests {
         #expect(try context.fetch(FetchDescriptor<Concept>()).count == 1)
     }
 
-    @Test("offering candidates against a full map does not hold the Feed up")
-    func offerAgainstRealMapIsPrompt() throws {
+    @Test("offering candidates against a full map is prompt")
+    func offerAgainstRealMapIsPrompt() async throws {
         // The default path runs Apple's embedding, and the flagship Pack is 68
-        // Concepts — so a lane of eight terms is up to 544 comparisons, on the
-        // main actor, inside a view update.
+        // Concepts — so a lane of eight terms is up to 544 comparisons. Wall
+        // clock, deliberately: who waits for them is `candidatesDoNotBlockTheMainActor`'s
+        // question, and this one is that the work itself stayed small.
         let context = try context()
         try PackInstaller.install(try BuiltinPacks.aiEngineer(), origin: .builtin,
                                   context: context, vector: { _ in nil })
@@ -233,10 +234,48 @@ struct HotCandidateTests {
         let terms = (0..<HotTopics.laneSize).map { term("candidate topic \($0)") }
 
         let started = Date.now
-        _ = HotTopics.candidates(from: terms, concepts: concepts)
+        _ = await HotTopics.candidates(from: terms, concepts: concepts)
         let elapsed = Date.now.timeIntervalSince(started)
 
         #expect(elapsed < 1, "offering against \(concepts.count) Concepts took \(elapsed)s")
+    }
+
+    @Test("offering candidates against a large map does not freeze the Feed")
+    func candidatesDoNotBlockTheMainActor() async throws {
+        // The seam #49 names. Both of the Feed's callers reach the meaning
+        // check through here — `FeedView.task`, where `analyzePending` returns
+        // straight away on a launch with nothing pending and leaves the map
+        // unembedded, and `.onChange`, a synchronous view callback with
+        // nowhere to await at all — so main-actor time spent here is time the
+        // Feed is not drawn, whichever of them asked.
+        //
+        // The real embedding, at the map size #42 was measured from, and names
+        // unique to this test so the launch-long memo in `SemanticLinker.embed`
+        // is cold whichever order the suite runs in.
+        let context = try context()
+        let concepts = (0..<600).map { number -> Concept in
+            let idea = concept("Offered Idea \(number)")
+            context.insert(idea)
+            return idea
+        }
+        let rising = [term("quiet launch topic")]
+
+        let (offered, stall, elapsed) = await mainActorStall {
+            await HotTopics.candidates(from: rising, concepts: concepts)
+        }
+
+        #expect(elapsed > 0.5,
+                "the pass cost \(elapsed)s — 600 Concepts were not really embedded")
+        #expect(stall < elapsed / 5,
+                "the Feed was held for \(stall)s of the \(elapsed)s pass")
+        // Measured: 57 ms held, of a 2.2 s pass. The ratio is the claim; the
+        // absolute bar keeps a slow machine from passing on it, and bounds the
+        // work left behind on the main actor once the embedding hops off — the
+        // fold pass, and a distance per Concept per term, which at 600 Concepts
+        // is the arithmetic `SemanticLinker.distance` went through `vDSP` for.
+        #expect(stall < 0.25, "the Feed was held for \(stall)s")
+        // And the lane still answers: the map was weighed, not skipped.
+        #expect(offered.map(\.text) == ["quiet launch topic"])
     }
 
     @Test("an accepted candidate stops being offered")
@@ -244,7 +283,8 @@ struct HotCandidateTests {
         let context = try context()
         _ = await HotTopics.adopt(term("world model"), context: context)
         let concepts = try context.fetch(FetchDescriptor<Concept>())
-        #expect(HotTopics.candidates(from: [term("world model")], concepts: concepts,
-                                     vector: strangers).isEmpty)
+        let candidates = await HotTopics.candidates(from: [term("world model")],
+                                                    concepts: concepts, vector: strangers)
+        #expect(candidates.isEmpty)
     }
 }

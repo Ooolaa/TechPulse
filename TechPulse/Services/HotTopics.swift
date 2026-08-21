@@ -196,24 +196,46 @@ enum HotTopics {
     /// against vectors a test chooses rather than whatever Apple's model
     /// believes about AI jargon.
     ///
+    /// ## Why it is `async`
+    ///
+    /// Embedding each name once made the count small; it left the work where it
+    /// was. A 600-Concept map is still two seconds of embedding, and both of
+    /// the Feed's callers hold the main actor while this runs — `FeedView.task`,
+    /// which reaches here directly on a launch with nothing pending to analyse,
+    /// and `.onChange`, a view callback with nowhere to await at all. So the
+    /// map's meanings come from `SemanticLinker.meanings`, which leaves the main
+    /// actor to compute them, and the rules below read a table (#49). What stays
+    /// here is the fold, and one distance per Concept per surviving term —
+    /// arithmetic over vectors already in hand, bounded by
+    /// `HotCandidateTests.candidatesDoNotBlockTheMainActor` at 600 Concepts.
+    ///
+    /// Nothing is embedded for a term the map already has by name, and nothing
+    /// at all for a reader with nothing rising — the spelling pass runs first
+    /// and can end the whole thing. What survives it is embedded in the same
+    /// batch as the map, so there is one suspension however long the lane is.
+    ///
+    /// The map's size is not consulted anywhere here. Switching the meaning
+    /// check off above some count is #11's ceiling, which refused to merge at
+    /// exactly the map size a reader has most to gain from it.
+    ///
     /// Offers only. Nothing here writes to the store: ADR-0001 keeps the map
     /// the reader's, and a Concept that appeared because an article mentioned
     /// something twice is not theirs.
     static func candidates(from terms: [HotTerm], concepts: [Concept],
-                           vector: @Sendable (String) -> [Double]? = SemanticLinker.embed)
-    -> [HotTerm] {
+                           vector: @escaping @Sendable (String) -> [Double]?
+                               = SemanticLinker.embed)
+    async -> [HotTerm] {
         let names = concepts.map { $0.name.lowercased() }
         // Folded once per name rather than once per pair. String work, unlike
         // the vectors below, so it is not worth making lazy.
         // Without the empty key, which is what an unnameable Concept folds to
         // and is not something a term should match.
         let foldedNames = Set(names.map(ConceptMatch.fold)).subtracting([""])
-        // Embedded lazily: a term that matches by name never asks for meaning,
-        // and a reader with nothing rising never embeds anything at all.
-        var mapVectors: [[Double]]?
 
-        var offered: [HotTerm] = []
-        for term in terms where offered.count < candidateLimit {
+        // Carried as a pair, because the lowercased text is what the rules
+        // below key on and folding it three times to save a word would be the
+        // string work this pass exists to do once.
+        let unnamed = terms.compactMap { term -> (term: HotTerm, text: String)? in
             let text = term.text.lowercased()
             // One direction only. A Concept named "World Model Research" already
             // covers "world model", so that term is a duplicate — but a map
@@ -223,15 +245,28 @@ enum HotTopics {
             // lane wants it to be; membership does not.
             let named = foldedNames.contains(ConceptMatch.fold(text))
                 || names.contains { name in name == text || covers(name, text) }
-            if named { continue }
+            return named ? nil : (term, text)
+        }
+        guard !unnamed.isEmpty else { return [] }
 
-            if mapVectors == nil { mapVectors = names.map { vector($0) ?? [] } }
-            let termVector = vector(text) ?? []
-            let meant = zip(names, mapVectors ?? []).contains { _, mapVector in
-                SemanticLinker.distance(between: termVector, and: mapVector)
+        // The map and the terms left to weigh against it, in one batch and one
+        // suspension. Terms past `candidateLimit` are embedded too: whether an
+        // earlier one takes the slot is what the meaning check is about to
+        // decide, and that is at most a lane's worth of names against a map's.
+        let meanings = await SemanticLinker.meanings(of: names + unnamed.map(\.text),
+                                                     using: vector)
+
+        var offered: [HotTerm] = []
+        for candidate in unnamed where offered.count < candidateLimit {
+            // An empty vector is a name the embedding could not place, and
+            // `distance` refuses it — so an unplaceable term is offered rather
+            // than silently matched against everything.
+            let termVector = meanings[candidate.text] ?? []
+            let meant = names.contains { name in
+                SemanticLinker.distance(between: termVector, and: meanings[name] ?? [])
                     .map { $0 < ConceptIndex.sameIdeaDistance } ?? false
             }
-            if !meant { offered.append(term) }
+            if !meant { offered.append(candidate.term) }
         }
         return offered
     }

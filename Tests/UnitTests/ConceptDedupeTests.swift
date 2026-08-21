@@ -43,32 +43,6 @@ struct ConceptDedupeTests {
         }
     }
 
-    /// Runs `work` and reports the longest the main actor went unserved while
-    /// it did — alongside how long it took, which is the number #42 is *not*
-    /// about. The work still costs what it costs; the question is who waits.
-    ///
-    /// The heartbeat is a task on the main actor that does nothing but yield.
-    /// Anything holding the main actor keeps it from being served, and the gap
-    /// it then records is what a reader would have seen as a frozen Feed.
-    private func mainActorStall<T>(during work: () async -> T)
-    async -> (value: T, stall: TimeInterval, elapsed: TimeInterval) {
-        let heartbeat = Task { @MainActor in
-            var longest: TimeInterval = 0
-            var last = Date.now
-            while !Task.isCancelled {
-                await Task.yield()
-                longest = max(longest, Date.now.timeIntervalSince(last))
-                last = .now
-            }
-            return longest
-        }
-        let started = Date.now
-        let value = await work()
-        let elapsed = Date.now.timeIntervalSince(started)
-        heartbeat.cancel()
-        return (value, await heartbeat.value, elapsed)
-    }
-
     private func index(_ concepts: [Concept],
                        sameIdea pair: Set<String> = []) -> ConceptIndex {
         ConceptIndex(concepts, vector: vectors(sameIdea: pair))
