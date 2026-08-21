@@ -24,6 +24,11 @@ struct ConceptIndex {
 
     /// Lowercased name → Concept.
     private(set) var concepts: [String: Concept]
+    /// `ConceptMatch.fold` of each name → Concept: the same table again, keyed
+    /// by spelling folded to case, separators and English plurals. Free to
+    /// build and free to consult, and it catches what the embedding measurably
+    /// cannot — see `sameIdeaDistance`.
+    private var folded: [String: Concept] = [:]
     /// Lowercased name → its meaning. Filled for the whole map by `prepared`,
     /// and one name at a time after that, for names the map did not have when
     /// it was built: the incoming name of a lookup, and Concepts created part
@@ -33,14 +38,63 @@ struct ConceptIndex {
     /// off the main actor — which is the whole of the fix for #42.
     private let vector: @Sendable (String) -> [Double]?
 
-    /// The distance below which two names are the same idea said twice.
+    /// The distance below which two names are the same idea said twice, on the
+    /// scale `SemanticLinker.distance` reports — which is `NLEmbedding`'s own
+    /// scale, over 0…2, and not plain cosine.
     ///
-    /// Conservative on purpose, and unchanged by this work: merging two
-    /// distinct Concepts destroys a reader's history, where a near-duplicate
-    /// only clutters. The ceiling was the bug; the threshold was never it — and
-    /// keeping it meaning what it meant is why the distance is computed on
-    /// `NLEmbedding`'s own scale rather than on plain cosine.
-    static let sameIdeaDistance = 0.25
+    /// ## Where 0.50 comes from
+    ///
+    /// Measured over the 120 Concept names of the two built-in Packs — every
+    /// one of their 7,140 pairs — against restatements of those same names
+    /// written the way an Article's analysis says them (#41). Only the
+    /// restatements `match` has to reach *by meaning* are listed: the ones a
+    /// fold of spelling already has are below, and their distance decides
+    /// nothing.
+    ///
+    /// | what is left for the distance to merge | measured |
+    /// | --- | --- |
+    /// | "&" spelled "and": `Identity & Access Management` | 0.24–0.30 |
+    /// | one letter of spelling: `Defence`, `Modelling`, `Quantisation` | 0.33–0.38 |
+    /// | an article in front: `The Transformer Architecture` | 0.392 |
+    /// | **nothing the fold does not already have** | **0.39–0.62** |
+    /// | closest two distinct names ship: `Vision Language Models` ~ `Reasoning Models` | 0.620 |
+    /// | `Container Security` ~ `Supply Chain Security` | 0.626 |
+    /// | `Batch Normalization` ~ `Layer Normalization` | 0.635 |
+    /// | `Supervised Learning` ~ `Unsupervised Learning` | 0.691 |
+    ///
+    /// 0.50 is the middle of that empty stretch: 0.11 above the widest
+    /// restatement the distance is asked to carry, 0.12 below the closest pair
+    /// of distinct names either built-in Pack contains. Both margins matter,
+    /// and not equally — a merge is destructive, because the incoming Concept
+    /// is never created and Mastery, Lit state and `LearningEvent` history
+    /// consolidate onto whichever name arrived first, where a near-duplicate
+    /// only clutters. `ConceptDedupeTests.builtinPacksHoldNoPairInsideTheThreshold`
+    /// measures the lower margin over every pair rather than restating it.
+    ///
+    /// It replaces 0.25, which admitted nothing at all: not a plural (`world
+    /// model` ~ `world models`, 0.449), and not "LLM" ≈ "Large Language
+    /// Models" (1.26), the pair the doc comment on `findOrCreateConcept`
+    /// advertised from the day it was written. Below the old 500-Concept
+    /// ceiling and above it, matching by meaning was doing nothing matching by
+    /// name did not already do (#11, #41).
+    ///
+    /// ## What it still cannot reach
+    ///
+    /// **Abbreviations**, at any safe threshold: `llm` ~ `large language
+    /// models` is 1.26 and `rag` ~ `retrieval augmented generation` is 1.32 —
+    /// further apart than two unrelated ideas, so widening cannot have them and
+    /// something other than a sentence embedding would be needed.
+    ///
+    /// **A plural of a one-word name**: `Benchmarks` ~ `Benchmark` is 0.67 and
+    /// `Guardrails` ~ `Guardrail` is 0.75, because one word of a one-word name
+    /// is the whole of its meaning. Those land among the distinct pairs, which
+    /// is why `match` folds spelling before it asks about meaning — the fold
+    /// Explain already uses (ADR-0007) has them, and the plurals and separators
+    /// between 0.33 and 0.57 with them, for nothing.
+    ///
+    /// **A one-word name spelled another way**: `Quantisation` merges at 0.377,
+    /// but `Tokenisation` is 0.578 and folds differently, so it does not.
+    static let sameIdeaDistance = 0.50
 
     /// An index that has not embedded anything yet, and will do it on the main
     /// actor when a lookup first needs meaning. Cheap to build and expensive to
@@ -53,6 +107,10 @@ struct ConceptIndex {
          vector: @escaping @Sendable (String) -> [Double]? = SemanticLinker.embed) {
         self.concepts = Dictionary(concepts.map { ($0.name.lowercased(), $0) },
                                    uniquingKeysWith: { first, _ in first })
+        // By name where two Concepts fold together, so which of them answers a
+        // lookup does not depend on what order a fetch happened to return.
+        self.folded = Dictionary(self.concepts.values.map { (ConceptMatch.fold($0.name), $0) },
+                                 uniquingKeysWith: { $0.name <= $1.name ? $0 : $1 })
         self.vector = vector
     }
 
@@ -110,10 +168,22 @@ struct ConceptIndex {
         return meanings
     }
 
-    /// The Concept already standing for this name, by spelling or by meaning.
+    /// The Concept already standing for this name: spelled it, spelled it
+    /// another way, or meaning it.
+    ///
+    /// Spelling is asked first and separately, because the two halves fail in
+    /// different places and neither covers the other. The fold has plurals of
+    /// one-word names, which sit further apart under the embedding than two
+    /// distinct ideas do; the embedding has "&" for "and", and a letter of
+    /// spelling inside a longer name, which no fold reaches. A name spelled
+    /// exactly as an existing Concept still wins over one that merely folds
+    /// the same, so the order here only ever widens what matches.
     mutating func match(_ rawName: String) -> Concept? {
         let name = rawName.lowercased()
         if let exact = concepts[name] { return exact }
+
+        let key = ConceptMatch.fold(rawName)
+        if !key.isEmpty, let spelled = folded[key] { return spelled }
 
         guard let incoming = meaning(of: name), !incoming.isEmpty else { return nil }
         var best: (concept: Concept, distance: Double)?
@@ -133,6 +203,11 @@ struct ConceptIndex {
     /// can match against it.
     mutating func insert(_ concept: Concept) {
         concepts[concept.name.lowercased()] = concept
+        // Overwrites, like the line above it, and never has anything to
+        // overwrite: a Concept only reaches `insert` because `match` found
+        // nothing, and a fold key already taken is exactly what `match` looks
+        // under.
+        folded[ConceptMatch.fold(concept.name)] = concept
     }
 
     private mutating func meaning(of name: String) -> [Double]? {

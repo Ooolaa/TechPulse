@@ -87,15 +87,21 @@ struct ConceptDedupeTests {
 
     @Test("a near-duplicate is still merged on a map far past the old cut-off")
     func mergesAboveTheOldCeiling() throws {
+        // The pair used to be "LLM" ~ "Large Language Models", which the model
+        // that ships puts 1.26 apart — further than two unrelated ideas — so
+        // the fixture was asserting a merge the app now says in three places
+        // it cannot make. Two names for one idea that the fold cannot fold
+        // together says what this test is about without the fiction.
         let context = try context()
         var concepts = filler(600, into: context)
-        let existing = Concept(name: "Large Language Models", category: "Foundations",
+        let existing = Concept(name: "World Model", category: "Foundations",
                                definition: "d")
         context.insert(existing)
         concepts.append(existing)
 
-        var index = index(concepts, sameIdea: ["large language models", "llm"])
-        let matched = KnowledgeEngine.findOrCreateConcept(named: "LLM", category: "Foundations",
+        var index = index(concepts, sameIdea: ["world model", "environment simulator"])
+        let matched = KnowledgeEngine.findOrCreateConcept(named: "Environment Simulator",
+                                                          category: "Foundations",
                                                           definition: "d", context: context,
                                                           index: &index)
 
@@ -136,12 +142,16 @@ struct ConceptDedupeTests {
 
     @Test("a Concept created through the index is matched by the next lookup")
     func newlyCreatedConceptJoinsTheIndex() throws {
+        // Named so the two spellings have nothing in common, which is what
+        // keeps this on the path it is about: a twin caught by *meaning*, not
+        // one the spelling fold would have caught whatever the index held.
         let context = try context()
-        var index = index([], sameIdea: ["world model", "world models"])
+        var index = index([], sameIdea: ["world model", "environment simulator"])
         let first = KnowledgeEngine.findOrCreateConcept(named: "World Model", category: "Foundations",
                                                         definition: "d", context: context,
                                                         index: &index)
-        let second = KnowledgeEngine.findOrCreateConcept(named: "World Models", category: "Foundations",
+        let second = KnowledgeEngine.findOrCreateConcept(named: "Environment Simulator",
+                                                         category: "Foundations",
                                                          definition: "d", context: context,
                                                          index: &index)
         #expect(first === second, "the twin arrived in the same pass that created the original")
@@ -156,11 +166,12 @@ struct ConceptDedupeTests {
         // be the first said differently.
         let context = try context()
         var index = await ConceptIndex.prepared(
-            [], vector: vectors(sameIdea: ["world model", "world models"]))
+            [], vector: vectors(sameIdea: ["world model", "environment simulator"]))
         let first = KnowledgeEngine.findOrCreateConcept(named: "World Model", category: "Foundations",
                                                         definition: "d", context: context,
                                                         index: &index)
-        let second = KnowledgeEngine.findOrCreateConcept(named: "World Models", category: "Foundations",
+        let second = KnowledgeEngine.findOrCreateConcept(named: "Environment Simulator",
+                                                         category: "Foundations",
                                                          definition: "d", context: context,
                                                          index: &index)
         #expect(first === second, "the twin arrived after the map's meanings were computed")
@@ -170,9 +181,21 @@ struct ConceptDedupeTests {
     func realEmbeddingKeepsDistinctConceptsApart() throws {
         // Every other test here injects vectors, so none of them exercises the
         // threshold against the model that ships. These pairs are real Concept
-        // names from the flagship Pack and are emphatically not each other.
+        // names from the built-in Packs and are emphatically not each other.
+        //
+        // The first four are the closest distinct pairs the calibration for #41
+        // turned up over all 7,140 pairs of the two built-in Packs — 0.62 to
+        // 0.64, which is what the threshold has to stay under. The rest are
+        // pairs chosen by hand for being the kind of near-miss a merge would
+        // be worst on.
         let context = try context()
-        let pairs = [("Supervised Learning", "Unsupervised Learning"),
+        let pairs = [("Vision Language Models", "Reasoning Models"),
+                     ("Container Security", "Supply Chain Security"),
+                     ("Prompt Engineering", "Detection Engineering"),
+                     ("Data Leakage", "Data Poisoning"),
+                     ("Container Security", "Kubernetes Security"),
+                     ("Prompt Engineering", "Context Engineering"),
+                     ("Supervised Learning", "Unsupervised Learning"),
                      ("Layer Normalization", "Quantization"),
                      ("Batch Normalization", "Layer Normalization"),
                      ("Reinforcement Learning", "Reinforcement Learning from Human Feedback")]
@@ -190,27 +213,139 @@ struct ConceptDedupeTests {
         }
     }
 
-    @Test("the shipped threshold, measured rather than described")
-    func realEmbeddingDistances() throws {
-        // What `sameIdeaDistance` actually admits, on the scale `NLEmbedding`
-        // reports. Recorded as assertions because the file's own doc comment
-        // has advertised "LLM" ≈ "Large Language Models" since it was written,
-        // and the model puts that pair five times outside the threshold.
+    @Test("the threshold sits in the gap the calibration measured")
+    func theCalibrationTheThresholdCameFrom() throws {
+        // Where 0.50 comes from, on the scale `NLEmbedding` reports. Recorded
+        // as assertions rather than as prose because the previous threshold was
+        // prose — 0.25, with a doc comment claiming it merged "LLM" into
+        // "Large Language Models", which the model puts five times outside it.
         func distance(_ left: String, _ right: String) throws -> Double {
-            let a = try #require(SemanticLinker.embed(left))
-            let b = try #require(SemanticLinker.embed(right))
+            let a = try #require(SemanticLinker.embed(left.lowercased()))
+            let b = try #require(SemanticLinker.embed(right.lowercased()))
             return try #require(SemanticLinker.distance(between: a, and: b))
         }
 
-        // Kept apart, and rightly — these are different ideas.
-        #expect(try distance("supervised learning", "unsupervised learning") > ConceptIndex.sameIdeaDistance)
-        #expect(try distance("batch normalization", "layer normalization") > ConceptIndex.sameIdeaDistance)
+        // The band the distance is asked to carry is only the restatements the
+        // fold does not already have, so the widest of those is what the
+        // threshold has to clear — not `Red-Teaming` ~ `Red Teaming` at 0.545,
+        // which merges on spelling whatever the number says.
+        let widestByMeaning = try distance("Transformer Architecture",
+                                           "The Transformer Architecture")       // 0.392
+        let nearestDistinct = try distance("Vision Language Models",
+                                           "Reasoning Models")                   // 0.620
+        #expect(widestByMeaning < ConceptIndex.sameIdeaDistance)
+        #expect(nearestDistinct > ConceptIndex.sameIdeaDistance)
+        // Both margins are real, and the empty stretch between them is where
+        // the line went: nothing the fold does not already have was measured
+        // inside it.
+        #expect(ConceptIndex.sameIdeaDistance - widestByMeaning > 0.1)
+        #expect(nearestDistinct - ConceptIndex.sameIdeaDistance > 0.1)
 
-        // And kept apart, which is the limit worth knowing: at 0.25 the
-        // embedding merges neither a plural nor an abbreviation, so matching by
-        // meaning is doing nothing that matching by name does not already do.
-        #expect(try distance("world model", "world models") > ConceptIndex.sameIdeaDistance)
-        #expect(try distance("llm", "large language models") > ConceptIndex.sameIdeaDistance)
+        // What the distance alone cannot reach, stated rather than implied.
+        //
+        // A plural of a one-word name is a bigger share of that name's meaning
+        // than a plural of a three-word one, so it lands among the distinct
+        // pairs and no threshold can have it. `ConceptMatch.fold` is what
+        // merges these, on spelling.
+        #expect(try distance("Benchmarks", "Benchmark") > ConceptIndex.sameIdeaDistance)
+        #expect(try distance("Guardrails", "Guardrail") > ConceptIndex.sameIdeaDistance)
+        #expect(ConceptMatch.fold("Benchmarks") == ConceptMatch.fold("Benchmark"))
+        #expect(ConceptMatch.fold("Guardrails") == ConceptMatch.fold("Guardrail"))
+
+        // A spelling neither half catches: one letter inside a one-word name
+        // moves it as far as a different idea would, and folding it would be a
+        // guess about English rather than about separators and plurals.
+        #expect(try distance("Tokenization", "Tokenisation") > ConceptIndex.sameIdeaDistance)
+        #expect(ConceptMatch.fold("Tokenization") != ConceptMatch.fold("Tokenisation"))
+
+        // And abbreviations, which are out of reach at any safe threshold:
+        // both of these are further apart than two unrelated ideas, so an
+        // embedding is the wrong instrument for them (#41).
+        #expect(try distance("LLM", "Large Language Models") > 1)
+        #expect(try distance("RAG", "Retrieval Augmented Generation") > 1)
+    }
+
+    @Test("no two names in the built-in Packs are one idea")
+    func builtinPacksHoldNoPairInsideTheThreshold() throws {
+        // The claim the calibration actually makes, over the whole corpus it
+        // was derived from rather than the handful of pairs quoted from it:
+        // 120 Concept names across both built-in Packs, every pair of them, on
+        // both halves of the match. A Pack whose own names merge into each
+        // other would lose a reader's history on the day it was installed.
+        var names: [String] = []
+        var seen: Set<String> = []
+        for builtin in BuiltinPacks.all {
+            for concept in builtin.pack.concepts
+            where seen.insert(concept.name.lowercased()).inserted {
+                names.append(concept.name)
+            }
+        }
+        #expect(names.count > 100, "both built-in Packs should be in this corpus")
+
+        var folded: [String: String] = [:]
+        for name in names {
+            let key = ConceptMatch.fold(name)
+            #expect(folded[key] == nil,
+                    "“\(name)” folds onto “\(folded[key] ?? "")”")
+            folded[key] = name
+        }
+
+        let vectors = try names.map { try #require(SemanticLinker.embed($0.lowercased())) }
+        var nearest = (distance: Double.infinity, pair: ("", ""))
+        for i in names.indices {
+            for j in names.indices where j > i {
+                let measured = try #require(SemanticLinker.distance(between: vectors[i],
+                                                                    and: vectors[j]))
+                if measured < nearest.distance {
+                    nearest = (measured, (names[i], names[j]))
+                }
+            }
+        }
+        // Measured: 0.620, for "Vision Language Models" ~ "Reasoning Models".
+        #expect(nearest.distance > ConceptIndex.sameIdeaDistance,
+                "“\(nearest.pair.0)” ~ “\(nearest.pair.1)” at \(nearest.distance)")
+    }
+
+    @Test("one idea said twice is merged, judged by the embedding the app really uses")
+    func realEmbeddingMergesRestatements() throws {
+        // The other half of #41, and the half that was doing nothing: at 0.25
+        // matching by meaning merged nothing matching by name did not already
+        // merge. Real Concept names from the built-in Packs, against the way an
+        // Article's analysis would have said the same thing.
+        //
+        // Both routes are here on purpose and the test does not say which is
+        // which: what a reader is promised is that a restatement of a Concept
+        // they already have does not become a second dot on their map.
+        let context = try context()
+        let pairs = [("World Models", "World Model"),
+                     ("Vector Databases", "Vector Database"),
+                     ("Reasoning Models", "Reasoning Model"),
+                     ("Identity & Access Management", "Identity and Access Management"),
+                     ("Probability & Statistics", "Probability and Statistics"),
+                     ("Computer-Use Agents", "Computer Use Agents"),
+                     ("Threat Modeling", "Threat Modelling"),
+                     ("Quantization", "Quantisation"),
+                     ("Prompt Injection Defense", "Prompt Injection Defence"),
+                     ("Benchmarks", "Benchmark"),
+                     ("Embeddings", "Embedding"),
+                     ("Guardrails", "Guardrail"),
+                     ("Eval Suites", "Eval Suite"),
+                     ("Fine-Tuning", "Fine Tuning"),
+                     ("Red-Teaming", "Red Teaming"),
+                     ("KV-Cache", "KV Cache"),
+                     ("LLM-as-Judge", "LLM as Judge")]
+
+        for (existingName, incomingName) in pairs {
+            let existing = Concept(name: existingName, category: "Foundations", definition: "d")
+            context.insert(existing)
+            var index = ConceptIndex([existing])
+            let matched = KnowledgeEngine.findOrCreateConcept(named: incomingName,
+                                                              category: "Foundations",
+                                                              definition: "d", context: context,
+                                                              index: &index)
+            #expect(matched === existing,
+                    "“\(incomingName)” became a second dot beside “\(existingName)”")
+        }
     }
 
     // MARK: Cost

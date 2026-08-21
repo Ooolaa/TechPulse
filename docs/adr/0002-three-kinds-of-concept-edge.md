@@ -52,8 +52,17 @@ Semantic Links to each other and visibly clutter the map.
 
 **Amended (2026-08-20):** the cliff is gone — `ConceptIndex` holds each name's
 meaning instead of recomputing it, which is what made the scan unaffordable and
-bought the ceiling (#11). The stakes this consequence names are not yet
-answered, though: measured against the shipped threshold, the embedding merges
-neither a plural nor an abbreviation, so near-duplicates still accumulate at
-every map size rather than only above 500. Calibrating that threshold against
-real Concept names is the open half.
+bought the ceiling (#11). The stakes this consequence names were not answered by
+that, though: measured against the threshold as it then stood, 0.25, the
+embedding merged neither a plural nor an abbreviation, so near-duplicates
+accumulated at every map size rather than only above 500. Calibrating that
+threshold against real Concept names was the open half.
+
+**Amended (2026-08-21):** that half is answered by
+[ADR-0010](0010-de-duplication-is-calibrated-and-folds-spelling-first.md) — the
+threshold is calibrated at 0.50 against every pair of names the built-in Packs
+contain, and spelling is folded before meaning is asked, so plurals, separators
+and "&" for "and" merge. The paragraph above said the embedding "merges neither
+a plural nor an abbreviation"; a plural it now merges, and an abbreviation it
+still cannot, at any threshold — `LLM` and `Large Language Models` are 1.26
+apart, so they remain two dots on the map (#41).

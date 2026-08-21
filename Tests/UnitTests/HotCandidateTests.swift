@@ -51,6 +51,40 @@ struct HotCandidateTests {
         #expect(candidates.isEmpty, "matched on name, ignoring case")
     }
 
+    @Test("a rising term the map does not mean is offered, judged by the real embedding")
+    func realEmbeddingStillOffersWhatIsGenuinelyNew() throws {
+        // The other side of the threshold move (#41). Widening it from 0.25 to
+        // 0.50 suppresses more, and what it must not suppress is the growth
+        // this feature exists to catch. The real embedding, against the whole
+        // flagship Pack, over terms of the kind a reader's Sources actually
+        // raise — including "small models", which at 0.570 against `Small
+        // Language Models` is the nearest any of them came.
+        let concepts = try BuiltinPacks.load(BuiltinPacks.aiEngineerFileName).concepts
+            .map { concept($0.name, cluster: $0.cluster) }
+        let rising = ["attention sinks", "test-time compute", "mixture of experts",
+                      "small models"]
+
+        for text in rising {
+            let candidates = HotTopics.candidates(from: [term(text)], concepts: concepts)
+            #expect(candidates.map(\.text) == [text],
+                    "“\(text)” was taken for something the map already has")
+        }
+    }
+
+    @Test("a term the map already has, spelled another way, is not offered")
+    func foldedSpellingIsNotOffered() {
+        // The plural of a one-word name is further from it, under the
+        // embedding, than two distinct ideas are (#41) — so this is the fold's
+        // to catch, here as in `ConceptIndex.match`. Offering it would put a
+        // chip in front of the reader that adds nothing when tapped: adopting
+        // it merges straight back into the Concept they already have.
+        let candidates = HotTopics.candidates(from: [term("benchmarks"), term("kv cache")],
+                                              concepts: [concept("Benchmark"),
+                                                         concept("KV-Cache")],
+                                              vector: strangers)
+        #expect(candidates.isEmpty, "matched on spelling, ignoring plural and hyphen")
+    }
+
     @Test("a term the map already has inside a longer Concept name is not offered")
     func containedNameIsNotOffered() {
         let candidates = HotTopics.candidates(from: [term("world model")],

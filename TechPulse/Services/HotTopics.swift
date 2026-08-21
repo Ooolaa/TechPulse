@@ -177,9 +177,15 @@ enum HotTopics {
 
     /// Rising terms the reader's map has no room for yet.
     ///
-    /// A term is already on the map if a Concept is named it, contains it as
-    /// words, or *means* it — "retrieval augmentation" against a map holding
+    /// A term is already on the map if a Concept is named it, is spelled it
+    /// once case, separators and plurals are folded away, contains it as words,
+    /// or *means* it — "retrieval augmentation" against a map holding
     /// "RAG" is a duplicate the reader would have to notice was a duplicate.
+    ///
+    /// The fold and the distance are the two halves `ConceptIndex.match` uses,
+    /// and they are here for the same reason they are there: an offer this
+    /// suppresses is one the reader would have tapped to find that adopting it
+    /// merged into a Concept they already had.
     ///
     /// Meaning is judged on vectors rather than by asking for a distance per
     /// pair, and the difference is not academic: `NLEmbedding.distance` embeds
@@ -197,6 +203,11 @@ enum HotTopics {
                            vector: @Sendable (String) -> [Double]? = SemanticLinker.embed)
     -> [HotTerm] {
         let names = concepts.map { $0.name.lowercased() }
+        // Folded once per name rather than once per pair. String work, unlike
+        // the vectors below, so it is not worth making lazy.
+        // Without the empty key, which is what an unnameable Concept folds to
+        // and is not something a term should match.
+        let foldedNames = Set(names.map(ConceptMatch.fold)).subtracting([""])
         // Embedded lazily: a term that matches by name never asks for meaning,
         // and a reader with nothing rising never embeds anything at all.
         var mapVectors: [[Double]]?
@@ -210,9 +221,8 @@ enum HotTopics {
             // suppressing that would silence the extensions this exists to
             // catch. `shares(words:)` is symmetric because collapsing a ranked
             // lane wants it to be; membership does not.
-            let named = names.contains { name in
-                name == text || covers(name, text)
-            }
+            let named = foldedNames.contains(ConceptMatch.fold(text))
+                || names.contains { name in name == text || covers(name, text) }
             if named { continue }
 
             if mapVectors == nil { mapVectors = names.map { vector($0) ?? [] } }
