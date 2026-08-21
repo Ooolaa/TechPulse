@@ -42,9 +42,14 @@ tested rather than restated in a `first(where:)`.
   do. And the similarity threshold that is safe for *deduping a result the model
   already returned* is not the same threshold as *deciding not to ask*: a false
   positive there shows the reader a definition of a Concept they did not tap,
-  offline, with nothing to signal that a substitution happened. The current
-  0.25 distance was chosen for the first job. Buying synonym coverage with a
-  silent wrong answer is a bad trade in a reading app.
+  offline, with nothing to signal that a substitution happened. The distance was
+  chosen for the first job. Buying synonym coverage with a silent wrong answer
+  is a bad trade in a reading app.
+
+  **Correction (2026-08-21):** this bullet read "The current 0.25 distance was
+  chosen for the first job". The distance is 0.50 since ADR-0010 calibrated it,
+  and the reasoning is unchanged — a threshold safe for deduping a result the
+  model already returned is still not the one for deciding not to ask (#41).
 - **Leave the code, narrow the ADR.** Honest, and cheap: ADR-0006's sentence
   would become "words already on the map under the name the Pack gave them",
   which is true of the code as it stood. Rejected because the shape it concedes
@@ -80,3 +85,12 @@ the dedupe path: the two never run on the same term (Explain returns before
 generating when the map already has the word), and the embedding match there is
 doing a job it is correctly threshold-tuned for. Widening dedupe is a separate
 decision about Pack installation, not about what leaves the device.
+
+**Amended (2026-08-21):** that decision has since been taken —
+[ADR-0010](0010-de-duplication-is-calibrated-and-folds-spelling-first.md)
+applies this fold to `ConceptIndex.match` as well, and moves the threshold to
+0.50. The clause about being "correctly threshold-tuned" is the part that did
+not survive a measurement: at 0.25 the embedding match merged nothing a name
+match did not already merge (#41). Explain routes the same selections the same
+way it did before, and the most that leaves the device is what this ADR left —
+a selected word the map has no name and no fold for, on the opt-in path.

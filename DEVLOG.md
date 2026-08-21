@@ -10,6 +10,80 @@
 
 ---
 
+## 2026-08-21 — The de-duplication threshold is measured rather than guessed (#41)
+
+**Built**
+- **`ConceptIndex.sameIdeaDistance` is 0.50, calibrated.** It was 0.25, and
+  0.25 admitted nothing: not a plural (`world model` ~ `world models`, 0.449),
+  and not "LLM" ≈ "Large Language Models" (1.26), the pair
+  `findOrCreateConcept`'s doc comment advertised from the day it was written.
+  Matching by meaning was doing nothing matching by name did not already do,
+  above the old 500-Concept ceiling and below it. The new number comes from
+  every pair of the 120 Concept names the two built-in Packs contain — 7,140 of
+  them — measured against restatements of those same names, and the table lives
+  beside the constant rather than in a commit message.
+- **Spelling is folded before meaning is asked**, reusing `ConceptMatch.fold` —
+  the fold Explain has used since ADR-0007. One band cannot be reached by any
+  threshold: a plural of a *one-word* name (`Benchmarks` ~ `Benchmark`, 0.67;
+  `Guardrails` ~ `Guardrail`, 0.75) sits among the distinct pairs, because one
+  word of a one-word name is the whole of its meaning. Spelling has those for
+  nothing, and ADR-0007 had already left "widening dedupe" as a decision for
+  someone with measurements. ADR-0010 takes it.
+- **`HotTopics.candidates` folds too.** It asks the same question with the same
+  constant, and without the fold it could offer "Benchmarks" to a map holding
+  "Benchmark" — a chip that adds nothing when tapped, because `adopt` goes
+  through `findOrCreateConcept` and merges straight back.
+
+**What the measurement said**
+
+Splitting the restatements by which half has to catch them is what set the
+number. What is left for the distance:
+
+| what is left for the distance to merge | measured |
+| --- | --- |
+| "&" spelled "and": `Identity & Access Management` | 0.24–0.30 |
+| one letter of spelling: `Defence`, `Modelling`, `Quantisation` | 0.33–0.38 |
+| an article in front: `The Transformer Architecture` | 0.392 |
+| **nothing the fold does not already have** | **0.39–0.62** |
+| closest two distinct names ship: `Vision Language Models` ~ `Reasoning Models` | 0.620 |
+| `Batch Normalization` ~ `Layer Normalization` | 0.635 |
+| `Supervised Learning` ~ `Unsupervised Learning` | 0.691 |
+
+The ticket had five pairs and guessed the gap was 0.45–0.63; over 7,140 pairs
+nothing distinct is below 0.620, and the fold takes everything between 0.39 and
+0.57 — plurals and separators — whatever their distance. So 0.50 goes in the
+middle of what is genuinely left: 0.11 above the widest restatement the distance
+carries, 0.12 below the closest distinct pair. The first draft of this was 0.55,
+which is the middle of the stretch with nothing measured in it at all; the
+review pointed out that every restatement between 0.39 and 0.57 is one the fold
+already has, so the extra 0.05 bought nothing measured and spent it on the side
+where being wrong takes a reader's Mastery and history rather than their
+tidiness.
+
+**Verified** 409 unit tests, four new and one rewritten; the full suite passes,
+and the four UI journeys with it. The tests over the real embedding are the
+calibration kept runnable rather than written down twice:
+`builtinPacksHoldNoPairInsideTheThreshold` measures every pair of names both
+built-in Packs contain, on both halves of the match, so a Pack that adds a name
+0.45 from one already there fails the suite instead of losing a reader's history
+in the field; `realEmbeddingMergesRestatements` runs seventeen restatements
+through `findOrCreateConcept` with the model that ships;
+`theCalibrationTheThresholdCameFrom` pins the band and the limits; and
+`realEmbeddingStillOffersWhatIsGenuinelyNew` covers the direction the widening
+could have cost something — rising terms against the whole flagship Pack, still
+offered. The tests that inject vectors decide nothing about where the threshold
+sits: they are about what the index does — no ceiling, a Concept created part
+way through a pass matchable by the end of it, which thread waits — and three of
+their fixtures were renamed off "World Model" ~ "World Models" and "LLM" ~
+"Large Language Models" so that neither the fold nor a documented impossibility
+is standing in for the path they exist to test.
+
+**What is still not caught, stated where the constant is** An abbreviation:
+`rag` ~ `retrieval augmented generation` is 1.32, further apart than two
+unrelated Concepts, so no threshold on a sentence embedding can have it. And one
+letter inside a one-word name — `Quantisation` merges at 0.377, but
+`Tokenisation` is 0.578 and folds differently.
+
 ## 2026-08-21 — Embedding a large map is no longer the Feed's problem (#42)
 
 **Built**

@@ -11,18 +11,17 @@ enum KnowledgeEngine {
 
     // MARK: Concept matching
 
-    /// Case-insensitive match first, then meaning. Creates when new.
+    /// Case-insensitive match first, then folded spelling, then meaning.
+    /// Creates when new.
     ///
     /// This used to say it catches "LLM" ≈ "Large Language Models". Measured,
-    /// the embedding puts that pair at 1.26 against a threshold of 0.25 — five
-    /// times outside it — and a plural at 0.42. So the meaning half currently
-    /// merges nothing a name match would miss, which `ConceptDedupeTests`
-    /// records. Removing the 500-Concept ceiling (#11) makes the scan run at
-    /// any map size; what it admits is a separate question, and answering it
-    /// means calibrating the threshold against real Concept names the way
-    /// `SemanticLinker` calibrated its floor.
+    /// the embedding puts that pair at 1.26 — further apart than two unrelated
+    /// ideas — so no threshold has it and an abbreviation still makes a second
+    /// dot on the map. What the calibration for #41 did buy is everything
+    /// between: a plural, a hyphen, an "&" spelled "and", "-ise" for "-ize".
+    /// `ConceptIndex.sameIdeaDistance` carries the measurements.
     ///
-    /// Both halves live in `ConceptIndex`, which holds each name's meaning
+    /// All three live in `ConceptIndex`, which holds each name's meaning
     /// rather than recomputing it — the cost that used to make this give up
     /// entirely above 500 Concepts (#11). Synchronous, and callable from inside
     /// loops that already hold the main actor, because the index arrives with
