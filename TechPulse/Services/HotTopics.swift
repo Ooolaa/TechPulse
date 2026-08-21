@@ -194,7 +194,7 @@ enum HotTopics {
     /// the reader's, and a Concept that appeared because an article mentioned
     /// something twice is not theirs.
     static func candidates(from terms: [HotTerm], concepts: [Concept],
-                           vector: @MainActor (String) -> [Double]? = SemanticLinker.embed)
+                           vector: @Sendable (String) -> [Double]? = SemanticLinker.embed)
     -> [HotTerm] {
         let names = concepts.map { $0.name.lowercased() }
         // Embedded lazily: a term that matches by name never asks for meaning,
@@ -252,10 +252,14 @@ enum HotTopics {
     /// a term to Anthropic because it got hot, rather than because the reader
     /// asked what it means, would be egress ADR-0006 never enumerated. That is
     /// a decision to take deliberately, not a side effect of this button.
+    ///
+    /// `async` because accepting an offer is a de-duplication pass like any
+    /// other, and building the index over a large map is work for another
+    /// thread (#42) — not for the one the chip was tapped on.
     @discardableResult
-    static func adopt(_ term: HotTerm, context: ModelContext) -> Concept? {
+    static func adopt(_ term: HotTerm, context: ModelContext) async -> Concept? {
         let prior = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var index = ConceptIndex(prior)
+        var index = await ConceptIndex.prepared(prior)
         guard let concept = KnowledgeEngine.findOrCreateConcept(
             named: adoptedName(term), category: adoptedCluster, definition: "",
             context: context, index: &index

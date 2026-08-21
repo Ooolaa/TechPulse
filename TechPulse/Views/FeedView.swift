@@ -408,13 +408,22 @@ struct FeedView: View {
             FlowLayout(spacing: 7) {
                 ForEach(candidates, id: \.text) { candidate in
                     Button {
-                        HotTopics.adopt(candidate, context: modelContext)
-                        try? modelContext.save()
-                        // Dropped here rather than by recomputing: `allConcepts`
-                        // is the array this body pass captured, and it does not
-                        // refresh in time — asking again would offer the term
-                        // that was just accepted.
-                        candidates.removeAll { $0.text == candidate.text }
+                        // `adopt` is a de-duplication pass, and #42 moved the
+                        // embedding those cost off the main actor — so the same
+                        // three steps, in the same order, now happen in a Task.
+                        // The offer that drew this chip has already embedded
+                        // every name on the map, so the pass finds the memo warm
+                        // and the chip goes as promptly as it did when this was
+                        // synchronous.
+                        Task {
+                            await HotTopics.adopt(candidate, context: modelContext)
+                            try? modelContext.save()
+                            // Dropped here rather than by recomputing:
+                            // `allConcepts` is the array this body pass
+                            // captured, and it does not refresh in time —
+                            // asking again would offer the term just accepted.
+                            candidates.removeAll { $0.text == candidate.text }
+                        }
                     } label: {
                         // Named as it will be created, so the offer and the dot
                         // it makes are the same words.

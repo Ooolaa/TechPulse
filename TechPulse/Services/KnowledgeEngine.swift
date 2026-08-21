@@ -24,7 +24,9 @@ enum KnowledgeEngine {
     ///
     /// Both halves live in `ConceptIndex`, which holds each name's meaning
     /// rather than recomputing it — the cost that used to make this give up
-    /// entirely above 500 Concepts (#11).
+    /// entirely above 500 Concepts (#11). Synchronous, and callable from inside
+    /// loops that already hold the main actor, because the index arrives with
+    /// the map's meanings already computed: see `ConceptIndex.prepared` (#42).
     static func findOrCreateConcept(named rawName: String, category: String,
                                     definition: String, context: ModelContext,
                                     index: inout ConceptIndex) -> Concept? {

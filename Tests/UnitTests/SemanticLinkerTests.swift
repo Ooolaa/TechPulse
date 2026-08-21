@@ -15,7 +15,7 @@ struct SemanticLinkerTests {
 
     /// A vector source built from explicit coordinates, so "related" is
     /// something the test decides rather than something it hopes for.
-    private func vectors(_ table: [String: [Double]]) -> @MainActor @Sendable (String) -> [Double]? {
+    private func vectors(_ table: [String: [Double]]) -> @Sendable (String) -> [Double]? {
         { table[$0] }
     }
 
@@ -28,6 +28,43 @@ struct SemanticLinkerTests {
 
     private func pairs(_ edges: [SemanticEdge]) -> Set<String> {
         Set(edges.map { "\($0.conceptA)~\($0.conceptB)" })
+    }
+
+    // MARK: - The distance the threshold was calibrated against
+
+    @Test("the vectorised distance is the distance that was written out")
+    func vectorisedDistanceMatchesTheWrittenOne() throws {
+        // `distance` went through `vDSP` for speed (#42) — a scan over a large
+        // map runs it once per Concept, and written by hand that was a second
+        // of main-actor arithmetic per Article. Summing in a different order is
+        // allowed to differ in the last bits. It is not allowed to move a pair
+        // across `ConceptIndex.sameIdeaDistance`, which was calibrated against
+        // the arithmetic as it was written, on real Concept names.
+        func written(_ left: [Double], _ right: [Double]) -> Double {
+            let dot = zip(left, right).reduce(0) { $0 + $1.0 * $1.1 }
+            let magnitude = (left.reduce(0) { $0 + $1 * $1 }).squareRoot()
+                * (right.reduce(0) { $0 + $1 * $1 }).squareRoot()
+            return (2 * (1 - dot / magnitude)).squareRoot()
+        }
+
+        let names = ["supervised learning", "unsupervised learning",
+                     "batch normalization", "layer normalization", "quantization",
+                     "llm", "large language models", "world model", "world models",
+                     "attention", "retrieval", "reinforcement learning"]
+        let vectors = try names.map { try #require(SemanticLinker.embed($0)) }
+
+        for i in vectors.indices {
+            for j in vectors.indices where j > i {
+                let measured = try #require(SemanticLinker.distance(between: vectors[i],
+                                                                    and: vectors[j]))
+                let byHand = written(vectors[i], vectors[j])
+                #expect(abs(measured - byHand) < 1e-12,
+                        "“\(names[i])” vs “\(names[j])”: \(measured) against \(byHand)")
+                #expect((measured < ConceptIndex.sameIdeaDistance)
+                            == (byHand < ConceptIndex.sameIdeaDistance),
+                        "“\(names[i])” vs “\(names[j])” changed sides of the threshold")
+            }
+        }
     }
 
     // MARK: - The graph rules
