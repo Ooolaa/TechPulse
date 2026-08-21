@@ -10,6 +10,53 @@
 
 ---
 
+## 2026-08-21 — The day is shared between Sources, not won by whoever published this morning (#45)
+
+**Built**
+- **`syncAll` allocates the daily cap round-robin.** Each Source offers its
+  own items and the cap is spent one item per Source per turn, until the day
+  is gone or nobody has anything left. The pooled newest-first sort this
+  replaces let three arXiv feeds offer `perFeedLimit` same-day items each and
+  take the whole day between them; ADR-0009 has the reasoning and the rejected
+  alternatives, including why reserving N slots per Source fails on arithmetic
+  at 13 Sources and a cap of 30.
+- **A Source's own order is left alone, and that is the load-bearing part.**
+  Round-robin decides *how many* items a Source contributes, never *which*.
+  Items are taken from the front of what the Source served, so a chronological
+  feed gives its newest and a vote-ranked one gives its best, and the app never
+  learns which kind it is holding.
+- **ADR-0009's decision sentence was wrong and is corrected in place.** It said
+  "each Source offers its own newest-first". Sorting a Source's own items by
+  date reproduces that ADR's whole fault one level down: a "top this week"
+  entry is six days old, so newest-first *inside* the Source hands over its
+  newest items rather than its best ones, deleting the popularity ordering
+  exactly as the global sort did. The rule that settles it was already in the
+  ADR a paragraph earlier — *what a Source is ordered by is part of what you
+  subscribed to*. Most feeds are newest-first anyway, which is why the wrong
+  sentence read as harmless.
+- **What a turn is, precisely.** A Source that cannot pay — its bootstrap
+  ration spent and the day's allowance gone — is passed over without losing its
+  place, rather than being treated as empty. An item whose guid is already
+  cached is not something offered, so passing over it does not cost that Source
+  its turn. And a Source that has run dry is skipped rather than ending the
+  round, so one short feed cannot leave the day two-thirds unspent.
+
+**Verified** 396 unit tests, 6 new. Four of the six fail against the pooled
+sort: the quiet Source gets nothing beside a firehose, a six-day-old item never
+lands, and the vote-ranked shape hands over its newest two entries instead of
+its first two. The remaining two are guards on the loop rather than on the old
+fault — the cap spent exactly and fully, and a Source running dry not stopping
+the round. The cap is exercised by pre-caching articles to spend the day, never
+by overriding `dailyIntakeLimit`.
+
+**Learned** An ADR can be right about the decision and wrong about the
+mechanism in the same sentence, and the wrong half survives review because it
+describes the common case correctly. "Newest-first per Source" is true of
+twelve of thirteen seeded Sources and fatal to the thirteenth — the one the
+decision was written for.
+
+---
+
 ## 2026-08-21 — One host is asked one thing at a time (#44)
 
 **Built**

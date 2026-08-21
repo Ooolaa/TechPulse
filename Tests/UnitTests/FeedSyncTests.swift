@@ -81,6 +81,51 @@ struct FeedSyncTests {
         """.utf8)
     }
 
+    /// A feed served in exactly the order given, each entry dated `daysAgo`
+    /// days back. Separating order from date is the whole point: a vote-ranked
+    /// Source lists its best first and its newest wherever it falls, and the
+    /// allocator must not quietly reorder that into a date sort.
+    private func orderedFeed(_ entries: [(guid: String, daysAgo: Int)]) -> Data {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
+        let items = entries.map { entry in
+            let date = formatter.string(from: .now.addingTimeInterval(-Double(entry.daysAgo) * 86_400))
+            return """
+              <item>
+                <title>Item \(entry.guid)</title>
+                <link>https://example.com/\(entry.guid)</link>
+                <guid>\(entry.guid)</guid>
+                <description>Body text.</description>
+                <pubDate>\(date)</pubDate>
+              </item>
+            """
+        }.joined(separator: "\n")
+        return Data("""
+        <?xml version="1.0"?>
+        <rss version="2.0"><channel>
+        \(items)
+        </channel></rss>
+        """.utf8)
+    }
+
+    /// A Source serving `entries` in that order, on its own host so nothing
+    /// here pays for pacing it is not asserting.
+    @discardableResult
+    private func orderedSource(named name: String, host: String, path: String,
+                               entries: [(guid: String, daysAgo: Int)],
+                               in context: ModelContext) -> FeedSource {
+        let url = URL(string: "https://\(host)\(path)")!
+        let source = FeedSource(name: name, url: url, category: "LLMs")
+        context.insert(source)
+        StubTransport.serve(url, body: orderedFeed(entries))
+        return source
+    }
+
+    private func cachedGuids(in context: ModelContext) throws -> Set<String> {
+        Set(try context.fetch(FetchDescriptor<Article>()).map(\.guid))
+    }
+
     /// Articles already cached today, which is what spends the daily intake cap.
     private func cache(_ count: Int, sourceName: String, in context: ModelContext) {
         for index in 0..<count {
@@ -270,5 +315,144 @@ struct FeedSyncTests {
             $0.value(forHTTPHeaderField: "User-Agent") == FeedSyncService.userAgent
         })
         #expect(FeedSyncService.userAgent == "TechPulse/1.0 (iOS offline RSS reader)")
+    }
+
+    // MARK: - The cap is shared, not won by recency (#45, ADR-0009)
+
+    /// The fault ADR-0009 names: the cap was spent newest-first across the
+    /// pooled candidates of every Source, so a Source publishing thirty items
+    /// today took the lot and a quiet one took nothing. Both Sources have an
+    /// article cached, so neither has a bootstrap ration and the day's
+    /// allowance is the only thing paying.
+    @Test("a quiet Source is represented beside one offering far more")
+    func aQuietSourceIsRepresentedBesideAFirehose() async throws {
+        let context = try makeContext()
+        orderedSource(named: "Firehose", host: Self.host, path: "/firehose.xml",
+                      entries: (0..<30).map { (guid: "firehose-\($0)", daysAgo: 0) },
+                      in: context)
+        orderedSource(named: "Quiet", host: Self.otherHost, path: "/quiet.xml",
+                      entries: [("quiet-0", 5), ("quiet-1", 6)], in: context)
+        cache(1, sourceName: "Firehose", in: context)
+        cache(1, sourceName: "Quiet", in: context)
+
+        let added = await sync(context)
+
+        let guids = try cachedGuids(in: context)
+        #expect(guids.isSuperset(of: ["quiet-0", "quiet-1"]),
+                "the quiet Source's items are five and six days old and still arrive")
+        #expect(added == FeedSyncService.dailyIntakeLimit - 2,
+                "the two already cached today are what the day had spent")
+    }
+
+    /// The half of the same claim that #46 rests on: an item's age is not what
+    /// decides whether it is taken, so a Source whose best is days old is not
+    /// outranked by whatever was published this morning.
+    @Test("an older item reaches the cache beside a Source full of same-day ones")
+    func anOlderItemReachesTheCacheBesideSameDayItems() async throws {
+        let context = try makeContext()
+        orderedSource(named: "Firehose", host: Self.host, path: "/firehose.xml",
+                      entries: (0..<30).map { (guid: "firehose-\($0)", daysAgo: 0) },
+                      in: context)
+        orderedSource(named: "Community", host: Self.otherHost, path: "/top.xml",
+                      entries: [("top-0", 6)], in: context)
+        // Spend all but two of the day, so recency would have to fight for a
+        // place rather than being handed thirty of them.
+        cache(FeedSyncService.dailyIntakeLimit - 2, sourceName: "Firehose", in: context)
+        cache(1, sourceName: "Community", in: context)
+
+        _ = await sync(context)
+
+        #expect(try cachedGuids(in: context).contains("top-0"),
+                "a six-day-old item takes its turn like any other")
+    }
+
+    /// Round-robin governs *how many* items a Source contributes and never
+    /// *which*: a Source's own ordering is part of what the reader subscribed
+    /// to (`CONTEXT.md`, **Source**). Re-sorting each Source's own items
+    /// newest-first would reproduce ADR-0009's fault inside every Source and
+    /// delete the only property a vote-ranked Source has.
+    @Test("a Source's own ordering decides which of its items are taken")
+    func aSourcesOwnOrderingDecidesWhichItemsAreTaken() async throws {
+        let context = try makeContext()
+        // A vote-ranked shape: best first, and the newest entry last.
+        orderedSource(named: "Community", host: Self.host, path: "/top.xml",
+                      entries: [("top-best", 6), ("top-second", 5),
+                                ("top-third", 3), ("top-newest", 0)],
+                      in: context)
+        cache(FeedSyncService.dailyIntakeLimit - 2, sourceName: "Community", in: context)
+
+        let added = await sync(context)
+
+        #expect(added == 2)
+        #expect(try cachedGuids(in: context).isSuperset(of: ["top-best", "top-second"]),
+                "the two the Source put first, not the two published most recently")
+        #expect(try cachedGuids(in: context).isDisjoint(with: ["top-newest"]),
+                "the newest entry is last in this feed, and that is the Source's business")
+    }
+
+    @Test("the cap is spent exactly, and fully, when the Sources have items to give")
+    func theCapIsSpentExactlyAndFully() async throws {
+        let context = try makeContext()
+        for (index, host) in [Self.host, Self.otherHost].enumerated() {
+            orderedSource(named: "Source \(index)", host: host, path: "/s\(index).xml",
+                          entries: (0..<20).map { (guid: "s\(index)-\($0)", daysAgo: 0) },
+                          in: context)
+            cache(1, sourceName: "Source \(index)", in: context)
+        }
+
+        let added = await sync(context)
+
+        #expect(added == FeedSyncService.dailyIntakeLimit - 2)
+        #expect(try context.fetch(FetchDescriptor<Article>()).count
+                == FeedSyncService.dailyIntakeLimit)
+    }
+
+    /// A Source with nothing left to offer is skipped rather than spending a
+    /// turn, so the cap is not left partly unspent because one Source ran dry.
+    /// A guard on the loop's stopping rule rather than on the old fault: the
+    /// obvious round-robin, which stops as soon as any Source empties, leaves
+    /// the day two-thirds unspent here.
+    @Test("a Source that runs out does not hold back the cap")
+    func anExhaustedSourceDoesNotHoldBackTheCap() async throws {
+        let context = try makeContext()
+        orderedSource(named: "Deep", host: Self.host, path: "/deep.xml",
+                      entries: (0..<30).map { (guid: "deep-\($0)", daysAgo: 0) },
+                      in: context)
+        orderedSource(named: "Shallow", host: Self.otherHost, path: "/shallow.xml",
+                      entries: [("shallow-0", 1)], in: context)
+        cache(1, sourceName: "Deep", in: context)
+        cache(1, sourceName: "Shallow", in: context)
+
+        let added = await sync(context)
+
+        #expect(added == FeedSyncService.dailyIntakeLimit - 2,
+                "Shallow had one to give; Deep spent the rest of the day rather than leaving it")
+        #expect(try cachedGuids(in: context).contains("shallow-0"))
+    }
+
+    /// An item the reader already has is not an item offered, so passing over
+    /// it must not cost that Source its turn.
+    @Test("a Source whose newest items are already cached still contributes")
+    func alreadyCachedItemsDoNotCostATurn() async throws {
+        let context = try makeContext()
+        orderedSource(named: "Repeat", host: Self.host, path: "/repeat.xml",
+                      entries: [("repeat-0", 2), ("repeat-1", 1), ("repeat-2", 0)],
+                      in: context)
+        orderedSource(named: "Other", host: Self.otherHost, path: "/other.xml",
+                      entries: (0..<10).map { (guid: "other-\($0)", daysAgo: 0) },
+                      in: context)
+        cache(1, sourceName: "Repeat", in: context)
+        cache(1, sourceName: "Other", in: context)
+        // The first two of Repeat's three are already here.
+        for guid in ["repeat-0", "repeat-1"] {
+            context.insert(Article(guid: guid, title: "Seen", content: "Body",
+                                   publishedAt: .now, sourceName: "Repeat"))
+        }
+        try context.save()
+
+        _ = await sync(context)
+
+        #expect(try cachedGuids(in: context).contains("repeat-2"),
+                "two known guids were passed over without spending the Source's turn")
     }
 }

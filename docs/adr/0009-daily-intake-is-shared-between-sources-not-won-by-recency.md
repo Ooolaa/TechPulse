@@ -21,8 +21,19 @@ reader subscribed to. It does not merely disadvantage a popularity-ranked
 Source; it deletes the only property that made it worth adding.
 
 **Decision:** intake is allocated **round-robin across Sources** — each Source
-offers its own newest-first, and the cap is spent one item per Source per turn
-until exhausted. Global recency ordering is removed as the allocator.
+offers its own items in its own order, and the cap is spent one item per Source
+per turn until exhausted. Global recency ordering is removed as the allocator.
+Round-robin governs **how many** items a Source contributes and never **which**.
+
+**Correction (2026-08-21):** this sentence read "each Source offers its own
+newest-first". Implementing it (#45) showed that sorting a Source's own items
+by date reproduces this ADR's own fault one level down. A "top this week"
+entry is up to six days old, so newest-first *inside* the Source hands over
+that Source's newest items rather than its best ones — deleting the popularity
+ordering exactly as the global sort deleted it, only more quietly. The
+paragraph above already carried the rule that settles it: *what a Source is
+ordered by is part of what you subscribed to*. Most feeds are newest-first and
+so offer their newest first, which is why the wrong sentence read as harmless.
 
 ## Considered options
 

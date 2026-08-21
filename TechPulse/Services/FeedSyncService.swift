@@ -71,45 +71,73 @@ enum FeedSyncService {
             uniqueKeysWithValues: newSourceNames.map { ($0, newSourceAllowance) }
         )
 
-        // Pool candidates across all feeds, newest first, so the cap keeps the
-        // best (freshest) 30 rather than whichever feed happened to come first.
-        var candidates: [(sourceName: String, item: ParsedFeedItem)] = []
+        // What each Source has to offer, in the order the Source itself put it.
+        // The order is deliberately left alone: what a Source is ordered by is
+        // part of what the reader subscribed to (`CONTEXT.md`, **Source**), so
+        // a vote-ranked feed offers its best first and a chronological one
+        // offers its newest first, and neither is the app's decision to make.
+        var offers: [(sourceName: String, items: [ParsedFeedItem], next: Int)] = []
         for (index, source) in sources.enumerated() {
             guard let data = payloads[index] else { continue }
-            for item in RSSParser.parse(data).prefix(perFeedLimit) {
-                candidates.append((source.name, item))
-            }
+            offers.append((source.name, Array(RSSParser.parse(data).prefix(perFeedLimit)), 0))
             source.lastFetched = .now
         }
-        candidates.sort { ($0.item.publishedAt ?? .now) > ($1.item.publishedAt ?? .now) }
 
-        for candidate in candidates {
-            guard allowance > 0 || !bootstrap.isEmpty else { break }
-            let item = candidate.item
-            guard !item.guid.isEmpty, !knownGuids.contains(item.guid) else { continue }
-            // Charge the bootstrap ration first for brand-new sources; the
-            // shared daily allowance pays for everything else.
-            if let ration = bootstrap[candidate.sourceName] {
-                if ration <= 1 { bootstrap.removeValue(forKey: candidate.sourceName) }
-                else { bootstrap[candidate.sourceName] = ration - 1 }
-            } else if allowance > 0 {
-                allowance -= 1
-            } else {
-                continue
+        // Round-robin: one item per Source per turn, until the cap is spent or
+        // nobody has anything left to give (ADR-0009). The pooled newest-first
+        // sort this replaces let one prolific Source take the whole day —
+        // three arXiv feeds can each offer `perFeedLimit` same-day items — and
+        // in doing so silently made every Source chronological, whatever the
+        // reader actually subscribed to. Round-robin decides *how many* items
+        // a Source contributes and never *which*.
+        var takingTurns = true
+        while takingTurns && (allowance > 0 || !bootstrap.isEmpty) {
+            takingTurns = false
+            for index in offers.indices {
+                guard allowance > 0 || !bootstrap.isEmpty else { break }
+                let sourceName = offers[index].sourceName
+                // A Source whose ration is spent while the day's allowance is
+                // gone cannot take a turn — but it is not exhausted, so its
+                // items keep their place rather than being passed over.
+                let ration = bootstrap[sourceName]
+                guard ration != nil || allowance > 0 else { continue }
+
+                // An article the reader already has is not something offered,
+                // so passing over it does not cost this Source its turn.
+                var offered: ParsedFeedItem?
+                while offers[index].next < offers[index].items.count {
+                    let candidate = offers[index].items[offers[index].next]
+                    offers[index].next += 1
+                    if !candidate.guid.isEmpty, !knownGuids.contains(candidate.guid) {
+                        offered = candidate
+                        break
+                    }
+                }
+                guard let item = offered else { continue }   // nothing left to give
+
+                // Charge the bootstrap ration first for brand-new sources; the
+                // shared daily allowance pays for everything else.
+                if let ration {
+                    if ration <= 1 { bootstrap.removeValue(forKey: sourceName) }
+                    else { bootstrap[sourceName] = ration - 1 }
+                } else {
+                    allowance -= 1
+                }
+                // Some publishers post-date RSS timestamps; clamp so the feed
+                // never shows articles from "the future".
+                let article = Article(
+                    guid: item.guid,
+                    title: item.title.strippingHTML,
+                    content: item.content,
+                    publishedAt: min(item.publishedAt ?? .now, .now),
+                    sourceName: sourceName,
+                    link: item.link.isEmpty ? nil : item.link
+                )
+                context.insert(article)
+                knownGuids.insert(item.guid)
+                added += 1
+                takingTurns = true
             }
-            // Some publishers post-date RSS timestamps; clamp so the feed
-            // never shows articles from "the future".
-            let article = Article(
-                guid: item.guid,
-                title: item.title.strippingHTML,
-                content: item.content,
-                publishedAt: min(item.publishedAt ?? .now, .now),
-                sourceName: candidate.sourceName,
-                link: item.link.isEmpty ? nil : item.link
-            )
-            context.insert(article)
-            knownGuids.insert(item.guid)
-            added += 1
         }
         prune(context: context)
         try? context.save()
