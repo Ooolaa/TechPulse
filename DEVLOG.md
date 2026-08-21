@@ -10,6 +10,83 @@
 
 ---
 
+## 2026-08-21 — The flagship gains one Source that is ordered by what people thought (#46)
+
+**Built**
+- **One vote-ranked Source**, `r/MachineLearning/top/.rss?t=week`, in the
+  flagship's LLMs cluster. That is the entire feature: no field marks a Source
+  as popularity-ranked, nothing in `HotTopics` changed, and no code path treats
+  it differently from `KDnuggets`. Popularity ordering is a property of the URL
+  the reader subscribed to (ADR-0003), so the 🔥 lane starts reflecting what
+  practitioners are discussing without the app learning that popularity exists.
+- **One, not several.** Every extra reddit.com Source multiplies the throttling
+  #44 had to pace around — they share a host, so they share a queue. r/kaggle
+  is untouched: it serves the Data Science Cluster chronologically, which is a
+  different job.
+- **Added to both lists that carry the flagship's Sources**, at the same index,
+  because `BuiltinPacksTests` pins them in step. The Pack file is what a
+  reader's installed record gets; `SeedData.defaultSources` is what actually
+  reaches an existing install, since `seedIfNeeded` runs on every launch and
+  inserts defaults that are missing. Pack-file-only would have been inert — the
+  Source offer fires when a reader *installs a Pack from the library*, not on
+  the launch-time reinstall a version bump triggers, so a reader who never
+  opens the Pack library would never have been asked.
+- **What that costs, said plainly.** Seeding subscribes rather than offers, so
+  every existing reader gains this Source at next launch without being asked —
+  including a reader on the Security Engineering Pack, and once subscribed the
+  offer is suppressed for good, because `PackSourceOffer.pending` filters URLs
+  already subscribed. That is not new behaviour: all thirteen AI defaults
+  already reach every reader this way, whatever Pack they are on. It is the
+  pre-existing update path being used for what it was built for, and it sits
+  awkwardly beside the offer sheet's own promise that nothing is subscribed
+  until you say so. Worth revisiting as its own issue rather than settled here.
+- **`PackMigration.builtinPackVersion` 1 → 2**, which is the live lever
+  (`KnowledgePack.packVersion` has been historical since Packs became data), so
+  launch reinstalls the built-in Pack and the record's suggestions move on with
+  the file.
+- **No new line on the Egress list.** `PRIVACY.md`'s first entry is "the public
+  RSS/Atom feeds of the Sources you enabled" — one more feed URL is not a new
+  kind of traffic, which is the test of whether that list changed.
+
+**Verified** 401 unit tests, 5 new; all four UI journeys pass. Three of the new
+tests fail against the previous Pack file. The parity test between the compiled
+defaults and the Pack file passes unchanged, which is what says the two lists
+are still in step.
+
+Also fixed a test written an hour earlier in #45 that was flaky rather than
+wrong: it left one unit of the day's allowance for two Sources, so which of
+them got it depended on the order SwiftData handed the Sources back. It now
+leaves two, one turn each. It had passed on every run until this one.
+
+**What the review changed** Both axes independently found the same two stale
+documents, and they are the reason this entry has a version of the ADR rule in
+it. `ADR-0003`'s second consequence — "a 'top this week' entry carrying a
+six-day-old timestamp loses to same-day arXiv papers by construction" — was
+true of the allocator #45 replaced and false the moment it landed, while
+`SeedData` was busy citing that same ADR as the authority for adding the
+Source. Amended in place, linking forward to ADR-0009. `ROADMAP.md` item 12
+still listed "reserve a minimum slot per enabled source" as open work; ADR-0009
+rejects that option by name, and the fairness half has now shipped as
+round-robin.
+
+The rest were smaller and all in new prose: "feed" used where **Source** was
+meant, inside the very comment citing `CONTEXT.md`'s entry for it; "is six days
+old" where the ADR says "up to six days"; a comment describing the rare branch
+of a guard whose common case is a Source that never had a ration at all; and a
+`SourceQueue` that had been called `Offering`, one word away from
+`PackSourceOffer`, which means something else entirely. The spec axis also
+caught that nothing asserted the Source reached `SeedData.defaultSources` — the
+list that actually delivers it — only the Pack file, with the parity test
+covering the gap by accident.
+
+**Learned** "Add it to the Pack file" was the obvious reading and would have
+shipped nothing. The Pack file is what a Pack *suggests*; the compiled defaults
+are what an existing install actually receives — and the offer path that
+bridges them only runs when a reader installs a Pack by hand. Three mechanisms
+that all look like "the flagship's Sources" from a distance.
+
+---
+
 ## 2026-08-21 — The day is shared between Sources, not won by whoever published this morning (#45)
 
 **Built**
@@ -28,8 +105,8 @@
 - **ADR-0009's decision sentence was wrong and is corrected in place.** It said
   "each Source offers its own newest-first". Sorting a Source's own items by
   date reproduces that ADR's whole fault one level down: a "top this week"
-  entry is six days old, so newest-first *inside* the Source hands over its
-  newest items rather than its best ones, deleting the popularity ordering
+  entry is up to six days old, so newest-first *inside* the Source hands over
+  its newest items rather than its best ones, deleting the popularity ordering
   exactly as the global sort did. The rule that settles it was already in the
   ADR a paragraph earlier — *what a Source is ordered by is part of what you
   subscribed to*. Most feeds are newest-first anyway, which is why the wrong

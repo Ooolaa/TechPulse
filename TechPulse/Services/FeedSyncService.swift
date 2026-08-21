@@ -74,12 +74,13 @@ enum FeedSyncService {
         // What each Source has to offer, in the order the Source itself put it.
         // The order is deliberately left alone: what a Source is ordered by is
         // part of what the reader subscribed to (`CONTEXT.md`, **Source**), so
-        // a vote-ranked feed offers its best first and a chronological one
+        // a vote-ranked Source offers its best first and a chronological one
         // offers its newest first, and neither is the app's decision to make.
-        var offers: [(sourceName: String, items: [ParsedFeedItem], next: Int)] = []
+        var queues: [SourceQueue] = []
         for (index, source) in sources.enumerated() {
             guard let data = payloads[index] else { continue }
-            offers.append((source.name, Array(RSSParser.parse(data).prefix(perFeedLimit)), 0))
+            queues.append(SourceQueue(sourceName: source.name,
+                                      items: Array(RSSParser.parse(data).prefix(perFeedLimit))))
             source.lastFetched = .now
         }
 
@@ -90,30 +91,19 @@ enum FeedSyncService {
         // in doing so silently made every Source chronological, whatever the
         // reader actually subscribed to. Round-robin decides *how many* items
         // a Source contributes and never *which*.
-        var takingTurns = true
-        while takingTurns && (allowance > 0 || !bootstrap.isEmpty) {
-            takingTurns = false
-            for index in offers.indices {
+        var someoneTookATurn = true
+        while someoneTookATurn && (allowance > 0 || !bootstrap.isEmpty) {
+            someoneTookATurn = false
+            for index in queues.indices {
                 guard allowance > 0 || !bootstrap.isEmpty else { break }
-                let sourceName = offers[index].sourceName
-                // A Source whose ration is spent while the day's allowance is
-                // gone cannot take a turn — but it is not exhausted, so its
-                // items keep their place rather than being passed over.
+                let sourceName = queues[index].sourceName
+                // Nothing left to pay with: this Source has no bootstrap ration
+                // — it never had one, or it has spent it — and the day's
+                // allowance is gone. It is not exhausted, though, so its items
+                // keep their place rather than being passed over.
                 let ration = bootstrap[sourceName]
                 guard ration != nil || allowance > 0 else { continue }
-
-                // An article the reader already has is not something offered,
-                // so passing over it does not cost this Source its turn.
-                var offered: ParsedFeedItem?
-                while offers[index].next < offers[index].items.count {
-                    let candidate = offers[index].items[offers[index].next]
-                    offers[index].next += 1
-                    if !candidate.guid.isEmpty, !knownGuids.contains(candidate.guid) {
-                        offered = candidate
-                        break
-                    }
-                }
-                guard let item = offered else { continue }   // nothing left to give
+                guard let item = queues[index].nextUnread(knownGuids) else { continue }
 
                 // Charge the bootstrap ration first for brand-new sources; the
                 // shared daily allowance pays for everything else.
@@ -136,12 +126,44 @@ enum FeedSyncService {
                 context.insert(article)
                 knownGuids.insert(item.guid)
                 added += 1
-                takingTurns = true
+                someoneTookATurn = true
             }
         }
         prune(context: context)
         try? context.save()
         return added
+    }
+
+    /// What one Source has left to give this sync, and how far the round has
+    /// got through it. The order is the Source's own and is never rearranged:
+    /// what a Source is ordered by is part of what the reader subscribed to.
+    ///
+    /// Not an "offer": `PackSourceOffer` already means suggestions put to the
+    /// reader when a Pack installs, which is a different thing entirely.
+    private struct SourceQueue {
+        let sourceName: String
+        let items: [ParsedFeedItem]
+        private var taken = 0
+
+        init(sourceName: String, items: [ParsedFeedItem]) {
+            self.sourceName = sourceName
+            self.items = items
+        }
+
+        /// The next item the reader does not already have, consuming everything
+        /// passed over on the way. An article already cached is not something
+        /// offered, so skipping it must not cost this Source its turn — which
+        /// is why the skipping happens here rather than in the round.
+        mutating func nextUnread(_ knownGuids: Set<String>) -> ParsedFeedItem? {
+            while taken < items.count {
+                let candidate = items[taken]
+                taken += 1
+                if !candidate.guid.isEmpty, !knownGuids.contains(candidate.guid) {
+                    return candidate
+                }
+            }
+            return nil
+        }
     }
 
     /// One host's Sources, one request at a time.

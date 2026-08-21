@@ -191,4 +191,62 @@ struct BuiltinPacksTests {
         #expect(exported.concepts.map(\.name) == KnowledgePack.concepts.map(\.name))
         #expect(exported.clusterOrder == KnowledgePack.clusterOrder)
     }
+
+    // MARK: - The vote-ranked Source (#46)
+
+    /// ADR-0003 settled that popularity ordering is a property of the URL the
+    /// reader subscribed to, not something the app computes about a platform it
+    /// knows about. So community attention reaches the 🔥 lane by the flagship
+    /// suggesting one vote-ranked feed — and by nothing anywhere in the app
+    /// learning that popularity exists.
+    @Test("the flagship suggests a vote-ranked Source, in the LLMs cluster")
+    func suggestsAVoteRankedSource() throws {
+        let community = try #require(
+            aiEngineer().suggestedSources.first { $0.url.contains("r/MachineLearning") })
+        #expect(community.url == "https://www.reddit.com/r/MachineLearning/top/.rss?t=week")
+        #expect(community.category == "LLMs")
+    }
+
+    /// One, not several. A single popularity signal is enough, and every extra
+    /// reddit.com Source multiplies the throttling #44 had to pace around —
+    /// they share a host, so they share a queue.
+    @Test("exactly one suggested Source is vote-ranked")
+    func onlyOneSourceIsVoteRanked() throws {
+        let sources = try aiEngineer().suggestedSources
+        #expect(sources.count { $0.url.contains("/top/") } == 1)
+        #expect(sources.count { $0.url.contains("reddit.com") } == 2,
+                "the vote-ranked one and r/kaggle, and no more than that on one host")
+    }
+
+    /// The Pack file is what a reader's installed record carries; the compiled
+    /// defaults are what actually reaches an install, because `seedIfNeeded`
+    /// runs on every launch and inserts the ones that are missing. A Source in
+    /// only the first of those two would be suggested to nobody, since the
+    /// offer fires when a reader installs a Pack from the library and not on
+    /// the launch-time reinstall a version bump triggers.
+    @Test("the vote-ranked Source is in the list that actually reaches an install")
+    func voteRankedSourceIsSeeded() {
+        #expect(SeedData.defaultSources.contains {
+            $0.url == "https://www.reddit.com/r/MachineLearning/top/.rss?t=week"
+                && $0.category == "LLMs"
+        })
+    }
+
+    /// r/kaggle serves the Data Science Cluster chronologically, which is a
+    /// different job from the one the vote-ranked Source does.
+    @Test("r/kaggle is left exactly as it was")
+    func kaggleIsUnchanged() throws {
+        let kaggle = try #require(
+            aiEngineer().suggestedSources.first { $0.name.contains("Kaggle") })
+        #expect(kaggle.url == "https://www.reddit.com/r/kaggle/.rss")
+        #expect(kaggle.category == "Data Science")
+    }
+
+    /// A Pack file that changes without the version changing is a Pack file
+    /// that never reaches a reader who installed the version before it.
+    @MainActor
+    @Test("the built-in Pack version moved on with the file")
+    func builtinPackVersionMovedOn() {
+        #expect(PackMigration.builtinPackVersion >= 2)
+    }
 }
