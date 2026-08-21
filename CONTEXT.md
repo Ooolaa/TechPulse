@@ -117,7 +117,10 @@ _Avoid_: trending, buzzword, radar, hype
 **Source**:
 A place reading arrives from, chosen by the user. A Source is a subscription,
 not a publisher — the app is indifferent to what kind of thing is on the other
-end.
+end, and to how that end decided what to put there. What a Source is ordered by
+is part of what you subscribed to: subscribe to a popularity-ranked one and
+community attention reaches your reading without the app ever learning that
+popularity exists.
 _Avoid_: feed, channel, subscription, publisher
 
 **Reading Intention**:
