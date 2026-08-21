@@ -28,24 +28,25 @@ enum FeedSyncService {
         let enabled = FetchDescriptor<FeedSource>(predicate: #Predicate { $0.isEnabled })
         guard let sources = try? context.fetch(enabled), !sources.isEmpty else { return 0 }
 
-        // Fetch all feeds concurrently (network-bound), then parse/insert on
-        // the main actor. Cuts a cold sync from ~sum to ~max of feed latencies.
+        // Fetch by host: the groups run concurrently, so a cold sync is still
+        // ~max rather than ~sum of feed latencies for the Sources that do not
+        // share a host, and the Sources inside one group go one at a time.
+        // Host is the unit because host is what the far end counts by — two
+        // subreddits are two Sources and one server (#44).
+        //
+        // Hosts are case-insensitive, so `Reddit.com` and `reddit.com` are one
+        // group and not two. A URL with no host is filed under one empty key
+        // with the others of its kind, which is the conservative reading: a
+        // host that cannot be named cannot be shown to be a different one.
         let requests = sources.enumerated().map { (index: $0.offset, url: $0.element.url) }
-        let payloads = await withTaskGroup(of: (Int, Data?).self) { group in
-            for feed in requests {
-                group.addTask {
-                    guard feed.url.scheme == "https" else { return (feed.index, nil) }
-                    var urlRequest = URLRequest(url: feed.url, timeoutInterval: 30)
-                    urlRequest.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-                    guard let (data, response) = try? await URLSession.shared.data(for: urlRequest),
-                          ResponseLimit.accepts(data: data, response: response)
-                    else { return (feed.index, nil) }
-                    return (feed.index, data)
-                }
+        let byHost = Dictionary(grouping: requests) { $0.url.host()?.lowercased() ?? "" }
+        let payloads = await withTaskGroup(of: [(index: Int, data: Data)].self) { group in
+            for hostGroup in byHost.values {
+                group.addTask { await fetchInTurn(hostGroup) }
             }
             var results = [Int: Data]()
-            for await (index, data) in group {
-                if let data { results[index] = data }
+            for await fetched in group {
+                for entry in fetched { results[entry.index] = entry.data }
             }
             return results
         }
@@ -113,6 +114,50 @@ enum FeedSyncService {
         prune(context: context)
         try? context.save()
         return added
+    }
+
+    /// One host's Sources, one request at a time.
+    ///
+    /// The pause separates requests, not list positions: it is paid only after
+    /// this host was actually asked something, so the first Source waits for
+    /// nothing, no sync ends on a wait, and a Source that is never asked — one
+    /// the scheme guard turns away — does not make the Source behind it wait
+    /// for a request the host never received.
+    ///
+    /// It *is* paid after a request that failed. A failure is most likely the
+    /// throttling the pause exists for, and that is the worst moment to ask the
+    /// same host again immediately.
+    private nonisolated static func fetchInTurn(
+        _ sources: [(index: Int, url: URL)]
+    ) async -> [(index: Int, data: Data)] {
+        var fetched = [(index: Int, data: Data)]()
+        var asked = false
+        for source in sources {
+            // Not a request, so not something to pace against: an http Source
+            // is refused here rather than sent (`Egress` leaves over TLS only).
+            guard source.url.scheme == "https" else { continue }
+            if asked {
+                // Cancellation ends the group here rather than releasing the
+                // rest of it back to back, which is the thing being avoided.
+                do { try await Task.sleep(for: HostPacing.betweenRequests) }
+                catch { break }
+            }
+            asked = true
+            if let data = await fetch(source.url) { fetched.append((source.index, data)) }
+        }
+        return fetched
+    }
+
+    /// One request, to a Source `fetchInTurn` has decided is askable. A Source
+    /// that times out, errors, or answers non-2xx or over the response limit
+    /// contributes nothing — and costs the Sources around it nothing either.
+    private nonisolated static func fetch(_ url: URL) async -> Data? {
+        var request = URLRequest(url: url, timeoutInterval: 30)
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              ResponseLimit.accepts(data: data, response: response)
+        else { return nil }
+        return data
     }
 
     /// Cap the offline cache: read articles older than 60 days are deleted.

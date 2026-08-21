@@ -108,6 +108,60 @@ struct StubTransportTests {
         #expect(String(decoding: data, as: UTF8.self) == "still served")
     }
 
+    @Test("two requests issued at once read as in flight together")
+    func concurrentRequestsOverlap() async throws {
+        StubTransport.stopServing(host: host)
+        defer { StubTransport.stopServing(host: host) }
+        StubTransport.serve(url("/one"), body: "first")
+        StubTransport.serve(url("/two"), body: "second")
+
+        let session = StubTransport.session()
+        async let first = session.data(from: url("/one"))
+        async let second = session.data(from: url("/two"))
+        _ = try await (first, second)
+
+        // The property #44's pacing is asserted against. A stub that answered
+        // inside `startLoading` would report 1 here and would then report 1 for
+        // a sync that paced nothing.
+        #expect(StubTransport.peakConcurrency(among: host) == 2)
+    }
+
+    @Test("requests made one after another never read as in flight together")
+    func sequentialRequestsDoNotOverlap() async throws {
+        StubTransport.stopServing(host: host)
+        defer { StubTransport.stopServing(host: host) }
+        StubTransport.serve(url("/one"), body: "first")
+        StubTransport.serve(url("/two"), body: "second")
+
+        let session = StubTransport.session()
+        _ = try await session.data(from: url("/one"))
+        _ = try await session.data(from: url("/two"))
+
+        #expect(StubTransport.peakConcurrency(among: host) == 1)
+    }
+
+    @Test("a host nobody named is not counted as concurrency")
+    func concurrencyIsScopedToTheHostsNamed() async throws {
+        let other = "other.test"
+        defer {
+            StubTransport.stopServing(host: host)
+            StubTransport.stopServing(host: other)
+        }
+        StubTransport.stopServing(host: host)
+        StubTransport.stopServing(host: other)
+        StubTransport.serve(url("/one"), body: "first")
+        StubTransport.serve(URL(string: "https://\(other)/one")!, body: "other")
+
+        let session = StubTransport.session()
+        async let first = session.data(from: url("/one"))
+        async let second = session.data(from: URL(string: "https://\(other)/one")!)
+        _ = try await (first, second)
+
+        // Suites run in parallel, so an unscoped peak would be another suite's.
+        #expect(StubTransport.peakConcurrency(among: host) == 1)
+        #expect(StubTransport.peakConcurrency(among: host, other) == 2)
+    }
+
     @Test("clearing one host leaves another serving")
     func clearingIsPerHost() async throws {
         defer {
@@ -124,5 +178,7 @@ struct StubTransportTests {
                                        session: StubTransport.session())
         #expect(String(decoding: data, as: UTF8.self) == "other")
         #expect(StubTransport.requests(to: host).isEmpty)
+        #expect(StubTransport.peakConcurrency(among: host) == 0,
+                "what it served is forgotten along with when it served it")
     }
 }

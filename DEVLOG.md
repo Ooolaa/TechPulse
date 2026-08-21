@@ -10,6 +10,97 @@
 
 ---
 
+## 2026-08-21 — One host is asked one thing at a time (#44)
+
+**Built**
+- **`syncAll` fetches by host, not by Source.** Sources are grouped by URL
+  host; the groups still run concurrently in one task group, so the cold-sync
+  win survives for every Source alone on its host, and the Sources inside a
+  group go one at a time with `HostPacing.betweenRequests` between them. Host
+  is the unit because host is what the far end counts by — two subreddits are
+  two Sources and one server.
+- **Who actually pays, today.** The seeded set is 13 Sources across 11 hosts,
+  and the three that share one are the arXiv feeds (`cs.AI`, `cs.LG`, `cs.CL`
+  are all `export.arxiv.org`), not the reddit Source this was written for. So a
+  cold sync gains four seconds of deliberate waiting before #46 adds a second
+  reddit.com Source at all — and arXiv, the host that has never throttled us,
+  is the one being paced. That is the cost of not classifying Sources: the rule
+  is about hosts, and it does not get to know which host deserves it.
+- **`HostPacing` is the whole answer to "how fast will you ask a host for
+  things"**, two seconds, in one file, for the reason `ResponseLimit` is one
+  value and not three. It is explicitly not a number that makes throttling go
+  away: ADR-0003 and #43 both watched `r/MachineLearning/top/.rss?t=week`
+  return 429 and then zero bytes on *sequential* fetches two minutes apart,
+  with the descriptive User-Agent set. The agent is unchanged and still sent —
+  the finding is a reason to pace, not a reason to stop identifying ourselves.
+- **The pause separates requests, not list positions.** It is paid only after
+  this host was actually asked something, so the first Source waits for nothing
+  and no sync ends on a wait — and it *is* paid after a request that failed,
+  because a failure is most likely the throttling it exists for, which is the
+  worst moment to ask again at once. A cancelled sleep ends that host's group
+  rather than releasing the rest of it back to back.
+- **The stub answers after a moment now, and remembers when each request was in
+  flight.** `StubTransport` replied inside `startLoading`, which meant it was
+  finished before its caller could issue a second request: two requests fired
+  at once never overlapped, so "these did not overlap" was true of every sync,
+  paced or not, and a pacing test would have been green before the pacing
+  existed. Replies go out on a queue after 50 ms and each request's interval is
+  recorded, so `peakConcurrency(among:)` can be asked of whichever hosts a
+  suite owns. Scoped to named hosts for the same reason `requests(to:)` is —
+  suites run in parallel and the record is shared. Every stubbed response in
+  the process now costs 50 ms; that is the price of the stub being able to
+  express concurrency at all.
+- **ADR-0003's consequence was wider than it claimed and is amended in place.**
+  It recorded a 429 on a *back-to-back* fetch; #43 saw 429 and then zero bytes
+  two minutes apart, which is a different claim about what pacing can buy. The
+  ADR now says both, says the pacing half shipped here, and says the
+  visible-health half is still #14.
+
+**Verified** 390 unit tests, 8 new; three of the four UI journeys pass (see
+below for the fourth). The two pacing tests were run against the
+unpaced `syncAll` and failed there, reporting a peak of 2 requests in flight on
+one host. Non-overlap is not the whole claim — back-to-back requests overlap no
+more than paced ones do — so the same-host test also pins the pause as a lower
+bound on how long that sync takes, which a slow machine cannot fail and a
+deleted `Task.sleep` cannot pass. The stub's own new tests pin both directions:
+two requests issued at once read as overlapping, two issued in sequence do not
+— without the first, the pacing tests would pass against a stub that can only
+ever report 1. The name-collision tests moved their second Source to a second
+host: their subject is a ration keyed by name, and a test should not pay a
+two-second pause to assert something pacing has nothing to do with. The paced
+pair carries the shared name instead, so the #23 shape still runs the paced
+path without a second slow test.
+
+**What the review changed** Both findings were about paying a pause for a
+request that was never sent. `fetchInTurn` slept before every list position
+after the first, so an http Source — turned away by the scheme guard without a
+byte leaving — made the Source behind it wait two seconds for a request no host
+received; the pause is charged per request *asked* now, with a test that fails
+against the old shape. And the stub filed hosts verbatim while `syncAll`
+grouped them lowercased, so a suite writing `Reddit.com` beside `reddit.com`
+would have been told there was no overlap in a pair production had already put
+in one group — a green bought from a disagreement about spelling. The stub keys
+hosts one way now, everywhere it files or is asked about one.
+
+Left standing deliberately: nothing caps a host group's total latency, so the
+three arXiv Sources, if they all hit the 30-second timeout, serialise to ~94
+seconds. Other hosts are unaffected, which is what #44 asked for; a cap on a
+group would be a new decision and belongs with the visible Source health in #14.
+
+The `testCoreJourney` UI journey fails intermittently — `find.exists` then
+`find.label` on the topic-search button, which can vanish between the two. It
+was checked against the unmodified tree and fails there identically, so it is
+not this change; noted rather than fixed, because it is a race in the journey's
+own polling.
+
+**Learned** A test fixture can quietly decide what a test is capable of
+noticing. The stub was correct in everything it claimed about itself and still
+made concurrency unobservable, because answering instantly is not a property
+anyone thought to write down — the honest fix was to give it a duration, not to
+give production a seam.
+
+---
+
 ## 2026-08-20 — Two records answer to one field, and only one is yours (#39)
 
 **Built**

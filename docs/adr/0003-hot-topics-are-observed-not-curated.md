@@ -33,12 +33,22 @@ vote-sorted, while remaining just another Source.
 
 ## Consequences
 
-Reddit throttles aggressively: a back-to-back fetch of a second subreddit
-returned **HTTP 429** during this investigation, with the existing custom
-User-Agent set. `FeedSyncService` fetches every Source concurrently in a task
-group and swallows failures with `try?`, so several subreddits will silently
-yield nothing. Per-host request pacing and visible Source health (ROADMAP item
-12) become prerequisites rather than nice-to-haves.
+Reddit throttles aggressively, and not only against bursts: a back-to-back
+fetch of a second subreddit returned **HTTP 429** during this investigation,
+with the existing custom User-Agent set — and #43 later watched
+`r/MachineLearning/top/.rss?t=week` return **429 and then zero bytes** on plain
+*sequential* fetches two minutes apart. So pacing makes the app a well-behaved
+client; what it cannot do is buy an answer from this host, and no client-side
+number can.
+
+`FeedSyncService` fetched every Source concurrently in one task group and
+swallowed failures with `try?`, so several subreddits silently yielded nothing.
+Per-host request pacing and visible Source health (ROADMAP item 12) were
+therefore prerequisites rather than nice-to-haves. The pacing half shipped in
+**#44**: Sources are grouped by URL host, the groups run concurrently, and the
+Sources inside one group go one at a time with `HostPacing.betweenRequests`
+between requests. The visible-health half is still open (**#14**) — a Source
+that comes back with nothing still says so to nobody.
 
 Intake is capped at 30/day sorted newest-first, so a "top this week" entry
 carrying a six-day-old timestamp loses to same-day arXiv papers by construction.
