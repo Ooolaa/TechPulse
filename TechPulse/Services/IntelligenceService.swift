@@ -69,7 +69,7 @@ enum IntelligenceService {
             .map { (name: $0.name, category: $0.category, definition: $0.conceptDefinition) }
         for article in pending {
             let analysis = await analyze(article, vocabulary: vocabulary)
-            apply(analysis, to: article, context: context)
+            await apply(analysis, to: article, context: context)
             try? context.save()
         }
         // Once, for the whole batch: scoring is over every reading at once, so
@@ -104,7 +104,7 @@ enum IntelligenceService {
         let vocabulary = ((try? context.fetch(FetchDescriptor<Concept>())) ?? [])
             .map { (name: $0.name, category: $0.category, definition: $0.conceptDefinition) }
         let analysis = await analyze(article, vocabulary: vocabulary)
-        apply(analysis, to: article, context: context)
+        await apply(analysis, to: article, context: context)
         try? context.save()
         // This article's Concepts changed, so the readings behind the map did.
         KnowledgeEngine.rebuildCoreadLinks(context: context)
@@ -178,7 +178,7 @@ enum IntelligenceService {
         guard let result, !result.definition.isEmpty else { return nil }
 
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var index = ConceptIndex(allConcepts)
+        var index = await ConceptIndex.prepared(allConcepts)
 
         // Prefer the model's canonical name, but never let it drift into
         // something unrelated to what the reader actually selected.
@@ -227,7 +227,7 @@ enum IntelligenceService {
         }
 
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var index = ConceptIndex(allConcepts)
+        var index = await ConceptIndex.prepared(allConcepts)
         var added: [Concept] = []
         for extracted in items.prefix(5) {
             guard let child = KnowledgeEngine.findOrCreateConcept(
@@ -254,11 +254,15 @@ enum IntelligenceService {
 
     // MARK: Apply results to the store
 
-    private static func apply(_ analysis: ArticleAnalysis, to article: Article, context: ModelContext) {
+    /// `async` for one reason: the index embeds the whole map, and #42 is that
+    /// doing it here — on the main actor, inside the `task` that draws the
+    /// Feed — is a two-second freeze on a large map.
+    private static func apply(_ analysis: ArticleAnalysis, to article: Article,
+                              context: ModelContext) async {
         article.summary = analysis.summary
 
         let allConcepts = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
-        var index = ConceptIndex(allConcepts)
+        var index = await ConceptIndex.prepared(allConcepts)
 
         var attached: [Concept] = []
         for extracted in analysis.concepts where attached.count < 8 {

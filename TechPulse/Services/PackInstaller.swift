@@ -204,7 +204,7 @@ enum PackInstaller {
     static func install(_ pack: PackFile, origin: PackOrigin,
                         builtinFileName: String? = nil,
                         context: ModelContext,
-                        vector: @MainActor (String) -> [Double]? = SemanticLinker.embed
+                        vector: @Sendable (String) -> [Double]? = SemanticLinker.embed
     ) throws -> InstalledPack {
         try PackValidator.validate(pack)
 
@@ -479,7 +479,7 @@ enum PackInstaller {
     /// the transaction.
     static func rebuildSemanticLinks(
         for concepts: [LinkableConcept], context: ModelContext,
-        vector: @MainActor (String) -> [Double]? = SemanticLinker.embed
+        vector: @Sendable (String) -> [Double]? = SemanticLinker.embed
     ) {
         for link in (try? context.fetch(FetchDescriptor<SemanticLink>())) ?? [] {
             context.delete(link)

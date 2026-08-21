@@ -10,6 +10,89 @@
 
 ---
 
+## 2026-08-21 — Embedding a large map is no longer the Feed's problem (#42)
+
+**Built**
+- **`ConceptIndex.prepared`, an async factory that embeds the whole map off
+  the main actor.** The first inexact de-duplication lookup used to embed every
+  Concept name on the map inline — 2.1 s on a 600-Concept map, with no
+  suspension point in it — and `analyzePending` is awaited from `FeedView.task`,
+  so that was the Feed frozen for two seconds on the first Article after launch.
+  The work is unchanged and unconditional: same names, same threshold, no
+  count-based cut-off, because switching de-duplication off above 500 Concepts
+  is exactly what #11 was. Only the thread moved.
+- **`SemanticLinker.embed` is `nonisolated`**, which is what makes that
+  possible. It was main-actor isolated only because its enclosing type is, and
+  `NLEmbedding.vector(for:)` asks for no such thing. The memo and the model
+  moved with it into a lock-guarded `VectorStore` — behind a lock rather than on
+  an actor because both callers are real and neither can become the other:
+  `ConceptIndex.match` is synchronous and has nowhere to await, and the batch
+  must not be on the main actor. The lock is taken per name, so a synchronous
+  caller arriving mid-batch waits for one name, not for six hundred.
+- **`match` stays synchronous**, which is the point of handing back a whole
+  table rather than making callers await a name at a time. `findOrCreateConcept`
+  is called inside loops that already hold the main actor and none of them had
+  to change shape. Names the map did not have — the incoming name of a lookup, a
+  Concept created part way through the pass — are still embedded one at a time,
+  so a twin arriving in the same pass as its original is still merged.
+- **`SemanticLinker.distance` through `vDSP`.** With the embedding moved, what
+  was left on the main actor was the scan: 600 comparisons per lookup, eight
+  lookups per Article, and written out with `zip`/`reduce` that was still a
+  second per Article in a debug build. Same arithmetic, 50× cheaper — measured
+  down to 19 ms. A test pins it against the hand-written form over real Concept
+  names, both for value and for which side of `sameIdeaDistance` each pair
+  lands on, because that threshold was calibrated against the loop as written.
+- **`HotTopics.adopt` and `IntelligenceService.apply` became async**, being the
+  other two places that build an index. The Adopt chip does the same three
+  things in the same order, now inside a `Task`; the offer that drew the chip
+  has already embedded every name, so the pass finds the memo warm.
+- **One spelling for an injected embedder**, `@Sendable (String) -> [Double]?`,
+  across `ConceptIndex`, `SemanticLinker.link`, `HotTopics.candidates` and both
+  `PackInstaller` entry points. Moving one of the six to `@Sendable` and leaving
+  five behind would have left the same idea with two types.
+
+**Verified** 405 unit tests, 4 new; all four UI journeys pass. Measured on a
+600-Concept map with the real embedding: the map costs 1.2 s to embed and holds
+the main actor for 47 ms of it; a full Article's eight lookups cost 19 ms; the
+second index of a batch costs 3.7 ms. `dedupeAtScaleIsPrompt` — which recorded
+this number under an assertion of "under three seconds", a freeze the test was
+happy with — now asserts against what is left on the main actor. Its
+merge-and-create siblings are untouched and pass unchanged.
+
+**What the review changed** The spec axis caught that `HotTopics.candidates`
+has the same shape and is not fixed: it embeds every map name lazily, on the
+main actor, inside a view update, and `FeedView.task` calls it right after
+`analyzePending` — which early-returns when nothing is pending, leaving the memo
+cold. So on a launch with no unanalysed Articles the two seconds are still
+there, one line further down the same `task`. Left for its own issue rather
+than widened into here, but it is the reason this fix is not the whole of the
+freeze.
+
+It also caught that the main-actor test proved the claim at `ConceptIndex`
+rather than at `analyzePending`, which is the seam the criterion names. There
+is now a test at each: the heartbeat is shared, and the one over
+`analyzePending` uses Concept names unique to itself so the launch-long memo is
+cold whatever order the suite runs in. And it read `stall < 0.25` for what it
+was — a quarter-second freeze the test would have licensed. The claim is the
+ratio now, with the absolute bar kept only so a slow machine cannot pass on it.
+
+The standards axis found an absolute in new prose, of the kind `docs/agents/domain.md`
+warns about: "waits a few milliseconds, not the two seconds the batch takes" was
+untrue for the first name of the launch, which holds the lock across the
+several-MB model load. Named rather than glossed. It also read the Adopt button
+right — dropping the chip before `adopt` returned was a behaviour change nobody
+asked for, since a pass that declines to create leaves the offer gone and
+nothing on the map.
+
+**Learned** The fix depends on a language rule, not on anything this code says:
+under Swift 6.0 a `nonisolated async` function runs on the generic executor.
+Adopt `nonisolated(nonsending)` as the default and the batch quietly returns to
+the caller's actor with #42 behind it. That is exactly why the test measures how
+long the main actor went unserved rather than how long the build took — a
+wall-clock test would pass just as happily with the freeze back.
+
+---
+
 ## 2026-08-21 — The flagship gains one Source that is ordered by what people thought (#46)
 
 **Built**

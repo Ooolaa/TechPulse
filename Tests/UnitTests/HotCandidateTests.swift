@@ -72,12 +72,12 @@ struct HotCandidateTests {
     }
 
     @Test("an adopted Concept lands outside the Pack's own Clusters")
-    func adoptedConceptDoesNotInflatePackProgress() throws {
+    func adoptedConceptDoesNotInflatePackProgress() async throws {
         // `WordSelection.cluster` is deliberately outside `clusterOrder` so
         // looked-up words can never inflate "2 of 13 lit". A term the reader
         // accepted is the same kind of arrival.
         let context = try context()
-        let adopted = try #require(HotTopics.adopt(term("world model"), context: context))
+        let adopted = try #require(await HotTopics.adopt(term("world model"), context: context))
         let pack = try BuiltinPacks.aiEngineer()
         #expect(!pack.clusterOrder.contains(adopted.category),
                 "“\(adopted.category)” is one of the Pack's own Clusters")
@@ -129,9 +129,9 @@ struct HotCandidateTests {
     // MARK: Accepting one
 
     @Test("an accepted candidate joins the map as an ordinary Concept")
-    func acceptedCandidateJoinsTheMap() throws {
+    func acceptedCandidateJoinsTheMap() async throws {
         let context = try context()
-        let adopted = try #require(HotTopics.adopt(term("world model"), context: context))
+        let adopted = try #require(await HotTopics.adopt(term("world model"), context: context))
 
         #expect(adopted.name == "World Model", "named as a reader would write it")
         #expect(adopted.category == HotTopics.adoptedCluster)
@@ -140,15 +140,15 @@ struct HotCandidateTests {
     }
 
     @Test("accepting the same candidate twice does not make two Concepts")
-    func acceptingTwiceIsIdempotent() throws {
+    func acceptingTwiceIsIdempotent() async throws {
         let context = try context()
-        _ = HotTopics.adopt(term("world model"), context: context)
-        _ = HotTopics.adopt(term("world model"), context: context)
+        _ = await HotTopics.adopt(term("world model"), context: context)
+        _ = await HotTopics.adopt(term("world model"), context: context)
         #expect(try context.fetch(FetchDescriptor<Concept>()).count == 1)
     }
 
     @Test("accepting something already on the map does not undo what was learned")
-    func acceptingDoesNotResetMastery() throws {
+    func acceptingDoesNotResetMastery() async throws {
         // The offer should not have shown this, but a name can also arrive by
         // another route — and setting a Concept back to unlit because a
         // headline mentioned it would take away the reader's own progress.
@@ -158,7 +158,7 @@ struct HotCandidateTests {
         context.insert(known)
         try context.save()
 
-        let adopted = try #require(HotTopics.adopt(term("world model"), context: context))
+        let adopted = try #require(await HotTopics.adopt(term("world model"), context: context))
         #expect(adopted.masteryLevel == 0.7)
         #expect(adopted.category == "Foundations", "and it keeps the Cluster it was in")
         #expect(try context.fetch(FetchDescriptor<Concept>()).count == 1)
@@ -183,9 +183,9 @@ struct HotCandidateTests {
     }
 
     @Test("an accepted candidate stops being offered")
-    func acceptedCandidateLeavesTheOffer() throws {
+    func acceptedCandidateLeavesTheOffer() async throws {
         let context = try context()
-        _ = HotTopics.adopt(term("world model"), context: context)
+        _ = await HotTopics.adopt(term("world model"), context: context)
         let concepts = try context.fetch(FetchDescriptor<Concept>())
         #expect(HotTopics.candidates(from: [term("world model")], concepts: concepts,
                                      vector: strangers).isEmpty)

@@ -63,9 +63,9 @@ enum SemanticLinker {
     /// Concepts reach for each other.
     static let relatednessFloor = 0.5
 
-    /// Loaded once. The embedding is several MB of model; building one per
-    /// install would cost more than the linking does.
-    private static let sharedEmbedding = NLEmbedding.sentenceEmbedding(for: .english)
+    /// The embedding, and everything already computed from it. `nonisolated`,
+    /// so the thread that draws the Feed is not the thread that does this.
+    private nonisolated static let store = VectorStore()
 
     /// The distance between two names, on the scale `NLEmbedding.distance`
     /// reports — which is **not** cosine distance, however it is spelled.
@@ -76,32 +76,32 @@ enum SemanticLinker {
     /// at 0.25 became 0.707 — eight times wider — and merged "supervised
     /// learning" into "unsupervised learning" (#11). Measured against
     /// `NLEmbedding` over 2,211 pairs, this agrees to within 1.2e-06.
+    ///
+    /// Through `vDSP` rather than `zip`/`reduce`, which is the same arithmetic
+    /// and not the same cost: `ConceptIndex.match` runs this once per Concept on
+    /// the map, so a 600-Concept map is 600 of these per lookup and eight
+    /// lookups per Article. Written by hand it was a second of main-actor work
+    /// per Article — the arithmetic left over once #42 moved the embedding off.
     static func distance(between left: [Double], and right: [Double]) -> Double? {
         guard left.count == right.count, !left.isEmpty else { return nil }
-        let dot = zip(left, right).reduce(0) { $0 + $1.0 * $1.1 }
-        let magnitude = (left.reduce(0) { $0 + $1 * $1 }).squareRoot()
-            * (right.reduce(0) { $0 + $1 * $1 }).squareRoot()
+        let dot = vDSP.dot(left, right)
+        let magnitude = vDSP.sumOfSquares(left).squareRoot()
+            * vDSP.sumOfSquares(right).squareRoot()
         guard magnitude > 0 else { return nil }
         return (2 * (1 - dot / magnitude)).squareRoot()
     }
 
-    /// Vectors already computed this launch. A Concept's name does not change,
-    /// and the same names are embedded over and over: de-duplication builds an
-    /// index per Article analysed, so a 600-Concept map was paying 600
-    /// embeddings eight times for one batch (#11).
-    ///
-    /// Bounded by how many distinct names the app has seen — a large map is a
-    /// few megabytes of Double, against ~3.5 ms saved per hit.
-    private static var vectorCache: [String: [Double]] = [:]
-
     /// Where vectors come from unless a caller substitutes its own. Returns
     /// nil on hardware or in a language the embedding has no model for — the
     /// map is poorer, the install still works.
-    static func embed(_ text: String) -> [Double]? {
-        if let known = vectorCache[text] { return known }
-        guard let computed = sharedEmbedding?.vector(for: text) else { return nil }
-        vectorCache[text] = computed
-        return computed
+    ///
+    /// `nonisolated` deliberately. This was main-actor isolated only because
+    /// its enclosing type is, and `NLEmbedding.vector(for:)` asks for no such
+    /// thing — while a caller embedding a whole map wants to be anywhere but
+    /// the thread drawing the Feed. `ConceptIndex.prepared` is that caller, and
+    /// this being callable off the main actor is what lets it be (#42).
+    nonisolated static func embed(_ text: String) -> [Double]? {
+        store.vector(for: text)
     }
 
     /// The Semantic Links for one Pack's Concepts, strongest first.
@@ -110,7 +110,7 @@ enum SemanticLinker {
     /// similarity pass is vectorised and costs a few milliseconds at Pack
     /// scale. The flagship's 68 Concepts link in ~0.4 s.
     static func link(_ concepts: [LinkableConcept],
-                     vector: @MainActor (String) -> [Double]? = embed) -> [SemanticEdge] {
+                     vector: @Sendable (String) -> [Double]? = embed) -> [SemanticEdge] {
         // By name, so a Pack produces the same map however its file is ordered:
         // the mean below is a floating-point sum, and summing in a different
         // order can otherwise nudge a borderline neighbour in or out.
@@ -190,5 +190,52 @@ enum SemanticLinker {
         for vector in vectors { mean = vDSP.add(mean, vector) }
         mean = vDSP.divide(mean, Double(vectors.count))
         return vectors.map { vDSP.subtract($0, mean) }
+    }
+}
+
+/// The sentence embedding, and every vector already computed from it.
+///
+/// Behind a lock rather than on an actor because both of its callers are real
+/// and neither can become the other: `ConceptIndex.match` is synchronous and
+/// has nowhere to await, while `ConceptIndex.prepared` embeds a whole map and
+/// must not run on the main actor. An actor would force the first to change
+/// shape; the main actor would leave the second where #42 found it.
+///
+/// The lock is taken once per name rather than once per batch, so embedding a
+/// 600-Concept map never holds it for more than the one name in flight. What a
+/// synchronous caller arriving mid-batch waits for is that one name — a few
+/// milliseconds — except for the first name of the launch, which is holding
+/// the lock across the several-MB model load as well.
+private final class VectorStore: @unchecked Sendable {
+
+    private let lock = NSLock()
+
+    /// Loaded once, on whichever thread asks first. The embedding is several MB
+    /// of model; building one per call would cost more than the linking does.
+    /// Nil after loading is a real answer — hardware or a language with no
+    /// model — so the attempt is remembered separately from its result.
+    private var embedding: NLEmbedding?
+    private var hasLoaded = false
+
+    /// Vectors already computed this launch. A Concept's name does not change,
+    /// and the same names are embedded over and over: de-duplication builds an
+    /// index per Article analysed, so a 600-Concept map was paying 600
+    /// embeddings eight times for one batch (#11).
+    ///
+    /// Bounded by how many distinct names the app has seen — a large map is a
+    /// few megabytes of Double, against ~3.5 ms saved per hit.
+    private var cache: [String: [Double]] = [:]
+
+    func vector(for text: String) -> [Double]? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let known = cache[text] { return known }
+        if !hasLoaded {
+            embedding = NLEmbedding.sentenceEmbedding(for: .english)
+            hasLoaded = true
+        }
+        guard let computed = embedding?.vector(for: text) else { return nil }
+        cache[text] = computed
+        return computed
     }
 }
