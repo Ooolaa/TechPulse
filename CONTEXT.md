@@ -17,6 +17,32 @@ it can be authored, generated, or installed. The AI Engineer pack is the
 flagship, not the only one.
 _Avoid_: curriculum, syllabus, course, career
 
+**Field**:
+The subject a Pack covers, named by its author and shown to the reader. Prose,
+not a name the app relies on: two Packs may cover the same field — one the
+reader was given and one that ships with the app, say — and a Pack may be
+renamed between versions of itself.
+_Avoid_: domain, subject, topic, area, pack name
+
+**Origin**:
+Where a Pack came from: the app itself, a file the reader was given, or
+generation. Reader-visible, and what tells two Packs apart when they cover the
+same field.
+_Avoid_: source (a Source is a place reading arrives from), kind, provenance
+
+**Built-in Pack**:
+A Pack that travels inside the app, read and checked on the same path as one
+the reader was given. The app keeps its file, so it is the only kind of Pack a
+new version of the app can update, and the only kind it can rebuild from
+nothing.
+_Avoid_: default pack, bundled pack, stock pack, preset
+
+**Flagship**:
+The one built-in Pack a reader lands on when nothing else says which Pack is
+theirs — the AI Engineer map the app shipped with. Where a reader ends up when
+the answer was lost, not a Pack the app prefers.
+_Avoid_: default pack, main pack, primary pack, starter pack
+
 **Active Pack**:
 The one installed Pack the app is currently a map of. Installing another
 retires the previous one without taking its Concepts away — what you learned is

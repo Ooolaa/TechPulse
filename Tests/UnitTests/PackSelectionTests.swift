@@ -34,8 +34,13 @@ struct PackSelectionTests {
         #expect(BuiltinPacks.all.map(\.fileName) == BuiltinPacks.fileNames)
     }
 
-    @Test("built-in Packs cover distinct fields — the field is what names a Pack")
+    @Test("built-in Packs cover distinct fields, which is what recognising one by field rests on")
     func builtinFieldsAreDistinct() throws {
+        // A field does not name a Pack in general — a Pack the reader was given
+        // may cover a built-in's field, and #39 is what that cost. Among the
+        // Packs that ship together it has to be unique anyway: a built-in whose
+        // file this build no longer ships is recognised by its field, and two
+        // sharing one would make that answer a coin toss (ADR-0008).
         let fields = BuiltinPacks.all.map(\.pack.field)
         #expect(Set(fields).count == fields.count)
     }
