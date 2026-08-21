@@ -356,8 +356,10 @@ struct FeedSyncTests {
         orderedSource(named: "Community", host: Self.otherHost, path: "/top.xml",
                       entries: [("top-0", 6)], in: context)
         // Spend all but two of the day, so recency would have to fight for a
-        // place rather than being handed thirty of them.
-        cache(FeedSyncService.dailyIntakeLimit - 2, sourceName: "Firehose", in: context)
+        // place rather than being handed thirty of them — and leave exactly two,
+        // one turn each, so which Source the store hands back first cannot
+        // decide the outcome.
+        cache(FeedSyncService.dailyIntakeLimit - 3, sourceName: "Firehose", in: context)
         cache(1, sourceName: "Community", in: context)
 
         _ = await sync(context)

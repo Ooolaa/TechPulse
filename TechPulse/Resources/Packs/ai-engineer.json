@@ -710,6 +710,11 @@
       "url" : "https://huggingface.co/blog/feed.xml"
     },
     {
+      "category" : "LLMs",
+      "name" : "r/MachineLearning (top this week)",
+      "url" : "https://www.reddit.com/r/MachineLearning/top/.rss?t=week"
+    },
+    {
       "category" : "Frontier Labs",
       "name" : "OpenAI News",
       "url" : "https://openai.com/news/rss.xml"

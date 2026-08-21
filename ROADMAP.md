@@ -100,10 +100,13 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
       and newest item date — a dead feed (Kaggle's Medium blog died in 2020)
       should be visible, not silent. Consider flagging sources whose newest
       item is > 6 months old.
-    - *Full per-source fairness for the daily cap*: bootstrap (shipped) fixes
-      day one; beyond that, very active feeds (arXiv, TechCrunch) can still
-      crowd quiet weekly feeds out of the newest-first 30. Reserve a minimum
-      slot per enabled source before filling the remainder newest-first.
+    - *Full per-source fairness for the daily cap*: **shipped** (#45), though
+      not as proposed here. Reserving a minimum slot per enabled source was
+      rejected on arithmetic in
+      [ADR-0009](docs/adr/0009-daily-intake-is-shared-between-sources-not-won-by-recency.md)
+      — 13 Sources and a cap of 30 spends 28 of the 30 before the newest-first
+      fill begins, so it is round-robin with a constant bolted on. The cap is
+      allocated round-robin instead, and no per-source constant exists.
     - *Official Kaggle blog RSS watch*: r/kaggle (community Atom feed) is the
       live stand-in today; swap in kaggle.com's own feed if one ever ships
       (retirement mechanism for dead sources already exists in SeedData).

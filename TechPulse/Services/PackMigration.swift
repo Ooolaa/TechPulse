@@ -10,7 +10,7 @@ enum PackMigration {
     /// means bumping this, and the reinstall delivers the new Concepts —
     /// the role `KnowledgePack.packVersion` used to play for compiled seeding.
     private static let installedVersionKey = "builtinPackVersion"
-    static let builtinPackVersion = 1
+    static let builtinPackVersion = 2
 
     /// Ensures the reader has an active Pack.
     ///

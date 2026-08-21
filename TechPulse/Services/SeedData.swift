@@ -9,6 +9,12 @@ enum SeedData {
         ("arXiv cs.CL", "https://export.arxiv.org/rss/cs.CL", "Research"),
         ("Apple ML Research", "https://machinelearning.apple.com/rss.xml", "Research"),
         ("Hugging Face Blog", "https://huggingface.co/blog/feed.xml", "Open Source"),
+        // Vote-ranked, which is the whole point of it: what a Source is ordered
+        // by is part of what you subscribed to, so community attention reaches
+        // the 🔥 lane without the app ever learning that popularity exists
+        // (ADR-0003, #46). One such Source, not several — they share a host,
+        // so they would share a queue (#44).
+        ("r/MachineLearning (top this week)", "https://www.reddit.com/r/MachineLearning/top/.rss?t=week", "LLMs"),
         ("OpenAI News", "https://openai.com/news/rss.xml", "Frontier Labs"),
         ("Google DeepMind Blog", "https://deepmind.google/blog/rss.xml", "Frontier Labs"),
         ("MIT Technology Review — AI", "https://www.technologyreview.com/topic/artificial-intelligence/feed", "Industry"),

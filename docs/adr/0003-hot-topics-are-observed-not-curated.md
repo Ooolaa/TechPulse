@@ -50,7 +50,15 @@ Sources inside one group go one at a time with `HostPacing.betweenRequests`
 between requests. The visible-health half is still open (**#14**) — a Source
 that comes back with nothing still says so to nobody.
 
-Intake is capped at 30/day sorted newest-first, so a "top this week" entry
-carrying a six-day-old timestamp loses to same-day arXiv papers by construction.
-Whatever surfaces Hot Topics cannot rely on those articles winning the newest
--first race.
+Intake is capped at 30/day. It *was* also sorted newest-first across every
+Source pooled together, so a "top this week" entry carrying a timestamp up to
+six days old lost to same-day arXiv papers by construction — this consequence
+originally ended "whatever surfaces Hot Topics cannot rely on those articles
+winning the newest-first race", and under that allocator it was right.
+[ADR-0009](0009-daily-intake-is-shared-between-sources-not-won-by-recency.md)
+removed the global sort: the cap is spent round-robin, one item per Source per
+turn, and a Source's own ordering decides which of its items go. So an older
+entry now takes its turn like any other, and the flagship gained the
+vote-ranked Source this consequence said could not work (#45, #46). The cap
+itself is unchanged, and is still a habit decision rather than a technical
+one.
