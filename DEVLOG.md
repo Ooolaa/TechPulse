@@ -45,6 +45,76 @@ sequential case, which was never the one at risk. Making a function `async` does
 not change what its tests assert; it changes which orderings can reach it, and a
 test written before the suspension existed cannot know about the ones it added.
 Found by the spec axis of the review on #50, not by the suite.
+## 2026-08-21 — The 🔥 lane stops embedding the map on the main actor (#49)
+
+**Built**
+- **`HotTopics.candidates` is `async`, and gets the map's meanings from
+  `SemanticLinker.meanings`.** It judged whether a rising term was already on
+  the map by meaning, and embedded every Concept name to do it — synchronously,
+  on the main actor, from two places in `FeedView` that both hold it. That is
+  #42's two seconds again, on the same screen, in the same `task`.
+- **Why #42 did not already cover it.** The memo in `SemanticLinker.embed` is
+  shared and keyed the same way both paths key it, so when analysis runs first
+  the lane finds every vector already computed and costs nothing. But
+  `analyzePending` early-returns when no Article is waiting for a summary —
+  which is every launch where the reader is caught up — and `.onChange` never
+  had analysis in front of it at all. The cost landed on the first rising term
+  the map cannot name, which is the case the lane exists to catch.
+- **One batch primitive, two callers.** `ConceptIndex.prepared`'s private
+  `meanings` moved onto `SemanticLinker` as `meanings(of:using:)`, where it sits
+  beside the `embed` it calls. `nonisolated async`, so calling it from the main
+  actor leaves it, and it hands back a whole table — which is what lets both
+  callers' rules stay synchronous: `ConceptIndex.match` has nowhere to await,
+  and `candidates` weighs a lane against a map in one pass.
+- **Spelling first, and it can end the whole thing.** The fold and the
+  containment check run before the suspension, over names already in memory. A
+  reader with nothing rising the map cannot name embeds nothing at all; what
+  survives is embedded in the same batch as the map, so a lane costs one
+  suspension however long it is.
+- **The Feed awaits it in a cancellable `Task`.** `rising` stays synchronous, so
+  the 🔥 filter has its vocabulary the moment the feed changes; the strip fills
+  when the pass returns. It deliberately does not show the spelling pass's
+  answer first and narrow it: suppression is the point of the offer, not a
+  refinement of it, and the chips withdrawn would be exactly the duplicates
+  `candidates` exists to keep off the screen. The offer already on screen stays
+  standing meanwhile rather than being cleared — collapsing the strip on every
+  sync would move the article list under the reader's thumb to say nothing.
+- **Late assignment needed two cancellations, not one.** A new observation
+  cancels the one in flight, so a sync landing mid-pass cannot be overwritten by
+  an older one. Accepting a chip cancels it too: `adopt` drops the term from
+  `candidates` by hand rather than recomputing — the comment there has always
+  said `allConcepts` does not refresh in time — and a pass started before the
+  adoption would land afterwards and put the chip back. Assigning synchronously
+  used to make that ordering safe for free.
+
+**Nothing caps the map size.** No count-based cut-off went in, here or anywhere
+near it. Making the lane smaller to dodge the cost is the shape of #11's
+500-Concept ceiling — switching the check off at the size where a reader has
+most to gain from it.
+
+**Verified** 411 unit tests; the full suite passes, and the four UI journeys
+with it.
+`HotCandidateTests.candidatesDoNotBlockTheMainActor` is the new one, at the seam
+both Feed callers reach the check through: 600 Concepts with names unique to the
+test so the launch-long memo is cold whichever order the suite runs in, the real
+embedding, and main-actor time measured rather than wall clock. 57 ms held, of a
+2.2 s pass, against 1.46 s held before; it carries an absolute bar as well as the
+ratio, which is what bounds the arithmetic left on the main actor after the
+embedding hops off — a distance per Concept per term, at 600 Concepts. Every other
+assertion in `HotCandidateTests` is unchanged — the lane offers what it offered
+and suppresses what it suppressed — and the eleven tests that called
+`candidates` synchronously now await it.
+
+**Learned: the heartbeat was not measuring the failure it was named for.**
+`mainActorStall` — #42's harness, now shared out of `ConceptDedupeTests` into
+`Tests/UnitTests/MainActorStall.swift` — started its heartbeat task and went
+straight into the work. Work that never yields runs to completion before the
+heartbeat's first beat, so it set its clock *after* the freeze and reported no
+stall at all: the new test passed against the unfixed code, at 1.4 s of frozen
+main actor. One `await Task.yield()` between starting the heartbeat and starting
+the clock fixes it, and the same test then failed honestly. Both of #42's
+measurements still pass under the stricter harness, which is the evidence that
+what it claimed was true and only its proof was thin.
 
 ## 2026-08-21 — The de-duplication threshold is measured rather than guessed (#41)
 

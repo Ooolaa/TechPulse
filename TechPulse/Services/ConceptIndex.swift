@@ -138,34 +138,9 @@ struct ConceptIndex {
                          vector: @escaping @Sendable (String) -> [Double]? = SemanticLinker.embed)
     async -> ConceptIndex {
         var index = ConceptIndex(concepts, vector: vector)
-        index.vectors = await meanings(of: Array(index.concepts.keys), from: vector)
+        index.vectors = await SemanticLinker.meanings(of: Array(index.concepts.keys),
+                                                      using: vector)
         return index
-    }
-
-    /// Embeds a batch of names away from whoever asked.
-    ///
-    /// `nonisolated` and `async`, so calling it from the main actor leaves it:
-    /// under Swift 6.0 a nonisolated async function runs on the generic
-    /// executor, and the caller suspends rather than spinning. Handing back a
-    /// whole table rather than making callers await a name at a time is what
-    /// keeps `match` synchronous.
-    ///
-    /// That is a language rule, not a promise this code makes, and adopting
-    /// `nonisolated(nonsending)` as the default would hand this loop back to
-    /// the caller's actor and #42 with it. The test that would notice is
-    /// `preparingAnIndexDoesNotBlockTheMainActor`, which is why it measures
-    /// main-actor time rather than how long the build took.
-    private nonisolated static func meanings(
-        of names: [String],
-        from vector: @escaping @Sendable (String) -> [Double]?
-    ) async -> [String: [Double]] {
-        var meanings: [String: [Double]] = [:]
-        meanings.reserveCapacity(names.count)
-        // A name the embedding cannot place is remembered as empty rather than
-        // left out, so it is not attempted again for the life of the index —
-        // the same bargain `meaning(of:)` strikes.
-        for name in names { meanings[name] = vector(name) ?? [] }
-        return meanings
     }
 
     /// The Concept already standing for this name: spelled it, spelled it

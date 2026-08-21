@@ -104,6 +104,39 @@ enum SemanticLinker {
         store.vector(for: text)
     }
 
+    /// Embeds a batch of names away from whoever asked, handing back a table
+    /// of what each one means.
+    ///
+    /// `nonisolated` and `async`, so calling it from the main actor leaves it:
+    /// under Swift 6.0 a nonisolated async function runs on the generic
+    /// executor, and the caller suspends rather than spinning. Handing back a
+    /// whole table rather than making callers await a name at a time is what
+    /// lets the rules that consult it stay synchronous — `ConceptIndex.match`
+    /// has nowhere to await, and `HotTopics.candidates` weighs a lane of terms
+    /// against a whole map inside one pass.
+    ///
+    /// That is a language rule, not a promise this code makes, and adopting
+    /// `nonisolated(nonsending)` as the default would hand this loop back to
+    /// the caller's actor and #42 with it. The tests that would notice measure
+    /// main-actor time rather than how long the batch took —
+    /// `ConceptDedupeTests.preparingAnIndexDoesNotBlockTheMainActor` and
+    /// `HotCandidateTests.candidatesDoNotBlockTheMainActor`.
+    ///
+    /// A name the embedding cannot place is recorded as empty rather than left
+    /// out, so whoever holds the table does not attempt it again. `VectorStore`
+    /// does not remember a failure — it is a real answer about a language or a
+    /// device, not a miss — so without the empty entry the table would be
+    /// missing a key and its holder would ask the model afresh every lookup.
+    nonisolated static func meanings(
+        of names: [String],
+        using vector: @escaping @Sendable (String) -> [Double]?
+    ) async -> [String: [Double]] {
+        var meanings: [String: [Double]] = [:]
+        meanings.reserveCapacity(names.count)
+        for name in names { meanings[name] = vector(name) ?? [] }
+        return meanings
+    }
+
     /// The Semantic Links for one Pack's Concepts, strongest first.
     ///
     /// Cost is dominated by one embedding call per Concept (~6 ms); the
