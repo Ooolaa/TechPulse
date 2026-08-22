@@ -28,6 +28,11 @@ _Avoid_: domain, subject, topic, area, pack name
 Where a Pack came from: the app itself, a file the reader was given, or
 generation. Reader-visible, and what tells two Packs apart when they cover the
 same field.
+
+A Pack has an Origin; a Source does not. How a Source was acquired — suggested
+by a Pack and accepted, or typed in — is not recorded and nothing branches on
+it: once subscribed, a Source is the reader's, and the app treats every one of
+them alike.
 _Avoid_: source (a Source is a place reading arrives from), kind, provenance
 
 **Built-in Pack**:
@@ -121,7 +126,17 @@ end, and to how that end decided what to put there. What a Source is ordered by
 is part of what you subscribed to: subscribe to a popularity-ranked one and
 community attention reaches your reading without the app ever learning that
 popularity exists.
-_Avoid_: feed, channel, subscription, publisher
+
+**Acquired** is how a Source comes to be one, and "chosen" is literal at every
+step but one. A Pack **suggests** Sources; the app **offers** them; the reader
+subscribes. The exception is the first launch of a store with nothing to read at
+all, which subscribes to what the Active Pack suggests — there is no reading yet
+to weigh an offer against. Every launch after that subscribes to nothing: a
+Source added to a Pack in a new version of the app is acquired as a **standing
+offer** in Settings, and waits there. A suggestion the reader turns down is not
+raised again unless they install that Pack themselves. See ADR-0011.
+_Avoid_: feed, channel, subscription, publisher; and, for what a Pack puts in
+front of a reader, **default Source** — the app has no Sources of its own
 
 **Reading Intention**:
 The user's own stated plan for when reading happens — a time, and the existing

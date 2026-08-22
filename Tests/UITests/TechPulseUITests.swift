@@ -479,6 +479,70 @@ final class TechPulseUITests: XCTestCase {
         journey.finish()
     }
 
+    /// The standing offer: a suggestion the reader neither took nor turned down
+    /// waits for them in Settings.
+    ///
+    /// This is the only surface the offer has (ADR-0011). Launch subscribes to
+    /// nothing after the first one, so a Source added to a Pack in a new version
+    /// of the app reaches the reader through this row or through nothing.
+    ///
+    /// The offer is left unanswered by dismissing the sheet rather than by
+    /// tapping either button — which is what an upgrading reader's store looks
+    /// like, and the one state that puts a suggestion in neither list.
+    func testStandingSourceOfferJourney() throws {
+        let journey = Journey("standing source offer", steps: [
+            .required("11-offer-dismissed-unanswered"),
+            .required("11a-settings-suggests"),
+            .required("11b-offer-reopened"),
+            .required("11c-suggestion-taken"),
+        ], launchArguments: ["-hasOnboarded", "YES"])
+        let app = journey.app
+        journey.start()
+
+        // Switch to the other built-in Pack, which suggests Sources the wiped
+        // store's first launch did not subscribe to.
+        journey.tap(app.buttons["Settings"], "Settings tab")
+        let packRow = app.buttons["packRow"].firstMatch
+        journey.waitFor(packRow, "Settings has no Pack row")
+        journey.tap(packRow, "Pack row")
+        let builtins = app.buttons.matching(identifier: "builtinPack")
+        journey.waitFor(builtins.element(boundBy: 0), "no built-in packs listed")
+        journey.tap(builtins.element(boundBy: 1), "the second built-in Pack")
+
+        let accept = app.buttons["acceptSources"].firstMatch
+        journey.waitFor(accept, "the Pack's suggested Sources were never offered", timeout: 15)
+
+        // Dismissed, not answered. "Not now" would record a decline and the
+        // standing offer would rightly stay quiet.
+        app.swipeDown(velocity: .fast)
+        if journey.becomesTrue({ accept.exists }) { app.swipeDown(velocity: .fast) }
+        journey.waitUntilGone(accept, "the offer sheet never dismissed")
+        journey.snap("11-offer-dismissed-unanswered")
+
+        // The unanswered suggestions are waiting in Settings.
+        journey.goBack(to: packRow, "Settings never came back")
+        let suggested = app.buttons["suggestedSourcesRow"].firstMatch
+        journey.waitFor(suggested, """
+            an offer the reader never answered reached neither their Sources \
+            nor the Settings row that is supposed to hold it
+            """)
+        journey.snap("11a-settings-suggests")
+
+        // And the row opens the same offer.
+        journey.tap(suggested, "the suggested Sources row")
+        journey.waitFor(accept, "the Settings row did not open the offer", timeout: 15)
+        journey.snap("11b-offer-reopened")
+        journey.tap(accept, "accept sources")
+
+        // Taken, so the row has nothing left to hold.
+        journey.waitUntilGone(suggested, "the row outlived the suggestions it was holding")
+        journey.scroll(to: app.staticTexts["Krebs on Security"].firstMatch,
+                       "the accepted Sources never reached Settings")
+        journey.snap("11c-suggestion-taken")
+
+        journey.finish()
+    }
+
     // MARK: - Guards
 
     /// The Concept sheet must be dismissable **whatever its scroll position** —

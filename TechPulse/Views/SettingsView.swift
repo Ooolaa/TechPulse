@@ -12,6 +12,9 @@ struct SettingsView: View {
     @State private var hasKey = KeychainStore.hasAnthropicKey
     @State private var intention = ReminderScheduler.intention
     @State private var notificationsRefused = false
+    /// Set when the reader opens the standing offer. A Source is chosen, so
+    /// this screen shows what is suggested and subscribes to none of it.
+    @State private var offer: SourceOffer?
 
     private var lastSynced: Date? {
         sources.compactMap(\.lastFetched).max()
@@ -20,6 +23,18 @@ struct SettingsView: View {
     /// The Pack the map is of, named here so the reader can see it without
     /// opening the chooser.
     private var activePack: InstalledPack? { activePacks.first }
+
+    /// The Active Pack's suggestions the reader has neither taken nor turned
+    /// down. This is where a Source added to a Pack in a new version of the app
+    /// arrives — launch subscribes to nothing after the first one, so without a
+    /// row here it would reach nobody (#47).
+    ///
+    /// Read off the `@Query` above rather than fetched: this body redraws on
+    /// every toggle in the list below it.
+    private var suggested: [PackFile.PackSource] {
+        PackSourceOffer.standing(ActivePack.inUse.suggestedSources,
+                                 subscribedTo: Set(sources.map(\.url.absoluteString)))
+    }
 
     /// SwiftData store size on disk (design 2f "Storage used").
     private var storageUsed: String {
@@ -54,6 +69,28 @@ struct SettingsView: View {
                     SettingsHeader("Map")
                 } footer: {
                     Text("The Pack is the field your map covers. Switch to another built-in Pack, or import one you were given — what you have learned comes with you.")
+                }
+                if !suggested.isEmpty {
+                    Section {
+                        Button {
+                            offer = SourceOffer(field: activePack?.field ?? ActivePack.inUse.field,
+                                                sources: suggested)
+                        } label: {
+                            LabeledContent {
+                                Text("\(suggested.count)")
+                            } label: {
+                                Text(suggested.count == 1
+                                     ? "1 new Source suggested"
+                                     : "\(suggested.count) new Sources suggested")
+                                    .foregroundStyle(Theme.stateLearning)
+                            }
+                        }
+                        .accessibilityIdentifier("suggestedSourcesRow")
+                    } header: {
+                        SettingsHeader("Suggested")
+                    } footer: {
+                        Text("Your Pack suggests these and you are not subscribed to them. Nothing is subscribed until you say so.")
+                    }
                 }
                 ForEach(grouped, id: \.category) { group in
                     Section {
@@ -195,6 +232,9 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .scrollContentBackground(.hidden)
             .background(Theme.background)
+            .sheet(item: $offer) { offer in
+                PackSourceOfferView(offer: offer)
+            }
         }
     }
 }

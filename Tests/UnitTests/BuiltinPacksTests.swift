@@ -126,15 +126,15 @@ struct BuiltinPacksTests {
         #expect(specialty == KnowledgePack.sideQuestConcepts)
     }
 
-    @Test("the Pack carries its suggested Sources, matching the seeded defaults")
+    @Test("the Pack carries its suggested Sources, matching the compiled fixture")
     func carriesSuggestedSources() throws {
         let pack = try aiEngineer()
-        #expect(pack.suggestedSources.count == SeedData.defaultSources.count)
+        #expect(pack.suggestedSources.count == KnowledgePack.suggestedSources.count)
 
-        for (converted, seeded) in zip(pack.suggestedSources, SeedData.defaultSources) {
-            #expect(converted.name == seeded.name)
-            #expect(converted.url == seeded.url)
-            #expect(converted.category == seeded.category)
+        for (converted, compiled) in zip(pack.suggestedSources, KnowledgePack.suggestedSources) {
+            #expect(converted.name == compiled.name)
+            #expect(converted.url == compiled.url)
+            #expect(converted.category == compiled.category)
         }
         // Every suggestion has to be a URL, or it can never become a Source.
         for source in pack.suggestedSources {
@@ -218,15 +218,15 @@ struct BuiltinPacksTests {
                 "the vote-ranked one and r/kaggle, and no more than that on one host")
     }
 
-    /// The Pack file is what a reader's installed record carries; the compiled
-    /// defaults are what actually reaches an install, because `seedIfNeeded`
-    /// runs on every launch and inserts the ones that are missing. A Source in
-    /// only the first of those two would be suggested to nobody, since the
-    /// offer fires when a reader installs a Pack from the library and not on
-    /// the launch-time reinstall a version bump triggers.
-    @Test("the vote-ranked Source is in the list that actually reaches an install")
-    func voteRankedSourceIsSeeded() {
-        #expect(SeedData.defaultSources.contains {
+    /// #46 needed this Source in two lists, because the Pack file reached
+    /// nobody and a compiled array was what launch actually delivered. Since
+    /// #47 there is one list: the Pack file is what a reader's record carries,
+    /// and the record is what both first-launch subscription and the standing
+    /// offer read. `KnowledgePack.suggestedSources` still pins the conversion,
+    /// and delivers nothing.
+    @Test("the vote-ranked Source is in the list that actually reaches a reader")
+    func voteRankedSourceReachesTheReader() throws {
+        #expect(try aiEngineer().suggestedSources.contains {
             $0.url == "https://www.reddit.com/r/MachineLearning/top/.rss?t=week"
                 && $0.category == "LLMs"
         })

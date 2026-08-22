@@ -25,6 +25,37 @@ enum KnowledgePack {
     /// The app's specialty lane, shown as a full-width card.
     static let specialtyCluster = "On-Device AI"
 
+    /// The flagship's suggested Sources, as compiled Swift.
+    ///
+    /// A fixture, like `concepts` and `stages` above it, and nothing reads it
+    /// at runtime: `ai-engineer.json` is what reaches a reader, and
+    /// `BuiltinPacksTests` compares the two so the conversion cannot silently
+    /// drop one. It used to be `SeedData.defaultSources`, which both pinned the
+    /// file *and* delivered Sources on every launch — one list that a Pack file
+    /// and a compiled array both claimed to own, which is what made #46 subtle
+    /// (#47).
+    static let suggestedSources: [(name: String, url: String, category: String)] = [
+        ("arXiv cs.AI", "https://export.arxiv.org/rss/cs.AI", "Research"),
+        ("arXiv cs.LG", "https://export.arxiv.org/rss/cs.LG", "Research"),
+        ("arXiv cs.CL", "https://export.arxiv.org/rss/cs.CL", "Research"),
+        ("Apple ML Research", "https://machinelearning.apple.com/rss.xml", "Research"),
+        ("Hugging Face Blog", "https://huggingface.co/blog/feed.xml", "Open Source"),
+        // Vote-ranked, which is the whole point of it: what a Source is ordered
+        // by is part of what you subscribed to, so community attention reaches
+        // the 🔥 lane without the app ever learning that popularity exists
+        // (ADR-0003, #46). One such Source, not several — they share a host,
+        // so they would share a queue (#44).
+        ("r/MachineLearning (top this week)", "https://www.reddit.com/r/MachineLearning/top/.rss?t=week", "LLMs"),
+        ("OpenAI News", "https://openai.com/news/rss.xml", "Frontier Labs"),
+        ("Google DeepMind Blog", "https://deepmind.google/blog/rss.xml", "Frontier Labs"),
+        ("MIT Technology Review — AI", "https://www.technologyreview.com/topic/artificial-intelligence/feed", "Industry"),
+        ("The Verge — AI", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "Industry"),
+        ("VentureBeat — AI", "https://venturebeat.com/category/ai/feed/", "Industry"),
+        ("TechCrunch — AI", "https://techcrunch.com/category/artificial-intelligence/feed/", "Industry"),
+        ("Kaggle (r/kaggle)", "https://www.reddit.com/r/kaggle/.rss", "Data Science"),
+        ("KDnuggets", "https://www.kdnuggets.com/feed", "Data Science"),
+    ]
+
     struct PackConcept {
         let name: String
         let cluster: String
@@ -312,7 +343,7 @@ extension ActivePack {
             stages: KnowledgePack.stages.map {
                 .init(title: $0.title, subtitle: $0.subtitle, concepts: $0.conceptNames)
             },
-            suggestedSources: SeedData.defaultSources.map {
+            suggestedSources: KnowledgePack.suggestedSources.map {
                 .init(name: $0.name, url: $0.url, category: $0.category)
             },
             conceptNames: KnowledgePack.concepts.map(\.name),

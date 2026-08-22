@@ -277,11 +277,23 @@ struct PackSourceOfferView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Not now") { dismiss() }
-                        .accessibilityIdentifier("declineSources")
+                    Button("Not now") {
+                        // Answered, not postponed: Settings would otherwise
+                        // raise the same suggestions at every launch. Choosing
+                        // this Pack from the library asks again — see
+                        // `PackSourceOffer.recordDeclined`.
+                        PackSourceOffer.recordDeclined(offer.sources)
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("declineSources")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add \(accepted.count)") {
+                        // The ones left unchecked were put to the reader and
+                        // turned down as surely as "Not now" turns down all of
+                        // them, so the standing offer stops raising those too.
+                        PackSourceOffer.recordDeclined(
+                            offer.sources.filter { !accepted.contains($0.url) })
                         let added = PackSourceOffer.subscribe(
                             offer.sources.filter { accepted.contains($0.url) },
                             context: modelContext)

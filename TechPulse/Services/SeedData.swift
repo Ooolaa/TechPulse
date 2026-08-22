@@ -1,64 +1,76 @@
 import SwiftData
 import Foundation
 
-/// Default AI feed sources (user-editable in Settings), per build spec §8.
+/// What a store holds before the reader has done anything: the Sources their
+/// Pack suggests, and the knowledge their resume already proves.
 enum SeedData {
-    static let defaultSources: [(name: String, url: String, category: String)] = [
-        ("arXiv cs.AI", "https://export.arxiv.org/rss/cs.AI", "Research"),
-        ("arXiv cs.LG", "https://export.arxiv.org/rss/cs.LG", "Research"),
-        ("arXiv cs.CL", "https://export.arxiv.org/rss/cs.CL", "Research"),
-        ("Apple ML Research", "https://machinelearning.apple.com/rss.xml", "Research"),
-        ("Hugging Face Blog", "https://huggingface.co/blog/feed.xml", "Open Source"),
-        // Vote-ranked, which is the whole point of it: what a Source is ordered
-        // by is part of what you subscribed to, so community attention reaches
-        // the 🔥 lane without the app ever learning that popularity exists
-        // (ADR-0003, #46). One such Source, not several — they share a host,
-        // so they would share a queue (#44).
-        ("r/MachineLearning (top this week)", "https://www.reddit.com/r/MachineLearning/top/.rss?t=week", "LLMs"),
-        ("OpenAI News", "https://openai.com/news/rss.xml", "Frontier Labs"),
-        ("Google DeepMind Blog", "https://deepmind.google/blog/rss.xml", "Frontier Labs"),
-        ("MIT Technology Review — AI", "https://www.technologyreview.com/topic/artificial-intelligence/feed", "Industry"),
-        ("The Verge — AI", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "Industry"),
-        ("VentureBeat — AI", "https://venturebeat.com/category/ai/feed/", "Industry"),
-        ("TechCrunch — AI", "https://techcrunch.com/category/artificial-intelligence/feed/", "Industry"),
-        ("Kaggle (r/kaggle)", "https://www.reddit.com/r/kaggle/.rss", "Data Science"),
-        ("KDnuggets", "https://www.kdnuggets.com/feed", "Data Science"),
-    ]
-
-    /// Once-shipped defaults that turned out dead; removed from installs that
-    /// received them. (Kaggle's Medium blog stopped posting in 2020.)
     private static let retiredSourceURLs: Set<String> = [
         "https://medium.com/feed/kaggle-blog",
     ]
 
     @MainActor
     static func seedIfNeeded(context: ModelContext) {
-        // Incremental: insert any default source not already present, so app
-        // updates deliver new feeds to existing installs. Safe because
-        // Settings can only toggle sources, not delete them — re-inserting
-        // can't resurrect something the user removed.
-        let existingSources = (try? context.fetch(FetchDescriptor<FeedSource>())) ?? []
-        var changed = false
-        for source in existingSources where retiredSourceURLs.contains(source.url.absoluteString) {
-            context.delete(source)
-            changed = true
-        }
-        let knownURLs = Set(existingSources.map(\.url.absoluteString))
-        for source in defaultSources where !knownURLs.contains(source.url) {
-            guard let url = URL(string: source.url) else { continue }
-            context.insert(FeedSource(name: source.name, url: url, category: source.category))
-            changed = true
-        }
-        if changed { try? context.save() }
         seedResumeKnowledgeIfNeeded(context: context)
         // After the resume: the built-in Pack installs over the top, so
         // anything already known (Fine-Tuning, PyTorch) stays green and
         // everything joins its Cluster. The map now comes from a Pack file.
         PackMigration.ensureBuiltinInstalled(context: context)
+        // After the Pack, not before it: which Sources this reader should be
+        // offered comes from the Pack they are on, and which Pack that is is
+        // only settled by the line above (#47).
+        acquireSourcesIfNeeded(context: context)
         // Both kinds of derived edge are settled at launch, so a store written
         // before either existed opens on the same map a fresh install would.
         PackMigration.ensureSemanticLinks(context: context)
         KnowledgeEngine.rebuildCoreadLinks(context: context)
+    }
+
+    /// What the app may do to a reader's Sources unprompted, which is almost
+    /// nothing: retire the ones that turned out dead, and — on a store that
+    /// had none at all — subscribe what the Active Pack suggests.
+    @MainActor
+    static func acquireSourcesIfNeeded(context: ModelContext) {
+        let existing = (try? context.fetch(FetchDescriptor<FeedSource>())) ?? []
+        retireDeadSources(among: existing, context: context)
+        // Measured before the retirement, deliberately. A store that held
+        // Sources has had its first launch, whatever retiring one leaves
+        // behind — re-seeding it would hand back Sources the reader was never
+        // offered, which is the thing this whole path exists to stop.
+        guard existing.isEmpty else { return }
+        subscribeToTheActivePacksSuggestions(context: context)
+    }
+
+    /// Removes Sources that were once shipped and have since gone quiet.
+    /// (Kaggle's Medium blog stopped posting in 2020.)
+    @MainActor
+    private static func retireDeadSources(among existing: [FeedSource],
+                                          context: ModelContext) {
+        let dead = existing.filter { retiredSourceURLs.contains($0.url.absoluteString) }
+        guard !dead.isEmpty else { return }
+        dead.forEach(context.delete)
+        try? context.save()
+    }
+
+    /// The one moment the app subscribes on the reader's behalf: a store with
+    /// nothing to read at all.
+    ///
+    /// An offer needs a Feed to be weighed against, and an empty app is a worse
+    /// first impression than a Source too many — the reader can turn any of them
+    /// off in Settings, which is where an offer would have sent them.
+    ///
+    /// Every launch after this subscribes to nothing. A Source added to a Pack
+    /// in a new version of the app is *offered* instead, and waits in Settings
+    /// until the reader answers. Subscribing it here would deliver a Source
+    /// nobody chose and then suppress the offer for it permanently, because
+    /// `PackSourceOffer.pending` filters out what is already subscribed — the
+    /// reader could never be asked, because they already had it (#47, ADR-0011).
+    ///
+    /// Reading the Active Pack rather than a compiled list is the other half: a
+    /// reader on Security Engineering is asked about Security Engineering's
+    /// Sources, and stops being handed the flagship's.
+    @MainActor
+    private static func subscribeToTheActivePacksSuggestions(context: ModelContext) {
+        PackSourceOffer.subscribe(ActivePack.inUse.suggestedSources, context: context)
     }
 
     /// The resume's projects as co-read groups: Concepts used on the same

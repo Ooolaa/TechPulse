@@ -10,6 +10,75 @@
 
 ---
 
+## 2026-08-22 — A Source is offered, not delivered (#47)
+
+**Built**
+- **`SeedData.defaultSources` is gone, and with it the second list.** The
+  flagship's Sources lived in `ai-engineer.json` *and* in a compiled array, and
+  only the array reached anybody: the offer fires when a reader installs a Pack
+  from the library by hand, not on the launch-time reinstall a
+  `builtinPackVersion` bump triggers. #46 had to add its Source to both. Now
+  suggestions are read off `ActivePack.inUse.suggestedSources` — the installed
+  record — so there is one list, and the Pack file owns it.
+- **Launch stopped subscribing.** `seedIfNeeded` used to insert any default the
+  store lacked, on every launch, "so app updates deliver new feeds to existing
+  installs". It cost consent twice over: the Source arrived unasked, *and*
+  because `PackSourceOffer.pending` filters out what is already subscribed, its
+  arrival suppressed the offer for it permanently. The gap closed itself.
+  `acquireSourcesIfNeeded` now subscribes only on a store with nothing to read
+  at all.
+- **A standing offer, in Settings.** Everything after the first launch arrives
+  as `PackSourceOffer.standing` — suggestions neither subscribed nor turned
+  down — surfaced as a row that opens the `PackSourceOfferView` the library
+  already used. Declines are recorded in `UserDefaults`, next to
+  `ActivePackIdentity`, because a decline is about what the reader was *asked*,
+  not about what their map holds.
+- **The seeder reads the Pack the reader is on.** It never did: `defaultSources`
+  was the AI list unconditionally, so a Security Engineering reader received
+  arXiv cs.AI, OpenAI News and r/kaggle. That meant reordering `seedIfNeeded` —
+  `ensureBuiltinInstalled` settles which Pack is active, so acquiring Sources
+  has to run after it, not before.
+- **`KnowledgePack.suggestedSources` keeps the pin and delivers nothing.** The
+  compiled list survives beside `concepts` and `stages` as the fixture
+  `BuiltinPacksTests` compares the Pack file against. What made #46 subtle was
+  not the duplication — it was that one copy was also the delivery path.
+
+- **A decline had to be forgettable by a store wipe.** `UITestSupport.resetStore`
+  promises a wipe leaves "exactly as a fresh install ... remembers nothing
+  anywhere", and keeps a list of the `UserDefaults` keys a store wipe cannot
+  reach. `declinedSourceSuggestions` is exactly such a key and was missing from
+  it, so a journey that declined an offer would have poisoned the next one's
+  fresh install. Found by the standards review, not by a failing test — which is
+  the point of that list existing.
+
+**Verified** 423 unit tests, twelve new, and all seven UI journeys — including
+`testStandingSourceOfferJourney`, added because the Settings row is the *only*
+surface the offer has, and it had none. It leaves the offer unanswered by
+dismissing the sheet rather than tapping either button, which is the one state
+that puts a suggestion in neither list; run four times for the swipe. The two
+consent tests were checked against the old behaviour by restoring the
+unconditional insert: both fail, and the pack-switch test reports a reader
+holding all 27 Sources from both Packs.
+
+**Learned: the offer was already correct, and was being outvoted.**
+`PackSourceOffer` said "Nothing is subscribed until you say so" and meant it;
+`PackInstaller` subscribed to nothing on purpose. Neither was wrong. The
+mechanism that actually reached readers was a third one that predated both and
+had never been reconciled with them — and the tell was in the tests, where
+`voteRankedSourceIsSeeded` existed only to assert that a Source was in *the
+other* list. A test whose reason for existing is that two lists must agree is a
+question about which one is real.
+
+**Learned: the first-launch exception wanted to be measured before the sweep.**
+Retiring a dead Source and deciding "has this reader had a first launch" are one
+line apart, and counting what is *left* after the sweep quietly reopened the
+first launch for a store the sweep had emptied — re-subscribing fourteen Sources
+to a reader who was never offered them, the exact behaviour being removed. The
+spec review caught it against the ADR's own consequences. Counting before the
+sweep is both simpler and right.
+
+---
+
 ## 2026-08-22 — The journey read a button that had already gone (#48)
 
 **Built**
