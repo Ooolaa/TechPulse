@@ -10,23 +10,8 @@ import SwiftData
 @Suite("Pack installer", .serialized)
 struct PackInstallerTests {
 
-    private static let sharedContainer: ModelContainer = {
-        return try! AppSchema.inMemoryContainer()
-    }()
-
-    private func makeContext() throws -> ModelContext {
-        let context = Self.sharedContainer.mainContext
-        for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
-        for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
-        for link in try context.fetch(FetchDescriptor<ConceptLink>()) { context.delete(link) }
-        for dep in try context.fetch(FetchDescriptor<ConceptDependency>()) { context.delete(dep) }
-        for link in try context.fetch(FetchDescriptor<SemanticLink>()) { context.delete(link) }
-        for event in try context.fetch(FetchDescriptor<LearningEvent>()) { context.delete(event) }
-        for source in try context.fetch(FetchDescriptor<FeedSource>()) { context.delete(source) }
-        for pack in try context.fetch(FetchDescriptor<InstalledPack>()) { context.delete(pack) }
-        try context.save()
-        return context
-    }
+    private static let store = TestStore()
+    private func makeContext() throws -> ModelContext { try Self.store.makeContext() }
 
     // MARK: - Fixtures
 

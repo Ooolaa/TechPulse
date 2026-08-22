@@ -85,17 +85,8 @@ struct TopicSearchCapTests {
         StubTransport.stopServing(host: Self.queryURL.host()!)
     }
 
-    private static let sharedContainer: ModelContainer = {
-        return try! AppSchema.inMemoryContainer()
-    }()
-
-    private func makeContext() throws -> ModelContext {
-        let context = Self.sharedContainer.mainContext
-        for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
-        for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
-        try context.save()
-        return context
-    }
+    private static let store = TestStore()
+    private func makeContext() throws -> ModelContext { try Self.store.makeContext() }
 
     /// A valid Atom entry, padded past the cap by a comment the parser would
     /// otherwise skip — so the *only* reason to refuse it is its size.

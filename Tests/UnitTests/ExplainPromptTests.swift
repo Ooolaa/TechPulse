@@ -164,14 +164,11 @@ struct ExplainPromptTests {
 @Suite("Explain with no model and no key", .serialized)
 struct ExplainDegradationTests {
 
-    private static let sharedContainer: ModelContainer = {
-        return try! AppSchema.inMemoryContainer()
-    }()
+    private static let store = TestStore()
 
     @Test("returns nil and writes nothing, rather than crashing")
     func definesNothing() async throws {
-        let context = Self.sharedContainer.mainContext
-        for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
+        let context = try Self.store.makeContext()
 
         // This is the simulator's state and the reference device's state without
         // a key, but not every machine's. Where a path *is* available the call

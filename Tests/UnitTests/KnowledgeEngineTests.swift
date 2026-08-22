@@ -7,24 +7,8 @@ import SwiftData
 @Suite("Knowledge engine", .serialized)
 struct KnowledgeEngineTests {
 
-    /// One in-memory container for the whole suite: repeated ModelContainer
-    /// creation alongside the host app's live container traps in SwiftData.
-    private static let sharedContainer: ModelContainer = {
-        return try! AppSchema.inMemoryContainer()
-    }()
-
-    /// Fresh logical state per test. Row-by-row deletes (not batch) so the
-    /// Article↔Concept inverse relationship is nullified properly.
-    private func makeContext() throws -> ModelContext {
-        let context = Self.sharedContainer.mainContext
-        for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
-        for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
-        for link in try context.fetch(FetchDescriptor<ConceptLink>()) { context.delete(link) }
-        for event in try context.fetch(FetchDescriptor<LearningEvent>()) { context.delete(event) }
-        for source in try context.fetch(FetchDescriptor<FeedSource>()) { context.delete(source) }
-        try context.save()
-        return context
-    }
+    private static let store = TestStore()
+    private func makeContext() throws -> ModelContext { try Self.store.makeContext() }
 
     @Test("reading an article bumps concept mastery by 0.1 and logs an event")
     func readBump() throws {

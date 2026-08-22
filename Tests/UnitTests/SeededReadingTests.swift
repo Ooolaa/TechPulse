@@ -13,21 +13,8 @@ import SwiftData
 @Suite("Seeded reading", .serialized)
 struct SeededReadingTests {
 
-    private static let sharedContainer: ModelContainer = {
-        try! AppSchema.inMemoryContainer()
-    }()
-
-    private static func freshContext() throws -> ModelContext {
-        let context = sharedContainer.mainContext
-        for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
-        for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
-        for dep in try context.fetch(FetchDescriptor<ConceptDependency>()) { context.delete(dep) }
-        for link in try context.fetch(FetchDescriptor<ConceptLink>()) { context.delete(link) }
-        for link in try context.fetch(FetchDescriptor<SemanticLink>()) { context.delete(link) }
-        for pack in try context.fetch(FetchDescriptor<InstalledPack>()) { context.delete(pack) }
-        try context.save()
-        return context
-    }
+    private static let store = TestStore()
+    private static func freshContext() throws -> ModelContext { try store.makeContext() }
 
     private func installedFlagship(_ context: ModelContext) throws {
         try PackInstaller.install(try BuiltinPacks.aiEngineer(), origin: .builtin, context: context)

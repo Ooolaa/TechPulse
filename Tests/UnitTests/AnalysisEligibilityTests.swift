@@ -11,11 +11,8 @@ import SwiftData
 @Suite("Analysis eligibility", .serialized)
 struct AnalysisEligibilityTests {
 
-    private func freshContext() throws -> ModelContext {
-        ActivePackIdentity.forget()
-        ActivePack.resetCache()
-        return ModelContext(try AppSchema.inMemoryContainer())
-    }
+    private static let store = TestStore()
+    private func freshContext() throws -> ModelContext { try Self.store.makeContext() }
 
     private func seeded(_ context: ModelContext) throws -> Article {
         try #require(try context.fetch(FetchDescriptor<Article>())

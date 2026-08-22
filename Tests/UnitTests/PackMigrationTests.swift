@@ -10,13 +10,14 @@ import SwiftData
 @Suite("Pack migration", .serialized)
 struct PackMigrationTests {
 
+    private static let store = TestStore()
+
+    /// The store's own clear takes the Pack with it; the version stamp is this
+    /// suite's, because migrating is what it is about.
     private func makeContext() throws -> ModelContext {
-        let container = try AppSchema.inMemoryContainer()
+        let context = try Self.store.makeContext()
         UserDefaults.standard.removeObject(forKey: "builtinPackVersion")
-        ActivePackIdentity.forget()
-        // The cache is process-global; a previous test's Pack must not leak in.
-        ActivePack.resetCache()
-        return ModelContext(container)
+        return context
     }
 
     /// The store as it looked before Packs were data: Concepts seeded by the

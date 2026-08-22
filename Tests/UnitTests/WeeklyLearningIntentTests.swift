@@ -11,13 +11,9 @@ import SwiftData
 @Suite("Weekly learning intent", .serialized)
 struct WeeklyLearningIntentTests {
 
-    /// One container for the whole suite, as every other suite here does:
-    /// repeated `ModelContainer` creation alongside the host app's live
-    /// container traps in SwiftData (see `KnowledgeEngineTests`). Only the test
-    /// that has to see the store on disk opens a second one.
-    private static let sharedContainer: ModelContainer = {
-        try! AppSchema.inMemoryContainer()
-    }()
+    /// One store for the whole suite, as every other suite here has. Only the
+    /// test that has to see the store on disk opens a container of its own.
+    private static let store = TestStore()
 
     /// A Pack the app would recognise, retired so it can't become the Active
     /// Pack of whatever runs against this store next.
@@ -60,7 +56,7 @@ struct WeeklyLearningIntentTests {
 
     @Test("reports the Concepts advanced in the last seven days, and only those")
     func reportsTheWeeksConcepts() throws {
-        let context = ModelContext(Self.sharedContainer)
+        let context = try Self.store.makeContext()
         let now = Date(timeIntervalSince1970: 1_770_000_000)
         for event in [
             LearningEvent(kind: "read", conceptName: "Attention", masteryDelta: 0.2,
@@ -80,7 +76,7 @@ struct WeeklyLearningIntentTests {
 
     @Test("names a Concept once however many readings advanced it")
     func namesEachConceptOnce() throws {
-        let context = ModelContext(Self.sharedContainer)
+        let context = try Self.store.makeContext()
         let now = Date(timeIntervalSince1970: 1_780_000_000)
         for delta in [0.1, 0.1, 0.3] {
             context.insert(LearningEvent(kind: "read", conceptName: "Attention",

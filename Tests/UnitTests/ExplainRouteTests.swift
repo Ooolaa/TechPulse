@@ -96,14 +96,10 @@ struct ConceptMatchTests {
 @Suite("Explain route", .serialized)
 struct ExplainRouteTests {
 
-    private static let sharedContainer: ModelContainer = {
-        return try! AppSchema.inMemoryContainer()
-    }()
+    private static let store = TestStore()
 
     private func makeMap() throws -> [Concept] {
-        let context = Self.sharedContainer.mainContext
-        for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
-        try context.save()
+        let context = try Self.store.makeContext()
         for name in ["LoRA", "RAG"] {
             context.insert(Concept(name: name, category: "LLMs", definition: "d"))
         }
