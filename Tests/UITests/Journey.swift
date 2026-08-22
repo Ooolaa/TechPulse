@@ -97,6 +97,27 @@ final class Journey {
         waitUntil(what, timeout: timeout, file: file, line: line) { !element.exists }
     }
 
+    /// What a control says, or nil if it is not there — read in **one** query.
+    ///
+    /// `exists` and `label` are two separate queries against a live app, and a
+    /// control that goes between them makes the second one throw rather than
+    /// answer: `Failed to get matching snapshot: No matches found…`, which is a
+    /// thrown query rather than a failed assertion, so it reads as a broken
+    /// journey rather than a false one. The find-articles button does exactly
+    /// that — it is removed the moment its Concept reaches three Articles,
+    /// which is what the search that step just triggered is trying to make
+    /// happen — and `testCoreJourney` failed about one run in two on it (#48).
+    ///
+    /// One snapshot, so "not there" is a value the caller can branch on.
+    /// `static` because reading a label needs nothing a journey holds; it is
+    /// here so it sits with the other ways this file reads a live app.
+    ///
+    /// Nil still means gone, exactly as `!exists` did — this narrows *when* the
+    /// question is asked, not what the answer means.
+    static func label(of element: XCUIElement) -> String? {
+        (try? element.snapshot())?.label
+    }
+
     /// Waits for anything else worth waiting for. `what` is the condition in
     /// words, and it is what the failure says.
     ///

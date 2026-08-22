@@ -90,6 +90,7 @@
 		9A63C654F78898F6D8AC58E3 /* TechPulseWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0589963A0AE4B696E53ADA0C /* TechPulseWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9FEFD5F2EBDE54F3A8D21D9D /* PackLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 571D5671CDF5C25BAA89D44C /* PackLibraryView.swift */; };
 		A12863526CABDA2078C6CC59 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CB6AB829AE3904762AA2F3 /* KeychainStore.swift */; };
+		A670AB4B9F30C4AC36547A68 /* JourneyReadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFAE9B2F0337F35B7DA33022 /* JourneyReadTests.swift */; };
 		A92653B3045447F6CBC37F0A /* SeededReadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BDAA982C400CAC86FA1E110 /* SeededReadingTests.swift */; };
 		AC269276B3F82B7025C3E3FB /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4891801E7DD9F1BA352978AC /* UITestSupport.swift */; };
 		AD3AF80B7D4B0DC6B5720FA4 /* PackFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E37A1B81DE21F03EB89D165 /* PackFileTests.swift */; };
@@ -277,6 +278,7 @@
 		FC206139BB65D5F158F617F3 /* StreakWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakWidget.swift; sourceTree = "<group>"; };
 		FC2344CCBC4508F65DBE94A4 /* SemanticLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticLink.swift; sourceTree = "<group>"; };
 		FD06BF3A4AAACB4F2DCC8803 /* FullTextService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullTextService.swift; sourceTree = "<group>"; };
+		FFAE9B2F0337F35B7DA33022 /* JourneyReadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyReadTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -326,6 +328,7 @@
 			isa = PBXGroup;
 			children = (
 				5E0AC48BA00E4E792E92DD6F /* Journey.swift */,
+				FFAE9B2F0337F35B7DA33022 /* JourneyReadTests.swift */,
 				EE45300FDDCED3CAA7416DFF /* TechPulseUITests.swift */,
 			);
 			name = UITests;
@@ -765,6 +768,7 @@
 			files = (
 				B43E70327381BAB77E06FB3D /* Journey.swift in Sources */,
 				3999C796E4420BAEE8E89466 /* JourneyLedger.swift in Sources */,
+				A670AB4B9F30C4AC36547A68 /* JourneyReadTests.swift in Sources */,
 				96315EB538495DDC2CEFAAF0 /* TechPulseUITests.swift in Sources */,
 				291AC0AD5362A7FD04FF36ED /* UITestLaunch.swift in Sources */,
 			);
