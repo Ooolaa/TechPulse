@@ -10,6 +10,42 @@
 
 ---
 
+## 2026-08-22 — Two taps on one chip made two Concepts (#42, found reviewing #50)
+
+**Built**
+- **`HotTopics.adopt` reads the map again on the far side of its suspension.**
+  #42 made `adopt` `async` so the de-duplication index could be built off the
+  main actor. What that added was a window: the pass fetches every Concept,
+  awaits `ConceptIndex.prepared`, and only then matches. The chip that started
+  it is still on screen for the whole of that await — two seconds on a large
+  map — so a second tap starts a second pass that reads the same map, before
+  either has written to it. Both missed, and both created. The synchronous
+  version could not do this.
+- **Reconciled through `insert`, not by rebuilding.** After the await, the store
+  is fetched again and anything that arrived meanwhile is inserted into the
+  index — the same seam a Concept created part way through an analysis batch
+  goes through. Rebuilding the index would have paid the embedding twice.
+  `isNewlyCreated` is asked against the settled map rather than the one the pass
+  started from, so a Concept another pass just created is not set back to unlit
+  by this one.
+- **`ConceptIndex.insert`'s doc comment said this could not happen.** "Never has
+  anything to overwrite: a Concept only reaches `insert` because `match` found
+  nothing" was true of the analysis path and of nothing else. It now names the
+  two callers outside it — a name folding to the empty key, which `match` skips,
+  and this reconciliation.
+
+**Verified** 410 unit tests, one new, and the four UI journeys.
+`concurrentAdoptionsMakeOneConcept` starts two main-actor Tasks against one
+term, which is what two taps make, and expects one Concept. It fails against the
+code as #42 left it, which is the only reason to trust it.
+
+**Learned** `acceptingTwiceIsIdempotent` already existed and covered the same
+sentence in English — accepting twice makes one Concept — while testing the
+sequential case, which was never the one at risk. Making a function `async` does
+not change what its tests assert; it changes which orderings can reach it, and a
+test written before the suspension existed cannot know about the ones it added.
+Found by the spec axis of the review on #50, not by the suite.
+
 ## 2026-08-21 — The de-duplication threshold is measured rather than guessed (#41)
 
 **Built**
