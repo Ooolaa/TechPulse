@@ -39,6 +39,14 @@ struct PackFileTests {
         }
     }
 
+    /// Suggestions on distinct hosts, so a count is all that separates them —
+    /// the cap counts Sources, not the servers behind them.
+    private func sources(_ count: Int) -> [PackFile.PackSource] {
+        (0..<count).map {
+            .init(name: "Feed \($0)", url: "https://feed-\($0).test/rss", category: "LLMs")
+        }
+    }
+
     /// The error thrown by `validate`, or `nil` if it accepted the Pack.
     private func rejection(_ file: PackFile) -> PackValidationError? {
         reason { try PackValidator.validate(file) }
@@ -311,6 +319,32 @@ struct PackFileTests {
         #expect(error?.errorDescription?.contains("\(over)") == true)
     }
 
+    @Test("a Pack suggesting more Sources than the format allows is rejected, naming the count")
+    func rejectsTooManySuggestedSources() {
+        let over = PackFile.maxSuggestedSources + 1
+        let file = pack(suggestedSources: sources(over))
+
+        let error = rejection(file)
+        #expect(error == .tooManySuggestedSources(over))
+        #expect(error?.errorDescription?.contains("\(over)") == true)
+    }
+
+    @Test("a Pack at exactly the suggested-Source limit is accepted")
+    func acceptsSuggestedSourceLimit() throws {
+        try PackValidator.validate(pack(suggestedSources: sources(PackFile.maxSuggestedSources)))
+    }
+
+    /// The cap is on the file, so it is enforced on the way in from bytes and
+    /// not only against a `PackFile` some other code already built. An import
+    /// is the only way an over-cap Pack can reach a reader at all.
+    @Test("an over-cap Pack is rejected on decode, not merely on validate")
+    func rejectsTooManySuggestedSourcesOnDecode() throws {
+        let over = PackFile.maxSuggestedSources + 1
+        let data = try JSONEncoder().encode(pack(suggestedSources: sources(over)))
+
+        #expect(decodeRejection(data) == .tooManySuggestedSources(over))
+    }
+
     @Test("a Pack at exactly the Cluster limit is accepted")
     func acceptsClusterLimit() throws {
         let file = pack(clusterOrder: (0..<PackFile.maxClusters).map { "Cluster \($0)" },
@@ -400,6 +434,7 @@ struct PackFileTests {
     func everyReasonIsReadable() {
         let reasons: [PackValidationError] = [
             .unsupportedVersion(9), .noConcepts, .tooManyConcepts(999), .badClusterCount(0),
+            .tooManySuggestedSources(500),
             .emptyDefinition("A"),
             // Both readings of one case: the same name twice, and two
             // spellings of it. They word themselves differently.

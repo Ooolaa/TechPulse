@@ -165,6 +165,12 @@ final class StubTransport: URLProtocol, @unchecked Sendable {
     /// is how "these never overlapped" is asked; naming a pair is how "these
     /// did" is.
     static func peakConcurrency(among hosts: String...) -> Int {
+        peakConcurrency(among: hosts)
+    }
+
+    /// The same question of a list too long to name one host at a time — a
+    /// fan-out the size of `PackFile.maxSuggestedSources`, say.
+    static func peakConcurrency(among hosts: [String]) -> Int {
         let wanted = Set(hosts.map(key))
         let spans = state.withLock { $0.spans.filter { wanted.contains($0.host) } }
         // A request still open counts up to now. Ends sort before starts at the

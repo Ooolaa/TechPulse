@@ -186,6 +186,74 @@ struct SourceAcquisitionTests {
             .map(\.url).contains(one.url))
     }
 
+    // MARK: - What a Pack may ask for (#20)
+
+    /// A Pack that is a map only incidentally: one Concept, and as many
+    /// suggested Sources as the test is about. Every suggestion is on a host of
+    /// its own, so nothing here turns on two of them sharing one.
+    private func packSuggesting(_ count: Int) -> PackFile {
+        PackFile(field: "Everything",
+                 specialtyCluster: nil,
+                 clusterOrder: ["Foundations"],
+                 concepts: [.init(name: "Attention", cluster: "Foundations",
+                                  definition: "Weighted lookup.", dependencies: [])],
+                 stages: [],
+                 suggestedSources: (0..<count).map {
+                     .init(name: "Feed \($0)", url: "https://feed-\($0).test/rss",
+                           category: "LLMs")
+                 })
+    }
+
+    /// An imported Pack is a file from outside the app, and the format is where
+    /// it is told no. A Pack carrying more suggestions than
+    /// `PackFile.maxSuggestedSources` never gets as far as the offer sheet, so
+    /// the reader is never one tap from hundreds of subscriptions — and never
+    /// one cold sync from hundreds of requests off their device.
+    @Test("a Pack suggesting more Sources than the format allows is rejected, and subscribes nothing")
+    func anOverCapImportSubscribesNothing() throws {
+        let context = try makeContext()
+        let pack = try aiEngineer()
+        try PackInstaller.install(pack, origin: .builtin, context: context)
+        SeedData.acquireSourcesIfNeeded(context: context)
+        let before = try subscribedURLs(context)
+
+        let over = PackFile.maxSuggestedSources + 1
+        let greedy = packSuggesting(over)
+
+        // Through the bytes, because that is what importing a file actually is.
+        #expect(throws: PackValidationError.tooManySuggestedSources(over)) {
+            _ = try PackValidator.decodeAndValidate(try JSONEncoder().encode(greedy))
+        }
+
+        // Nothing was installed, so nothing is subscribed — and the record the
+        // standing offer reads is still the flagship's, so none of the thirty-one
+        // can be raised at a later launch either.
+        #expect(try subscribedURLs(context) == before)
+        let active = try #require(ActivePack.load(context: context))
+        #expect(active.field == "AI Engineering")
+        #expect(active.suggestedSources.map(\.url) == pack.suggestedSources.map(\.url))
+        #expect(try standing(active.suggestedSources, context).isEmpty)
+    }
+
+    /// The other side of the cap: at it, an import still works. A bound that
+    /// also turned away the largest legal Pack would be off by one.
+    @Test("a Pack at the cap installs, and offers exactly what it suggests")
+    func aPackAtTheCapIsOffered() throws {
+        let context = try makeContext()
+        let atCap = packSuggesting(PackFile.maxSuggestedSources)
+
+        let decoded = try PackValidator.decodeAndValidate(try JSONEncoder().encode(atCap))
+        try PackInstaller.install(decoded, origin: .imported, context: context)
+
+        // Offered, not subscribed — an import is still an offer (ADR-0011).
+        #expect(PackSourceOffer.pending(decoded.suggestedSources, context: context).count
+                == PackFile.maxSuggestedSources)
+        #expect(try context.fetch(FetchDescriptor<FeedSource>()).isEmpty)
+        // And the offer at that size opens with nothing ticked, so accepting it
+        // wholesale is not one tap.
+        #expect(PackSourceOfferView.preChecked(decoded.suggestedSources).isEmpty)
+    }
+
     // MARK: - Retirement
 
     @Test("a Source that turned out dead is removed, and does not re-seed the store")

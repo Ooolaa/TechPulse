@@ -10,6 +10,62 @@
 
 ---
 
+## 2026-08-22 — An imported Pack can suggest unlimited Sources (#20)
+
+**Built**
+- **`PackFile.maxSuggestedSources`, 30, checked by `PackValidator`.** The
+  validator already bounded a Pack's Concepts (120), Clusters (10) and
+  Dependencies per Concept (8), and put no bound at all on `suggestedSources`.
+  An import is a file from outside the app, so the format is where it is told
+  no: a Pack carrying 500 suggestions is now rejected as
+  `tooManySuggestedSources`, in the same voice as the other thirteen reasons.
+- **Thirty because that is the whole day's reading.** `FeedSyncService`
+  shares `dailyIntakeLimit` — 30 articles — round-robin between the Sources the
+  reader has (ADR-0009), so a Pack suggesting more Sources than the day has
+  articles is suggesting Sources that cannot all be heard even once. The
+  built-in Packs suggest 14 and 13, so this is a bound on the absurd rather
+  than a budget an author works inside. The number is *not* read from
+  `FeedSyncService`: the validator is pure by construction, with no store, no
+  network and no main actor in reach. The reasoning is what the two share.
+- **Rejected before the record, not at the sheet.** Capping at the offer would
+  have been too late — reaching the sheet at all means the suggestions are
+  already on the installed record, and `PackSourceOffer.standing` would raise
+  them at every launch from then on (#47). The guard sits beside the Cluster
+  count, so an over-cap Pack changes nothing about the map.
+- **Pre-checking is bounded too — `PackSourceOfferView.preCheckedUpTo`, 15.**
+  The sheet opened with every suggestion ticked, whatever the length, so "Add
+  500" was one tap. Pre-checking is consent by default and is honest only while
+  the reader can see what they are agreeing to. All-or-nothing rather than the
+  first fifteen: which suggestions a Pack listed first is the author's
+  ordering, not a ranking the app may read as consent.
+
+**Verified** 433 unit tests, ten new, plus `testPackSelectionJourney` and
+`testStandingSourceOfferJourney` — both tap "Add" without ticking anything, so
+both would have failed had the threshold landed under the built-ins' 14. The
+fan-out is asserted at the worst case the cap allows: thirty Sources, each on a
+host of its own so `HostPacing` helps as little as it ever can, and
+`StubTransport.peakConcurrency(among:)` gained a list-taking overload to ask
+about thirty hosts at once.
+
+**Learned: the issue's own diagnosis was one commit stale.** It described
+`syncAll` as adding "one task per source to an unbounded `withTaskGroup`". That
+was true when it was filed; #44 had since regrouped the fan-out by host, so it
+is one task per *host*. The bug survived the correction — 500 suggestions still
+buy up to 500 hosts — but the fix landed as a cap on the format rather than a
+limiter on the task group, because the number of requests a sync opens is
+bounded by how many Sources a reader can end up with, and that is a question
+about what a Pack may ask for.
+
+**Learned: a threshold set from the shipped Packs has to keep holding them.**
+`preCheckedUpTo` is 15 because the built-ins suggest 14 and 13 — the largest
+list the app itself vouches for. That makes the number quietly load-bearing for
+two UI journeys, which tap Add on a sheet they never ticked. So it is pinned by
+a test that walks `BuiltinPacks.all` and asserts each one's offer still opens
+ticked: a built-in that grows past the threshold now fails in a second rather
+than in a journey.
+
+---
+
 ## 2026-08-22 — A Source is offered, not delivered (#47)
 
 **Built**

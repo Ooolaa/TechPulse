@@ -59,6 +59,17 @@ struct PackSelectionTests {
         }
     }
 
+    /// The format caps what a Pack may suggest (#20). The Packs that ship in
+    /// the app have to sit inside their own format — and comfortably, or the
+    /// cap is a budget rather than a bound on the absurd.
+    @Test("every built-in Pack suggests fewer Sources than the format allows")
+    func builtinsAreInsideTheSuggestionCap() throws {
+        for builtin in BuiltinPacks.all {
+            #expect(builtin.pack.suggestedSources.count <= PackFile.maxSuggestedSources,
+                    "“\(builtin.pack.field)” suggests more Sources than a Pack may")
+        }
+    }
+
     @Test("the Security Engineering Pack draws a real map, with a side-quest lane")
     func securityPackIsAMap() throws {
         let pack = try security()
@@ -310,6 +321,47 @@ struct PackSelectionTests {
         // And the reader's own name for the Source they had survives.
         let names = try context.fetch(FetchDescriptor<FeedSource>()).map(\.name)
         #expect(names.contains("My own name for it"))
+    }
+
+    // MARK: - What the offer opens with ticked
+
+    /// Pre-checking is consent by default, so it is bounded too (#20). A Pack
+    /// at the format's cap must not open with thirty Sources ticked and one tap
+    /// standing between the reader and thirty subscriptions.
+    /// Suggestions on distinct hosts, so a count is all that separates them.
+    private func suggestions(_ count: Int) -> [PackFile.PackSource] {
+        (0..<count).map {
+            .init(name: "Feed \($0)", url: "https://feed-\($0).test/rss", category: "LLMs")
+        }
+    }
+
+    @Test("a short offer opens with every suggestion ticked")
+    func shortOfferOpensTicked() throws {
+        let short = suggestions(PackSourceOfferView.preCheckedUpTo)
+
+        #expect(PackSourceOfferView.preChecked(short) == Set(short.map(\.url)))
+    }
+
+    @Test("an offer past the threshold opens with nothing ticked, not with the first fifteen")
+    func longOfferOpensUnticked() throws {
+        let long = suggestions(PackSourceOfferView.preCheckedUpTo + 1)
+
+        // Empty, so "Add 0" is disabled and the reader has to say which ones.
+        // Not a prefix: the order suggestions arrive in is the author's, not a
+        // ranking the app may read as consent.
+        #expect(PackSourceOfferView.preChecked(long).isEmpty)
+    }
+
+    /// The threshold is set from the shipped Packs, so it has to keep holding
+    /// them. A built-in that grew past it would quietly stop opening ticked —
+    /// and the switch-Pack journey taps "Add" without ticking anything.
+    @Test("every built-in Pack's offer still opens ticked")
+    func builtinOffersOpenTicked() throws {
+        for builtin in BuiltinPacks.all {
+            let sources = builtin.pack.suggestedSources
+            #expect(PackSourceOfferView.preChecked(sources).count == sources.count,
+                    "“\(builtin.pack.field)” now suggests too many Sources to open ticked")
+        }
     }
 
     @Test("a suggestion that could never be fetched is never offered")

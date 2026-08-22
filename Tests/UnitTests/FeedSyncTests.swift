@@ -277,6 +277,40 @@ struct FeedSyncTests {
                 "a refusal is the worst moment to ask the host again at once")
     }
 
+    /// What the format's cap on suggested Sources actually buys (#20).
+    ///
+    /// `syncAll` fans out one task per host and every one of them is a request
+    /// off the reader's device, so the fan-out is only as bounded as the number
+    /// of Sources is. A Pack used to be able to suggest any number; accepting
+    /// one that suggested five hundred was one tap and five hundred requests.
+    /// `PackFile.maxSuggestedSources` is what stops that, and this is the
+    /// property it is there for — asserted at the worst case the cap allows,
+    /// every Source on a host of its own so none of them share a queue.
+    @Test("a Pack's worth of Sources at the cap opens no more requests than the cap allows")
+    func aPackAtTheCapDoesNotFanOutWithoutBound() async throws {
+        let context = try makeContext()
+        // Hosts of their own, so nothing here is bounded by `HostPacing`: this
+        // is the fan-out with the pacing helping as little as it ever can.
+        let hosts = (0..<PackFile.maxSuggestedSources).map { "cap-\($0).feeds.test" }
+        defer { for host in hosts { StubTransport.stopServing(host: host) } }
+        for (index, host) in hosts.enumerated() {
+            // A path of its own as well as a host: guids are derived from the
+            // path, and thirty Sources sharing one would arrive as one article
+            // thirty readers already had.
+            source(named: "Feed \(index)", host: host, path: "/rss-\(index).xml",
+                   items: 1, in: context)
+        }
+
+        let added = await sync(context)
+
+        #expect(StubTransport.peakConcurrency(among: hosts)
+                <= PackFile.maxSuggestedSources,
+                "the sync opened more requests at once than a Pack may suggest Sources")
+        #expect(hosts.allSatisfy { StubTransport.requests(to: $0).count == 1 },
+                "one Source is one request — a retry would double the fan-out")
+        #expect(added == PackFile.maxSuggestedSources, "and every Source was heard")
+    }
+
     /// The pause is paid between *requests*, so a Source that is never asked
     /// cannot spend it. Without this, an http Source ahead of an https one on
     /// the same host bought the reader a two-second wait for a request no host

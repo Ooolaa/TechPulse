@@ -226,12 +226,34 @@ struct PackSourceOfferView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var accepted: Set<String>
 
+    /// The longest offer that opens with everything ticked.
+    ///
+    /// Pre-checking is consent by default, and it is honest only while the
+    /// reader can see what they are agreeing to. The built-in Packs suggest 14
+    /// and 13 — the largest list the app itself vouches for — and a list that
+    /// size reads in one screen, where having nothing to read is a worse first
+    /// impression than one Source too many. A Pack past this is asking for more
+    /// than the app ever asks for, and a list that long is one nobody scrolled
+    /// before tapping Add — so the reader ticks what they want instead.
+    ///
+    /// Well under `PackFile.maxSuggestedSources`, deliberately. The cap says
+    /// what a Pack may suggest; this says what the app will take on the reader's
+    /// behalf, and the second is the smaller question.
+    static let preCheckedUpTo = 15
+
+    /// What opens ticked: all of them, or none.
+    ///
+    /// All-or-nothing rather than the first fifteen. Which suggestions a Pack
+    /// listed first is the author's ordering, not a ranking the app can read as
+    /// consent, and a half-ticked list invites the reader to trust the ticks
+    /// instead of the names.
+    static func preChecked(_ sources: [PackFile.PackSource]) -> Set<String> {
+        sources.count <= preCheckedUpTo ? Set(sources.map(\.url)) : []
+    }
+
     init(offer: SourceOffer) {
         self.offer = offer
-        // Pre-checked: these are the author's suggestions for the map the
-        // reader just chose, and having nothing to read is a worse first
-        // impression than one Source too many.
-        _accepted = State(initialValue: Set(offer.sources.map(\.url)))
+        _accepted = State(initialValue: Self.preChecked(offer.sources))
     }
 
     var body: some View {

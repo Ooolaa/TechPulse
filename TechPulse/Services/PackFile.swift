@@ -48,6 +48,21 @@ struct PackFile: Codable, Equatable {
     static let maxClusters = 10
     static let maxDependenciesPerConcept = 8
 
+    /// The most Sources a Pack may suggest.
+    ///
+    /// Thirty because that is `FeedSyncService.dailyIntakeLimit` — the whole
+    /// day's reading, shared round-robin between the Sources the reader has
+    /// (ADR-0009). A Pack suggesting more Sources than the day has articles is
+    /// suggesting Sources that cannot all be heard even once, and every one of
+    /// them is a request the reader's device makes on a cold sync. The built-in
+    /// Packs suggest 14 and 13, so this is a bound on the absurd rather than a
+    /// budget an author has to work inside.
+    ///
+    /// Not read from `FeedSyncService`: this is the format's number, checked
+    /// off the main actor with no store or network in reach, and the two are
+    /// free to part company. The reasoning is what they share.
+    static let maxSuggestedSources = 30
+
     var formatVersion: Int = PackFile.currentFormatVersion
     /// What the map covers — "AI Engineering", "Data Science".
     var field: String
@@ -69,6 +84,7 @@ enum PackValidationError: LocalizedError, Equatable {
     case noConcepts
     case tooManyConcepts(Int)
     case badClusterCount(Int)
+    case tooManySuggestedSources(Int)
     case emptyDefinition(String)
     /// Two Concepts the installer would treat as one. Both spellings are
     /// carried: where they differ only in case, naming one of them sends the
@@ -92,6 +108,8 @@ enum PackValidationError: LocalizedError, Equatable {
             "Too many concepts (\(count) > \(PackFile.maxConcepts))."
         case .badClusterCount(let count):
             "Packs need 1–\(PackFile.maxClusters) clusters (got \(count))."
+        case .tooManySuggestedSources(let count):
+            "Too many suggested sources (\(count) > \(PackFile.maxSuggestedSources))."
         case .emptyDefinition(let name):
             "Concept “\(name)” has no definition."
         case .duplicateConcept(let first, let second) where first == second:
@@ -155,6 +173,13 @@ enum PackValidator {
         }
         guard (1...PackFile.maxClusters).contains(pack.clusterOrder.count) else {
             throw PackValidationError.badClusterCount(pack.clusterOrder.count)
+        }
+        // Checked here rather than at the offer: an import is a file from
+        // outside the app, so the format is where it is told no. Reaching the
+        // sheet at all would mean the Sources were already installed on the
+        // record, and every later launch would raise them as a standing offer.
+        guard pack.suggestedSources.count <= PackFile.maxSuggestedSources else {
+            throw PackValidationError.tooManySuggestedSources(pack.suggestedSources.count)
         }
 
         // Names must be unique before anything indexes by them — a duplicate
