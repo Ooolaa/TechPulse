@@ -7,19 +7,8 @@ import SwiftData
 @Suite("Knowledge path engine", .serialized)
 struct KnowledgePathTests {
 
-    private static let sharedContainer: ModelContainer = {
-        return try! AppSchema.inMemoryContainer()
-    }()
-
-    private func makeContext() throws -> ModelContext {
-        let context = Self.sharedContainer.mainContext
-        for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
-        for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
-        for link in try context.fetch(FetchDescriptor<ConceptLink>()) { context.delete(link) }
-        for dep in try context.fetch(FetchDescriptor<ConceptDependency>()) { context.delete(dep) }
-        try context.save()
-        return context
-    }
+    private static let store = TestStore()
+    private func makeContext() throws -> ModelContext { try Self.store.makeContext() }
 
     private func concept(_ name: String, _ category: String, lit: Bool) -> Concept {
         let c = Concept(name: name, category: category, definition: "d")

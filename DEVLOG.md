@@ -10,6 +10,76 @@
 
 ---
 
+## 2026-08-22 — A suite that forgot a model type inherited its rows (#40)
+
+**Built**
+- **One `TestStore`, holding one in-memory container per suite and emptying it
+  before each test.** Nine suites carried a near-identical `makeContext()` —
+  fetch every model type, delete the rows, save, hand back the shared context —
+  and they disagreed about which types they bothered to clear. The disagreement
+  was silent: a suite that forgot a type passed on the previous test's rows
+  rather than failing.
+- **The model list is read back from `AppSchema` rather than written out
+  again.** That is the list #21 was about — a hand-written one at a single call
+  site migrated the store *down* to it and took the reader's installed Packs
+  with it — and the tests then hand-wrote it fourteen more times. The clear
+  walks `AppSchema.models` and opens each existential metatype far enough to
+  build its `FetchDescriptor`, so a model added to the app is cleared by every
+  suite without a test being edited. Row-by-row, not `delete(model:)`, so the
+  Article↔Concept inverse still nullifies.
+- **The process-global state a Pack install writes is cleared for every suite.**
+  Installing remembers the Pack outside the store (`ActivePackIdentity`) and
+  caches it in the process (`ActivePack`), so a suite clearing only rows starts
+  on its predecessor's Pack. Two of the nine knew that; the rest did not, and
+  which ones needed it was decided per suite by whoever wrote it — the "stays
+  true by everyone remembering it" that #36 folded away for the URLProtocol
+  stubs.
+- **Fourteen suites, not the nine the ticket counted.** Nine was the number of
+  copies *named* `makeContext`. Five more carried the same shape under
+  `freshContext`, inside `makeMap`, or inline in a test body, and
+  `WeeklyLearningIntentTests` shared a store and cleared nothing at all, staying
+  honest only by never reusing a date across two tests.
+- **What is genuinely one suite's stays in that suite**: the `builtinPackVersion`
+  stamp in `PackMigrationTests`, `PackSourceOffer.forgetDeclined()` in
+  `SourceAcquisitionTests` — a decline is written by a reader refusing an offer,
+  not by an install — and Feed sync's stub routes.
+- **`TestStoreTests` asserts the fixture** the other suites read their own
+  assertions against. In `Tests/UnitTests` rather than `Tests/Support`, because
+  `project.yml` compiles `Support` into the UI-test bundle too; the placement
+  #36 settled.
+
+Verified by the full unit suite: 436 tests in 41 suites before, 438 in 42 after,
+passing on three consecutive runs, and the UI-test target still builds. No suite
+turned out to be leaning on rows it inherited, which the ticket asked to be
+found rather than hidden — so the answer is that there was nothing to find. The
+two new tests were mutation-checked rather than trusted: dropping one model from
+the clear fails the row test, and leaving the two Pack globals set fails the
+other.
+
+**Learned: the ticket counted a spelling, and the hazard was in the shape.**
+Nine `makeContext` bodies was an exact count of one name. The same fetch-delete-
+save shape was living under five other names, and both review axes found them
+independently — which is what turned a nine-suite change into a fourteen-suite
+one. The grep that would have found them up front is for the shape (a
+`FetchDescriptor` and a `delete` inside a fixture) rather than for the helper's
+name. Worth doing on the next fold-away, because the copies that got renamed are
+exactly the ones a survey by name misses.
+
+**Learned: the suite that produced the leak was not among the nine.**
+`SeededReadingTests` installs a Pack — so it writes both globals — and cleared
+neither. Every suite the ticket named was a *consumer* defending itself against
+state someone else wrote, which is why the two that knew to clear looked like
+careful outliers rather than like the rule. A fixture that clears at the start
+of each test makes the producer/consumer distinction stop mattering, which is
+the part worth keeping: the container can be per-suite, but these two are one
+per process by definition, so clearing them for every suite is clearing them
+under the suites running alongside. What makes that safe is not the clearing but
+who reads them — only `ActivePack.inUse` reads the cache, and the two tests that
+do are synchronous `@MainActor` bodies that reach their assertion without ever
+yielding the actor.
+
+---
+
 ## 2026-08-22 — A wait is handed what a control said, not the control (#53)
 
 **Built**

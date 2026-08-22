@@ -10,11 +10,8 @@ import SwiftData
 @Suite("Choosing a Pack", .serialized)
 struct PackSelectionTests {
 
-    private func makeContext() throws -> ModelContext {
-        let container = try AppSchema.inMemoryContainer()
-        ActivePack.resetCache()
-        return ModelContext(container)
-    }
+    private static let store = TestStore()
+    private func makeContext() throws -> ModelContext { try Self.store.makeContext() }
 
     private func concept(_ name: String, in context: ModelContext) throws -> Concept? {
         try context.fetch(FetchDescriptor<Concept>()).first { $0.name == name }

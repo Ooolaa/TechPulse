@@ -25,15 +25,12 @@ import SwiftData
 @Suite("Feed sync", .serialized)
 struct FeedSyncTests {
 
-    private static let sharedContainer: ModelContainer = {
-        return try! AppSchema.inMemoryContainer()
-    }()
+    private static let store = TestStore()
 
+    /// The routes are this suite's, not the store's: a stub serves a host only
+    /// while that host has routes, and these two are the hosts it registered.
     private func makeContext() throws -> ModelContext {
-        let context = Self.sharedContainer.mainContext
-        for source in try context.fetch(FetchDescriptor<FeedSource>()) { context.delete(source) }
-        for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
-        try context.save()
+        let context = try Self.store.makeContext()
         StubTransport.stopServing(host: Self.host)
         StubTransport.stopServing(host: Self.otherHost)
         return context

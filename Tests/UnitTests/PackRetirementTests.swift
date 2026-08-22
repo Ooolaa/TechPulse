@@ -10,26 +10,8 @@ import SwiftData
 @Suite("Pack retirement", .serialized)
 struct PackRetirementTests {
 
-    private static let sharedContainer: ModelContainer = {
-        try! AppSchema.inMemoryContainer()
-    }()
-
-    private func makeContext() throws -> ModelContext {
-        let context = Self.sharedContainer.mainContext
-        for concept in try context.fetch(FetchDescriptor<Concept>()) { context.delete(concept) }
-        for dep in try context.fetch(FetchDescriptor<ConceptDependency>()) { context.delete(dep) }
-        for link in try context.fetch(FetchDescriptor<SemanticLink>()) { context.delete(link) }
-        for link in try context.fetch(FetchDescriptor<ConceptLink>()) { context.delete(link) }
-        for event in try context.fetch(FetchDescriptor<LearningEvent>()) { context.delete(event) }
-        for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
-        for pack in try context.fetch(FetchDescriptor<InstalledPack>()) { context.delete(pack) }
-        try context.save()
-        // Install writes both of these; leaving them set would hand the next
-        // suite a Pack this one installed.
-        ActivePackIdentity.forget()
-        ActivePack.resetCache()
-        return context
-    }
+    private static let store = TestStore()
+    private func makeContext() throws -> ModelContext { try Self.store.makeContext() }
 
     private func pack(field: String, concept: String) -> PackFile {
         PackFile(field: field, specialtyCluster: nil,

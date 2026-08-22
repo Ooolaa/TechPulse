@@ -13,11 +13,14 @@ import SwiftData
 @Suite("Acquiring a Source", .serialized)
 struct SourceAcquisitionTests {
 
+    private static let store = TestStore()
+
+    /// A declined suggestion is written by the reader refusing an offer rather
+    /// than by an install, so forgetting it is this suite's own business.
     private func makeContext() throws -> ModelContext {
-        let container = try AppSchema.inMemoryContainer()
-        ActivePack.resetCache()
+        let context = try Self.store.makeContext()
         PackSourceOffer.forgetDeclined()
-        return ModelContext(container)
+        return context
     }
 
     private func aiEngineer() throws -> PackFile { try BuiltinPacks.aiEngineer() }
