@@ -203,10 +203,13 @@ struct ConceptIndex {
     /// can match against it.
     mutating func insert(_ concept: Concept) {
         concepts[concept.name.lowercased()] = concept
-        // Overwrites, like the line above it, and never has anything to
-        // overwrite: a Concept only reaches `insert` because `match` found
-        // nothing, and a fold key already taken is exactly what `match` looks
-        // under.
+        // Overwrites, like the line above it. On the analysis path there is
+        // nothing to overwrite — a Concept reaches `insert` because `match`
+        // found nothing, and a fold key already taken is exactly what `match`
+        // looks under. Two cases sit outside that: a name folding to the empty
+        // key, which `match` skips, and `HotTopics.adopt` catching its index up
+        // with Concepts a concurrent pass created. Last writer wins in both,
+        // and neither is consulted under a key it did not put there.
         folded[ConceptMatch.fold(concept.name)] = concept
     }
 

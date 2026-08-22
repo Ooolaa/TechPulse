@@ -270,6 +270,20 @@ enum HotTopics {
     static func adopt(_ term: HotTerm, context: ModelContext) async -> Concept? {
         let prior = (try? context.fetch(FetchDescriptor<Concept>())) ?? []
         var index = await ConceptIndex.prepared(prior)
+
+        // The map is read again on the other side of that suspension, because
+        // it can move while this pass is embedding. The chip that started this
+        // is still on screen for as long as the embedding takes — two seconds
+        // on a large map — so a second tap is a window a thumb can hit rather
+        // than a theoretical interleaving, and both passes would otherwise
+        // match against a map neither had written to yet and create the
+        // Concept twice. `insert` is the same seam a Concept created part way
+        // through an analysis batch goes through.
+        let settled = (try? context.fetch(FetchDescriptor<Concept>())) ?? prior
+        for concept in settled where !prior.contains(where: { $0 === concept }) {
+            index.insert(concept)
+        }
+
         guard let concept = KnowledgeEngine.findOrCreateConcept(
             named: adoptedName(term), category: adoptedCluster, definition: "",
             context: context, index: &index
@@ -279,8 +293,10 @@ enum HotTopics {
         // an offer puts a dot on the map, it does not claim the reader knows
         // anything. Only for a Concept that was not already there: this may
         // have matched something they have been reading about for weeks, and
-        // `isNewlyCreated` is the check that tells the two apart.
-        if KnowledgeEngine.isNewlyCreated(concept, priorConcepts: prior) {
+        // `isNewlyCreated` is the check that tells the two apart. Against the
+        // settled map, not the one this pass started from: a Concept another
+        // pass just created is not this one's to set back to unlit.
+        if KnowledgeEngine.isNewlyCreated(concept, priorConcepts: settled) {
             concept.masteryLevel = 0
         }
         return concept

@@ -181,6 +181,29 @@ struct HotCandidateTests {
         #expect(try context.fetch(FetchDescriptor<Concept>()).count == 1)
     }
 
+    @Test("accepting the same candidate twice at once does not make two Concepts")
+    func concurrentAdoptionsMakeOneConcept() async throws {
+        // Two taps on one chip. `adopt` became `async` in #42, and the chip
+        // stays on screen across the suspension — up to the two seconds
+        // embedding a large map costs — so this is a window a thumb can hit,
+        // not a theoretical interleaving. Both passes read the map before
+        // either has written to it, so both used to miss and both create.
+        let context = try context()
+        let rising = term("world model")
+        // Two main-actor tasks, which is what two taps make: the Feed's chip
+        // starts an unstructured `Task` and `adopt` is `@MainActor`.
+        let first = Task { @MainActor in
+            _ = await HotTopics.adopt(rising, context: context)
+        }
+        let second = Task { @MainActor in
+            _ = await HotTopics.adopt(rising, context: context)
+        }
+        await first.value
+        await second.value
+
+        #expect(try context.fetch(FetchDescriptor<Concept>()).count == 1)
+    }
+
     @Test("accepting something already on the map does not undo what was learned")
     func acceptingDoesNotResetMastery() async throws {
         // The offer should not have shown this, but a name can also arrive by
