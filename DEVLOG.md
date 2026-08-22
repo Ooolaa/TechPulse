@@ -10,6 +10,64 @@
 
 ---
 
+## 2026-08-22 — The bound on pre-ticking made silence mean no (#20, follow-up)
+
+**Built**
+- **An unticked box is an answer only where the box arrived ticked.** #20 stopped
+  pre-ticking offers past `PackSourceOffer.preCheckedUpTo` and did not touch the
+  Add button, which records every unticked suggestion as declined. Those two are
+  only compatible while the sheet arrives pre-ticked — ADR-0011 says so in as
+  many words, and the premise is exactly what #20 removed. So a reader who ticked
+  three of thirty-one silently declined the other twenty-eight, close to
+  permanently, on a list they were never shown as ticked. `PackSourceOffer.accept`
+  now records declines only when `opensTicked` was true; otherwise the leftovers
+  stay in the standing offer, which is what unanswered is for. "Not now" still
+  refuses the lot.
+- **The consent policy moved off the View.** `preCheckedUpTo`, `opensTicked`,
+  `preChecked` and the new `accept` all sit on `PackSourceOffer`, whose header
+  already claimed that ground — "what is worth offering, what happens once the
+  reader says yes, and what happens once they say no". Subscribing and recording
+  a refusal are one call now, so no caller can apply half the rule.
+- **ADR-0011's consequence amended in place, with a correction note.** It read
+  "An unchecked box counts as an answer, **in both flows**" — an absolute that
+  stopped being true. `docs/agents/domain.md` warns about exactly this: "'No X'
+  is the sentence that gets restated without its exception."
+- **The ADR-0009 derivation was wrong and is gone.** `maxSuggestedSources`
+  claimed to be 30 "because that is `FeedSyncService.dailyIntakeLimit`". ADR-0009
+  says the opposite — "round-robin needs no per-Source constant, so nothing here
+  binds to how many Sources a Pack ships" — and calls that cap a habit decision
+  free to move for habit reasons. The number stands on its own footing: twice the
+  largest list the app itself ships. The agreement is now named as a coincidence.
+- **The fan-out test could not fail.** It asserted `peakConcurrency <= 30` over
+  thirty Sources on thirty hosts, which arithmetic guarantees; it would have
+  passed against any implementation, and against a cap of 500. Replaced with
+  thirty Sources over *ten* hosts asserting peak ≤ 10 — the property #44 actually
+  established, and one that breaks when grouping does.
+
+**Verified** 436 unit tests and both offer-sheet journeys. Both new claims were
+checked by breaking the thing they protect: grouping by URL instead of host takes
+the fan-out test to `peakConcurrency → 30` against a bound of 10, and restoring
+the unconditional `recordDeclined` fails the consent test with fifteen Sources
+buried. The old fan-out assertion passes under the first of those, which is the
+point.
+
+**Learned: a two-axis review earns its keep on the axis you think you own.**
+This was self-review-proof territory — I had written the pre-check threshold,
+tested it, and described it in a commit message and an issue comment as the
+careful half of the change. The Standards agent found it by reading ADR-0011's
+consequence against the diff, which is the one thing a self-review cannot do,
+because the author already believes the ADR says what they remember it saying.
+The Spec agent independently flagged the tautological test. Neither finding was
+about the cap the ticket asked for; both were about what the change quietly
+assumed.
+
+**Learned: bounding consent is not the same as withholding it.** The fix for
+"one tap subscribes thirty" was to stop pre-ticking, and pre-ticking turned out
+to be load-bearing for a rule two files away. Removing a default is never only
+removing a default — something downstream was reading it as a signal.
+
+---
+
 ## 2026-08-22 — An imported Pack can suggest unlimited Sources (#20)
 
 **Built**

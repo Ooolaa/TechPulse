@@ -226,34 +226,11 @@ struct PackSourceOfferView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var accepted: Set<String>
 
-    /// The longest offer that opens with everything ticked.
-    ///
-    /// Pre-checking is consent by default, and it is honest only while the
-    /// reader can see what they are agreeing to. The built-in Packs suggest 14
-    /// and 13 — the largest list the app itself vouches for — and a list that
-    /// size reads in one screen, where having nothing to read is a worse first
-    /// impression than one Source too many. A Pack past this is asking for more
-    /// than the app ever asks for, and a list that long is one nobody scrolled
-    /// before tapping Add — so the reader ticks what they want instead.
-    ///
-    /// Well under `PackFile.maxSuggestedSources`, deliberately. The cap says
-    /// what a Pack may suggest; this says what the app will take on the reader's
-    /// behalf, and the second is the smaller question.
-    static let preCheckedUpTo = 15
-
-    /// What opens ticked: all of them, or none.
-    ///
-    /// All-or-nothing rather than the first fifteen. Which suggestions a Pack
-    /// listed first is the author's ordering, not a ranking the app can read as
-    /// consent, and a half-ticked list invites the reader to trust the ticks
-    /// instead of the names.
-    static func preChecked(_ sources: [PackFile.PackSource]) -> Set<String> {
-        sources.count <= preCheckedUpTo ? Set(sources.map(\.url)) : []
-    }
-
     init(offer: SourceOffer) {
         self.offer = offer
-        _accepted = State(initialValue: Self.preChecked(offer.sources))
+        // Ticked or not by the same rule `PackSourceOffer.accept` reads when it
+        // decides whether silence was an answer — one policy, not two.
+        _accepted = State(initialValue: PackSourceOffer.preChecked(offer.sources))
     }
 
     var body: some View {
@@ -311,14 +288,11 @@ struct PackSourceOfferView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add \(accepted.count)") {
-                        // The ones left unchecked were put to the reader and
-                        // turned down as surely as "Not now" turns down all of
-                        // them, so the standing offer stops raising those too.
-                        PackSourceOffer.recordDeclined(
-                            offer.sources.filter { !accepted.contains($0.url) })
-                        let added = PackSourceOffer.subscribe(
-                            offer.sources.filter { accepted.contains($0.url) },
-                            context: modelContext)
+                        // Subscribing and recording what was turned down are one
+                        // call, because what an unticked box means depends on
+                        // whether it arrived ticked — see `PackSourceOffer.accept`.
+                        let added = PackSourceOffer.accept(accepted, of: offer.sources,
+                                                           context: modelContext)
                         dismiss()
                         // Sources are only synced by themselves when the Feed
                         // is half an hour stale, and the point of taking these

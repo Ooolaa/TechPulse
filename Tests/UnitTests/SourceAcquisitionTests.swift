@@ -251,7 +251,59 @@ struct SourceAcquisitionTests {
         #expect(try context.fetch(FetchDescriptor<FeedSource>()).isEmpty)
         // And the offer at that size opens with nothing ticked, so accepting it
         // wholesale is not one tap.
-        #expect(PackSourceOfferView.preChecked(decoded.suggestedSources).isEmpty)
+        #expect(PackSourceOffer.preChecked(decoded.suggestedSources).isEmpty)
+    }
+
+    // MARK: - What an unticked box means (#20, ADR-0011)
+
+    /// ADR-0011: an unticked box counts as an answer *because* the sheet
+    /// arrives pre-ticked. This is that flow, unchanged — a short offer still
+    /// buries what the reader deliberately unticked.
+    @Test("on an offer that opened ticked, unticking one still declines it")
+    func untickingAShortOfferDeclines() throws {
+        let context = try makeContext()
+        let offered = packSuggesting(PackSourceOffer.preCheckedUpTo).suggestedSources
+        let kept = Set(offered.dropLast().map(\.url))
+
+        #expect(PackSourceOffer.accept(kept, of: offered, context: context)
+                == offered.count - 1)
+
+        // The one left unticked was ticked when the sheet opened, so leaving it
+        // that way was deliberate, and the standing offer stops raising it.
+        #expect(try standing(offered, context).isEmpty)
+    }
+
+    /// The premise ADR-0011's rule rests on is gone above `preCheckedUpTo`:
+    /// nothing arrives ticked, so ticking three of thirty-one says nothing
+    /// whatever about the other twenty-eight. Recording those as declined would
+    /// bury them close to permanently on a list the reader never saw ticked —
+    /// which is the consent problem #20 exists to fix, not to deepen.
+    @Test("on an offer that opened unticked, the ones not ticked are unanswered, not declined")
+    func longOfferLeavesTheRestUnanswered() throws {
+        let context = try makeContext()
+        let offered = packSuggesting(PackSourceOffer.preCheckedUpTo + 3).suggestedSources
+        #expect(!PackSourceOffer.opensTicked(offered), "this offer must open unticked")
+        let taken = Set(offered.prefix(3).map(\.url))
+
+        #expect(PackSourceOffer.accept(taken, of: offered, context: context) == 3)
+
+        // The three are subscribed; the rest are still on offer rather than
+        // buried, and nothing at all was recorded as declined.
+        #expect(try subscribedURLs(context) == taken)
+        #expect(try standing(offered, context).map(\.url) == offered.dropFirst(3).map(\.url))
+        #expect(PackSourceOffer.declined.isEmpty)
+    }
+
+    /// "Not now" is the way to refuse a long offer outright, and it is
+    /// untouched — a reader who means to say no to all of it still can.
+    @Test("declining a long offer outright still records every suggestion")
+    func decliningALongOfferStillRecordsIt() throws {
+        let context = try makeContext()
+        let offered = packSuggesting(PackSourceOffer.preCheckedUpTo + 3).suggestedSources
+
+        PackSourceOffer.recordDeclined(offered)
+
+        #expect(try standing(offered, context).isEmpty)
     }
 
     // MARK: - Retirement

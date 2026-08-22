@@ -324,10 +324,12 @@ struct PackSelectionTests {
     }
 
     // MARK: - What the offer opens with ticked
+    //
+    // Pre-checking is consent by default, so it is bounded too (#20). A Pack at
+    // the format's cap must not open with thirty Sources ticked and one tap
+    // standing between the reader and thirty subscriptions. What an *unticked*
+    // box means once that happens is `SourceAcquisitionTests`' half of this.
 
-    /// Pre-checking is consent by default, so it is bounded too (#20). A Pack
-    /// at the format's cap must not open with thirty Sources ticked and one tap
-    /// standing between the reader and thirty subscriptions.
     /// Suggestions on distinct hosts, so a count is all that separates them.
     private func suggestions(_ count: Int) -> [PackFile.PackSource] {
         (0..<count).map {
@@ -337,19 +339,19 @@ struct PackSelectionTests {
 
     @Test("a short offer opens with every suggestion ticked")
     func shortOfferOpensTicked() throws {
-        let short = suggestions(PackSourceOfferView.preCheckedUpTo)
+        let short = suggestions(PackSourceOffer.preCheckedUpTo)
 
-        #expect(PackSourceOfferView.preChecked(short) == Set(short.map(\.url)))
+        #expect(PackSourceOffer.preChecked(short) == Set(short.map(\.url)))
     }
 
     @Test("an offer past the threshold opens with nothing ticked, not with the first fifteen")
     func longOfferOpensUnticked() throws {
-        let long = suggestions(PackSourceOfferView.preCheckedUpTo + 1)
+        let long = suggestions(PackSourceOffer.preCheckedUpTo + 1)
 
         // Empty, so "Add 0" is disabled and the reader has to say which ones.
         // Not a prefix: the order suggestions arrive in is the author's, not a
         // ranking the app may read as consent.
-        #expect(PackSourceOfferView.preChecked(long).isEmpty)
+        #expect(PackSourceOffer.preChecked(long).isEmpty)
     }
 
     /// The threshold is set from the shipped Packs, so it has to keep holding
@@ -359,7 +361,7 @@ struct PackSelectionTests {
     func builtinOffersOpenTicked() throws {
         for builtin in BuiltinPacks.all {
             let sources = builtin.pack.suggestedSources
-            #expect(PackSourceOfferView.preChecked(sources).count == sources.count,
+            #expect(PackSourceOffer.preChecked(sources).count == sources.count,
                     "“\(builtin.pack.field)” now suggests too many Sources to open ticked")
         }
     }

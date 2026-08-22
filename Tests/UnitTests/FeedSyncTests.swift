@@ -279,34 +279,34 @@ struct FeedSyncTests {
 
     /// What the format's cap on suggested Sources actually buys (#20).
     ///
-    /// `syncAll` fans out one task per host and every one of them is a request
-    /// off the reader's device, so the fan-out is only as bounded as the number
-    /// of Sources is. A Pack used to be able to suggest any number; accepting
-    /// one that suggested five hundred was one tap and five hundred requests.
-    /// `PackFile.maxSuggestedSources` is what stops that, and this is the
-    /// property it is there for — asserted at the worst case the cap allows,
-    /// every Source on a host of its own so none of them share a queue.
-    @Test("a Pack's worth of Sources at the cap opens no more requests than the cap allows")
-    func aPackAtTheCapDoesNotFanOutWithoutBound() async throws {
+    /// A cap of thirty makes "at most thirty requests at once" true by
+    /// arithmetic, so asserting *that* would pass against any implementation and
+    /// would still pass if the cap were five hundred. The claim worth pinning is
+    /// the one that can break: at a Pack's worth of Sources, the fan-out is
+    /// bounded by how many *hosts* they sit on and not by how many Sources there
+    /// are (#44). Thirty Sources over ten hosts must be ten requests in flight,
+    /// not thirty — and this fails the moment anything stops grouping by host.
+    @Test("a Pack's worth of Sources is still fetched a host at a time, not all at once")
+    func aPackAtTheCapFansOutByHostNotBySource() async throws {
         let context = try makeContext()
-        // Hosts of their own, so nothing here is bounded by `HostPacing`: this
-        // is the fan-out with the pacing helping as little as it ever can.
-        let hosts = (0..<PackFile.maxSuggestedSources).map { "cap-\($0).feeds.test" }
+        let hostCount = 10
+        let hosts = (0..<hostCount).map { "cap-\($0).feeds.test" }
         defer { for host in hosts { StubTransport.stopServing(host: host) } }
-        for (index, host) in hosts.enumerated() {
+        // Three Sources per host, so Sources outnumber hosts three to one and
+        // the two possible bounds are far enough apart to tell apart.
+        for index in 0..<PackFile.maxSuggestedSources {
             // A path of its own as well as a host: guids are derived from the
-            // path, and thirty Sources sharing one would arrive as one article
-            // thirty readers already had.
-            source(named: "Feed \(index)", host: host, path: "/rss-\(index).xml",
-                   items: 1, in: context)
+            // path, and Sources sharing one would arrive as one article the
+            // reader already had.
+            source(named: "Feed \(index)", host: hosts[index % hostCount],
+                   path: "/rss-\(index).xml", items: 1, in: context)
         }
 
         let added = await sync(context)
 
-        #expect(StubTransport.peakConcurrency(among: hosts)
-                <= PackFile.maxSuggestedSources,
-                "the sync opened more requests at once than a Pack may suggest Sources")
-        #expect(hosts.allSatisfy { StubTransport.requests(to: $0).count == 1 },
+        #expect(StubTransport.peakConcurrency(among: hosts) <= hostCount,
+                "the sync opened more requests at once than there are hosts to ask")
+        #expect(hosts.allSatisfy { StubTransport.requests(to: $0).count == 3 },
                 "one Source is one request — a retry would double the fan-out")
         #expect(added == PackFile.maxSuggestedSources, "and every Source was heard")
     }

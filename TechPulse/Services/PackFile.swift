@@ -50,17 +50,21 @@ struct PackFile: Codable, Equatable {
 
     /// The most Sources a Pack may suggest.
     ///
-    /// Thirty because that is `FeedSyncService.dailyIntakeLimit` — the whole
-    /// day's reading, shared round-robin between the Sources the reader has
-    /// (ADR-0009). A Pack suggesting more Sources than the day has articles is
-    /// suggesting Sources that cannot all be heard even once, and every one of
-    /// them is a request the reader's device makes on a cold sync. The built-in
-    /// Packs suggest 14 and 13, so this is a bound on the absurd rather than a
-    /// budget an author has to work inside.
+    /// Thirty is a bound on the absurd, not a budget: the built-in Packs suggest
+    /// 14 and 13, so twice the largest list the app itself vouches for leaves an
+    /// author room the shipped Packs do not use. What it is there to stop is a
+    /// file from outside the app arriving with five hundred, because every
+    /// suggestion the reader accepts is a Source, and every Source is a request
+    /// their device makes on a cold sync.
     ///
-    /// Not read from `FeedSyncService`: this is the format's number, checked
-    /// off the main actor with no store or network in reach, and the two are
-    /// free to part company. The reasoning is what they share.
+    /// Deliberately *not* derived from `FeedSyncService.dailyIntakeLimit`, which
+    /// is also 30. ADR-0009 settles that the day's intake is shared round-robin
+    /// and says in as many words that "round-robin needs no per-Source constant,
+    /// so nothing here binds to how many Sources a Pack ships" — a Pack with
+    /// three and a Pack with thirty both get a defensible allocation. That cap
+    /// is a habit decision and is free to move for habit reasons; this one must
+    /// not move with it. The two numbers agreeing today is a coincidence worth
+    /// naming so that nobody reads it as a derivation.
     static let maxSuggestedSources = 30
 
     var formatVersion: Int = PackFile.currentFormatVersion

@@ -71,6 +71,65 @@ enum PackSourceOffer {
         return new.count
     }
 
+    // MARK: - What the sheet opens with, and what Add means
+
+    /// The longest offer that opens with every suggestion ticked.
+    ///
+    /// Pre-checking is consent by default, and it is honest only while the
+    /// reader can see what they are agreeing to. The built-in Packs suggest 14
+    /// and 13 — the largest list the app itself vouches for — and a list that
+    /// size reads in one screen, where having nothing to read is a worse first
+    /// impression than one Source too many. A Pack past this is asking for more
+    /// than the app ever asks for, and a list that long is one nobody scrolled
+    /// before tapping Add.
+    ///
+    /// Well under `PackFile.maxSuggestedSources`, deliberately. The cap says
+    /// what a Pack may suggest; this says what the app will take on the reader's
+    /// behalf, and the second is the smaller question (#20).
+    static let preCheckedUpTo = 15
+
+    /// Whether an offer this long arrives ticked. The rule `accept` needs as
+    /// well as the sheet, which is why it is a question and not a private
+    /// comparison inside `preChecked`.
+    static func opensTicked(_ sources: [PackFile.PackSource]) -> Bool {
+        sources.count <= preCheckedUpTo
+    }
+
+    /// What opens ticked: all of them, or none.
+    ///
+    /// All-or-nothing rather than the first fifteen. Which suggestions a Pack
+    /// listed first is the author's ordering, not a ranking the app can read as
+    /// consent, and a half-ticked list invites the reader to trust the ticks
+    /// instead of the names.
+    static func preChecked(_ sources: [PackFile.PackSource]) -> Set<String> {
+        opensTicked(sources) ? Set(sources.map(\.url)) : []
+    }
+
+    /// Answering the offer: subscribe what the reader ticked, and record what
+    /// they turned down.
+    ///
+    /// **An unticked box is an answer only where the box arrived ticked.**
+    /// ADR-0011 made a leftover count as a decline because the sheet was always
+    /// pre-ticked, so unticking was deliberate. Above `preCheckedUpTo` nothing
+    /// arrives ticked, and a reader who ticks three of thirty-one has said
+    /// nothing whatever about the other twenty-eight — recording those as
+    /// declined would bury them close to permanently, on a list the reader was
+    /// never shown as ticked. Unanswered is what the standing offer is for, and
+    /// "Not now" is still there for a reader who means to refuse the lot.
+    ///
+    /// One call rather than two at the call site, so the rule cannot be
+    /// half-applied by a caller that remembers to subscribe and forgets what
+    /// silence meant.
+    @discardableResult
+    static func accept(_ accepted: Set<String>,
+                       of offered: [PackFile.PackSource],
+                       context: ModelContext) -> Int {
+        if opensTicked(offered) {
+            recordDeclined(offered.filter { !accepted.contains($0.url) })
+        }
+        return subscribe(offered.filter { accepted.contains($0.url) }, context: context)
+    }
+
     // MARK: - The standing offer
 
     /// The Active Pack's suggestions the app raises unprompted: the ones the

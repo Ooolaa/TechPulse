@@ -114,11 +114,26 @@ who declines a URL under one Pack is never raised it under another, and the
 built-in Packs are disjoint today only by chance. Installing that Pack by hand
 still offers it, which is the escape hatch.
 
-**An unchecked box counts as an answer, in both flows.** Accepting an offer
-records the suggestions left unticked as declined, and the sheet arrives
-pre-ticked, so unticking is deliberate. Without this the reader would untick
-three Sources, tap Add, and find those exact three waiting in Settings. It does
-change the library flow, which previously forgot the whole question on dismissal.
+**An unchecked box counts as an answer wherever the box arrived checked.**
+Accepting an offer records the suggestions left unticked as declined, because
+the sheet arrives pre-ticked and unticking is therefore deliberate. Without this
+the reader would untick three Sources, tap Add, and find those exact three
+waiting in Settings. It does change the library flow, which previously forgot
+the whole question on dismissal. Where an offer is long enough to arrive with
+nothing ticked, the premise is absent and so is the conclusion: leaving a
+suggestion unticked says nothing about it, and it stays in the standing offer.
+See `PackSourceOffer.preCheckedUpTo`.
+
+**Correction (2026-08-22):** this consequence read "**An unchecked box counts as
+an answer, in both flows.** Accepting an offer records the suggestions left
+unticked as declined, and the sheet arrives pre-ticked, so unticking is
+deliberate." That was true of every offer the app could then make, because every
+offer arrived pre-ticked. #20 capped what a Pack may suggest and stopped
+pre-ticking offers past `PackSourceOffer.preCheckedUpTo`, which removed the
+premise the rule rests on without narrowing the rule — so a reader who ticked
+three of thirty-one silently declined the other twenty-eight, close to
+permanently, on a list they were never shown as ticked. The decision stands; the
+sentence was an absolute that stopped being true.
 
 **Declines made before this shipped were not recorded, so they are asked once
 more.** A reader who hand-installed a Pack on an earlier build and tapped "Not
