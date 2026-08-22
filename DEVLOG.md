@@ -10,6 +10,51 @@
 
 ---
 
+## 2026-08-22 — The journey read a button that had already gone (#48)
+
+**Built**
+- **`Journey.label(of:)` — one snapshot, so "not there" is a value.**
+  `testCoreJourney` failed about one run in two, always at the topic-search
+  step, always with `Failed to get matching snapshot: No matches found…`. Not an
+  assertion: a *thrown query*, which is why it read as a broken journey rather
+  than a failing one and got shrugged at for as long as it did.
+- **The cause is that `exists` and `label` are two round trips to a live app.**
+  `!find.exists || find.label.contains("Added")` short-circuits, so `find.label`
+  runs only when `find.exists` just returned true — and the find-articles button
+  is removed the moment its Concept reaches three Articles, which is exactly
+  what the search that step just triggered is trying to make happen. Between the
+  two queries the button can go, and the second one has nothing to resolve.
+- **Three sites, not one.** The ticket named the poll condition. The line
+  *after* it does the same thing outside the poll, so it had no retry at all,
+  and the quiz step does it a third time. All three now read through the helper.
+
+**How it was found**
+
+A probe, before any theory: a UI test reading `.label` on a query that matches
+nothing. It reproduced the ticket's exact error in **6.9 seconds,
+deterministically** — against a journey that takes two minutes and fails half
+the time. Everything after that was mechanical. The probe also settled two facts
+the ticket did not state: `.label` **throws** rather than returning `""`, and
+`try? element.snapshot()` **is** catchable, which is not obvious given how much
+XCUITest reports outside the Swift error channel.
+
+**Verified** The regression pair runs in 12 s — one for the read that used to
+throw, one holding the helper to returning a real label for a control that is
+there, because a helper that answered nil for everything would make every wait
+built on it return true immediately and turn all four journeys silently green.
+Then `testCoreJourney` three consecutive times on the full UI suite: 122.9 s,
+124.2 s, 120.9 s, all passing. Worth stating plainly — at the observed failure
+rate, three passes in a row happen by luck about one time in eight. The
+deterministic pair is the proof; the three runs are corroboration.
+
+**Learned: the fix closes three call sites, not the hole.** `find.label` still
+compiles and still throws. `journey.waitUntil` takes `() -> Bool` and the caller
+closes over raw `XCUIElement`s — 51 such closures in the journeys, 8 of them
+reading element properties — so every author has to independently know the app
+may change between two reads. `Journey` owns polling, timeouts, screenshots and
+the ledger, then hands the hardest part back as a raw handle. Written up as a
+deepening opportunity rather than left in this entry.
+
 ## 2026-08-22 — Two taps on one chip made two Concepts (#42, found reviewing #50)
 
 **Built**

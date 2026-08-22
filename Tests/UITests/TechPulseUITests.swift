@@ -187,9 +187,13 @@ final class TechPulseUITests: XCTestCase {
             // Waiting for it to merely *disable* would catch the search
             // starting, and screenshot the spinner.
             journey.waitUntil("the arXiv search never came back", timeout: 45) {
-                !find.exists || find.label.contains("Added") || find.label.contains("No new matches")
+                // Gone is an answer, and so is either result it reports. A
+                // search still running keeps the button and its spinner, so
+                // this still times out loudly when nothing comes back.
+                guard let says = Journey.label(of: find) else { return true }
+                return says.contains("Added") || says.contains("No new matches")
             }
-            foundNothing = find.exists && find.label.contains("No new matches")
+            foundNothing = Journey.label(of: find)?.contains("No new matches") ?? false
             journey.snap("5b2b-topic-search")
         }
         if !foundNothing {
@@ -371,7 +375,9 @@ final class TechPulseUITests: XCTestCase {
             }
             action.tap()                                   // check answer
             journey.waitUntil("question \(answered + 1) never showed whether the answer was right") {
-                !action.exists || action.label != "Check answer"
+                // Gone or relabelled, read in one query — the same race
+                // the find-articles button lost (#48).
+                Journey.label(of: action) != "Check answer"
             }
             journey.tap(action, "the way on from question \(answered + 1)")
             answered += 1
