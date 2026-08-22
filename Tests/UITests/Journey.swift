@@ -1,5 +1,25 @@
 import XCTest
 
+/// One reading of a control: everything a journey's conditions ask about it,
+/// taken in a single query.
+///
+/// The point is what is *not* here. There is no `exists` field, because
+/// existence is the optional: a control that has gone has no snapshot to
+/// report, so `nil` is "not there" — the same meaning `!exists` carried, in the
+/// one place a condition can still see it. And there is no element, so a
+/// condition holding one of these cannot go back and ask a second question of
+/// an app that has moved on since the first (#53).
+///
+/// Three attributes because three are what the journeys wait on. `isHittable`
+/// is deliberately absent: XCUITest does not carry it on a snapshot, so it
+/// cannot be read in the same query as the rest and would be a second round
+/// trip wearing this type's clothes.
+struct ElementState: Equatable {
+    let label: String
+    let isEnabled: Bool
+    let isSelected: Bool
+}
+
 /// Drives one UI journey and keeps its books (#30).
 ///
 /// Two rules, both paid for by #26. **Every step is declared up front** and has
@@ -89,15 +109,8 @@ final class Journey {
         return element
     }
 
-    /// Waits for an element to go away — a sheet dismissing, a picker closing.
-    /// Polled rather than `waitForNonExistence`, whose granularity is a second
-    /// and which therefore charges one for every dismissal in the suite.
-    func waitUntilGone(_ element: XCUIElement, _ what: String, timeout: TimeInterval = 10,
-                       file: StaticString = #filePath, line: UInt = #line) {
-        waitUntil(what, timeout: timeout, file: file, line: line) { !element.exists }
-    }
-
-    /// What a control says, or nil if it is not there — read in **one** query.
+    /// What a control is right now, or nil if it is not there — read in **one**
+    /// query.
     ///
     /// `exists` and `label` are two separate queries against a live app, and a
     /// control that goes between them makes the second one throw rather than
@@ -109,34 +122,77 @@ final class Journey {
     /// happen — and `testCoreJourney` failed about one run in two on it (#48).
     ///
     /// One snapshot, so "not there" is a value the caller can branch on.
-    /// `static` because reading a label needs nothing a journey holds; it is
+    /// `static` because reading a control needs nothing a journey holds; it is
     /// here so it sits with the other ways this file reads a live app.
     ///
     /// Nil still means gone, exactly as `!exists` did — this narrows *when* the
     /// question is asked, not what the answer means.
-    static func label(of element: XCUIElement) -> String? {
-        (try? element.snapshot())?.label
+    ///
+    /// One thing nil is *not*: proof of absence. `try?` cannot tell "there is no
+    /// such control" from "the app did not answer", so nil is "no reading to be
+    /// had". That is the right answer for a condition still waiting — silence
+    /// keeps it waiting — and the wrong one for an assertion that **passes**
+    /// when something is gone, which would pass on silence. Those ask
+    /// `waitForPresence` instead.
+    static func state(of element: XCUIElement) -> ElementState? {
+        guard let snapshot = try? element.snapshot() else { return nil }
+        return ElementState(label: snapshot.label,
+                            isEnabled: snapshot.isEnabled,
+                            isSelected: snapshot.isSelected)
     }
 
-    /// Waits for anything else worth waiting for. `what` is the condition in
-    /// words, and it is what the failure says.
+    /// Waits for something to become true **of one control**, which the
+    /// condition is handed a reading of rather than left to interrogate.
+    /// `what` is the condition in words, and it is what the failure says.
+    ///
+    /// The element is a parameter, not something the closure closes over,
+    /// because that is the whole seam (#53). A condition given the control
+    /// itself has to ask it twice — `element.exists && !element.isEnabled` is
+    /// two round trips to a moving app — and every author has to independently
+    /// know that. A condition given `ElementState?` cannot: the reading it gets
+    /// is one query old and internally consistent, and a control that has gone
+    /// arrives as nil rather than as a thrown query. There is deliberately no
+    /// wait here taking a bare `() -> Bool`, so there is nowhere left to write
+    /// the two-query form.
     ///
     /// Polls rather than using `XCTNSPredicateExpectation`: the predicate block
-    /// is `@Sendable`, and every condition here closes over an `XCUIElement`,
-    /// which is not.
+    /// is `@Sendable`, and `XCUIElement` is not.
     @discardableResult
-    func waitUntil(_ what: String, timeout: TimeInterval = 10,
+    func waitUntil(_ element: XCUIElement, _ what: String, timeout: TimeInterval = 10,
                    file: StaticString = #filePath, line: UInt = #line,
-                   _ condition: () -> Bool) -> Bool {
-        let met = poll(condition, until: timeout)
+                   _ condition: (ElementState?) -> Bool) -> Bool {
+        let met = poll({ condition(Self.state(of: element)) }, until: timeout)
         XCTAssertTrue(met, "\(title): \(what) (waited \(Int(timeout))s)", file: file, line: line)
         return met
     }
 
-    /// The same wait, but never becoming true is an answer rather than a
-    /// failure — for the steps a journey has declared it may legitimately skip.
-    func becomesTrue(_ condition: () -> Bool, within timeout: TimeInterval = 2) -> Bool {
-        poll(condition, until: timeout)
+    /// Waits for an element to go away — a sheet dismissing, a picker closing.
+    /// Polled rather than `waitForNonExistence`, whose granularity is a second
+    /// and which therefore charges one for every dismissal in the suite.
+    func waitUntilGone(_ element: XCUIElement, _ what: String, timeout: TimeInterval = 10,
+                       file: StaticString = #filePath, line: UInt = #line) {
+        let gone = waitForPresence(element, false, until: timeout)
+        XCTAssertTrue(gone, "\(title): \(what) (waited \(Int(timeout))s)", file: file, line: line)
+    }
+
+    /// Whether a control turns up within a short window — an answer rather than
+    /// a failure, for the branches a journey has declared it may legitimately
+    /// not take.
+    func appears(_ element: XCUIElement, within timeout: TimeInterval = 2) -> Bool {
+        waitForPresence(element, true, until: timeout)
+    }
+
+    /// Waits on a control's mere presence, and says whether it got there.
+    ///
+    /// Presence is asked of the element, not read off a snapshot, and that is
+    /// deliberate: `exists` answers false where a snapshot merely fails, so it
+    /// tells absence from silence. `waitUntilGone` **passes** when a control is
+    /// gone, and an assertion that passes on silence is the exact shape this
+    /// file exists to keep out (#30). There is no attribute here and so nothing
+    /// to race: presence is one query and answers itself.
+    private func waitForPresence(_ element: XCUIElement, _ present: Bool,
+                                 until timeout: TimeInterval) -> Bool {
+        poll({ element.exists == present }, until: timeout)
     }
 
     private func poll(_ condition: () -> Bool, until timeout: TimeInterval,
@@ -157,10 +213,14 @@ final class Journey {
     /// it into view, which is something `tap()` itself does.
     func tap(_ element: XCUIElement, _ what: String, timeout: TimeInterval = 10,
              file: StaticString = #filePath, line: UInt = #line) {
-        let there = waitUntil("\(what) never appeared to tap", timeout: timeout,
-                              file: file, line: line) { element.exists }
+        let there = waitForPresence(element, true, until: timeout)
+        XCTAssertTrue(there, "\(title): \(what) never appeared to tap (waited \(Int(timeout))s)",
+                      file: file, line: line)
         guard there else { return }
-        _ = becomesTrue({ element.exists && element.isHittable })
+        // Hittability is the one attribute a snapshot does not carry, so it
+        // cannot go through a wait that reads one — and polling for it in here
+        // is what keeps a raw `() -> Bool` wait off a journey's menu.
+        _ = poll({ element.exists && element.isHittable }, until: 2)
         // Between the wait and the tap the screen can move on — a sheet that
         // re-renders takes its buttons with it — and tapping something that has
         // gone raises rather than failing. Say which control went instead.
