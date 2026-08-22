@@ -55,7 +55,8 @@ final class TechPulseUITests: XCTestCase {
         let continueButton = app.buttons["onboardingContinue"].firstMatch
         journey.waitFor(continueButton, "onboarding never appeared on a wiped store", timeout: 20)
         journey.snap("0-onboarding")
-        XCTAssertTrue(continueButton.isEnabled, "Continue disabled despite preselected topics")
+        XCTAssertEqual(Journey.state(of: continueButton)?.isEnabled, true,
+                       "Continue disabled despite preselected topics")
         continueButton.tap()
         journey.waitUntilGone(continueButton, "the topics step never gave way")
 
@@ -80,10 +81,9 @@ final class TechPulseUITests: XCTestCase {
         // finished — the header says which, so wait for what it says.
         let firstCard = app.buttons["articleCard"].firstMatch
         journey.waitFor(firstCard, "feed never loaded articles", timeout: 90)
-        journey.waitUntil("the feed never finished syncing", timeout: 120) {
-            !app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Syncing'"))
-                .firstMatch.exists
-        }
+        let syncing = app.staticTexts
+            .matching(NSPredicate(format: "label BEGINSWITH 'Syncing'")).firstMatch
+        journey.waitUntilGone(syncing, "the feed never finished syncing", timeout: 120)
         journey.settle("the feed to stop filling in")
         journey.snap("1-feed")
 
@@ -126,9 +126,12 @@ final class TechPulseUITests: XCTestCase {
         // before and refused after.
         let know = app.buttons["knowButton"].firstMatch
         journey.waitFor(know, "the sheet has no “I know this” button")
-        XCTAssertTrue(know.isEnabled, "“I know this” was already spent on a Concept the journey just met")
+        XCTAssertEqual(Journey.state(of: know)?.isEnabled, true,
+                       "“I know this” was already spent on a Concept the journey just met")
         know.tap()
-        journey.waitUntil("the Concept never became Known") { know.exists && !know.isEnabled }
+        // Nil keeps waiting: the button is meant to stay and refuse, so a
+        // sheet that took it away is a failure and not a pass.
+        journey.waitUntil(know, "the Concept never became Known") { $0?.isEnabled == false }
         journey.snap("4-marked-known")
 
         // Dismiss through the affordance built for it, not `swipeDown`.
@@ -147,8 +150,9 @@ final class TechPulseUITests: XCTestCase {
         // "no cluster cards" — which is what #26 was reported as.
         let knowledgeTab = app.buttons["Knowledge"]
         journey.tap(knowledgeTab, "Knowledge tab")
-        journey.waitUntil("Knowledge tab never became selected — a modal likely swallowed the tap") {
-            knowledgeTab.isSelected
+        journey.waitUntil(knowledgeTab,
+                          "Knowledge tab never became selected — a modal likely swallowed the tap") {
+            $0?.isSelected == true
         }
         journey.settle("the cluster overview to draw")
         journey.snap("5-cluster-overview")
@@ -175,7 +179,7 @@ final class TechPulseUITests: XCTestCase {
         journey.settle("the frontier Concept's sheet to finish opening")
         let find = app.buttons["findArticles"].firstMatch
         let row = app.buttons["conceptArticleRow"].firstMatch
-        let searchOffered = journey.becomesTrue({ find.exists })
+        let searchOffered = journey.appears(find)
         XCTAssertTrue(searchOffered || row.exists,
                       "the frontier Concept offers neither an Article to read nor a search to find one")
         var foundNothing = false
@@ -186,14 +190,14 @@ final class TechPulseUITests: XCTestCase {
             // Concept holding three Articles is no longer offered a search.
             // Waiting for it to merely *disable* would catch the search
             // starting, and screenshot the spinner.
-            journey.waitUntil("the arXiv search never came back", timeout: 45) {
+            journey.waitUntil(find, "the arXiv search never came back", timeout: 45) { state in
                 // Gone is an answer, and so is either result it reports. A
                 // search still running keeps the button and its spinner, so
                 // this still times out loudly when nothing comes back.
-                guard let says = Journey.label(of: find) else { return true }
+                guard let says = state?.label else { return true }
                 return says.contains("Added") || says.contains("No new matches")
             }
-            foundNothing = Journey.label(of: find)?.contains("No new matches") ?? false
+            foundNothing = Journey.state(of: find)?.label.contains("No new matches") ?? false
             journey.snap("5b2b-topic-search")
         }
         if !foundNothing {
@@ -256,7 +260,7 @@ final class TechPulseUITests: XCTestCase {
 
         let progressTab = app.buttons["Progress"]
         journey.tap(progressTab, "Progress tab")
-        journey.waitUntil("Progress tab never became selected") { progressTab.isSelected }
+        journey.waitUntil(progressTab, "Progress tab never became selected") { $0?.isSelected == true }
         journey.settle("the progress charts to draw")
         journey.snap("6-progress-charts")
 
@@ -267,7 +271,7 @@ final class TechPulseUITests: XCTestCase {
         // precisely because the journey never captured it.
         let settingsTab = app.buttons["Settings"]
         journey.tap(settingsTab, "Settings tab")
-        journey.waitUntil("Settings tab never became selected") { settingsTab.isSelected }
+        journey.waitUntil(settingsTab, "Settings tab never became selected") { $0?.isSelected == true }
         journey.settle("Settings to draw")
         journey.snap("9-settings")
         app.swipeUp()
@@ -332,7 +336,7 @@ final class TechPulseUITests: XCTestCase {
         let related = app.buttons["relatedConceptChip"].firstMatch
         let sectionHeader = app.staticTexts
             .matching(NSPredicate(format: "label CONTAINS[c] 'Related concepts'")).firstMatch
-        let offered = journey.becomesTrue({ related.exists })
+        let offered = journey.appears(related)
         XCTAssertEqual(offered, sectionHeader.exists,
                        "the sheet's related-Concepts section and its chips disagree")
         XCTAssertTrue(offered, missing)
@@ -354,8 +358,8 @@ final class TechPulseUITests: XCTestCase {
         let app = journey.app
         let start = app.buttons["startQuiz"].firstMatch
         journey.waitFor(start, "the Progress tab offers no weekly quiz")
-        XCTAssertTrue(start.isEnabled,
-                      "the weekly quiz has no candidates, though every Pack Concept carries a definition")
+        XCTAssertEqual(Journey.state(of: start)?.isEnabled, true,
+                       "the weekly quiz has no candidates, though every Pack Concept carries a definition")
         journey.tap(start, "start quiz")
 
         let action = app.buttons["quizAction"].firstMatch
@@ -370,14 +374,15 @@ final class TechPulseUITests: XCTestCase {
             let option = app.buttons["quizOption"].firstMatch
             journey.waitFor(option, "question \(answered + 1) offered no options")
             option.tap()
-            journey.waitUntil("question \(answered + 1) never accepted an answer") {
-                action.exists && action.isEnabled
+            journey.waitUntil(action, "question \(answered + 1) never accepted an answer") {
+                $0?.isEnabled == true
             }
             action.tap()                                   // check answer
-            journey.waitUntil("question \(answered + 1) never showed whether the answer was right") {
+            journey.waitUntil(action,
+                              "question \(answered + 1) never showed whether the answer was right") {
                 // Gone or relabelled, read in one query — the same race
                 // the find-articles button lost (#48).
-                Journey.label(of: action) != "Check answer"
+                $0?.label != "Check answer"
             }
             journey.tap(action, "the way on from question \(answered + 1)")
             answered += 1
@@ -463,7 +468,7 @@ final class TechPulseUITests: XCTestCase {
         // got. If one does appear (a Pack gained a Source), decline it: this
         // journey is about switching back, not about changing Sources.
         let decline = app.buttons["declineSources"].firstMatch
-        if journey.becomesTrue({ decline.exists }) { decline.tap() }
+        if journey.appears(decline) { decline.tap() }
         journey.waitFor(app.staticTexts["AI Engineering"].firstMatch,
                         "switching back did not restore the flagship Pack")
         journey.snap("10f-pack-switched-back")
@@ -515,7 +520,7 @@ final class TechPulseUITests: XCTestCase {
         // Dismissed, not answered. "Not now" would record a decline and the
         // standing offer would rightly stay quiet.
         app.swipeDown(velocity: .fast)
-        if journey.becomesTrue({ accept.exists }) { app.swipeDown(velocity: .fast) }
+        if journey.appears(accept) { app.swipeDown(velocity: .fast) }
         journey.waitUntilGone(accept, "the offer sheet never dismissed")
         journey.snap("11-offer-dismissed-unanswered")
 
@@ -590,7 +595,7 @@ final class TechPulseUITests: XCTestCase {
         // And the tab bar is live again, which is what the journey needs next.
         let progress = app.buttons["Progress"]
         journey.tap(progress, "Progress tab")
-        journey.waitUntil("tab tap still swallowed after dismissal") { progress.isSelected }
+        journey.waitUntil(progress, "tab tap still swallowed after dismissal") { $0?.isSelected == true }
 
         journey.finish()
     }

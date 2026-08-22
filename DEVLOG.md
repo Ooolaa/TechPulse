@@ -10,6 +10,89 @@
 
 ---
 
+## 2026-08-22 — A wait is handed what a control said, not the control (#53)
+
+**Built**
+- **`journey.waitUntil` takes the element as a parameter and hands the condition
+  an `ElementState?`.** #48 closed three call sites that were reading a control
+  twice; it closed nothing structurally, because `find.label` still compiled and
+  the next wait anyone wrote was one keystroke from the same thrown query. The
+  condition is now given one reading — `label`, `isEnabled`, `isSelected`, taken
+  in a single snapshot — and holds no element to ask a second question of.
+- **Existence is the optional, not a field.** The ticket sketched `exists` as a
+  third attribute; a control that has gone has no snapshot to report, so `nil`
+  carries that meaning already, in the one place a condition can still see it.
+  `waitUntilGone` is now one line of the new wait: `{ $0 == nil }`.
+- **The raw `() -> Bool` wait is gone, which is what makes this a seam rather
+  than a helper.** Every condition in the journeys turned out to be about
+  exactly one control, so nothing needed the old form — and with it deleted
+  there is nowhere left to write the two-query shape. `becomesTrue` went the
+  same way, replaced by `appears(_:within:)` for the four soft existence checks
+  that used it. `Journey`'s own `poll` stays private.
+- **Thirteen call sites converted**, nine of which read an attribute: four tab
+  `isSelected` waits, the "I know this" and quiz `isEnabled` waits, the two
+  find-articles label reads and the quiz's. The feed's sync-banner wait turned
+  out to be a `waitUntilGone` wearing a closure.
+
+- **Three assertions outside a wait converted too.** `continueButton.isEnabled`,
+  `know.isEnabled` and `start.isEnabled` each read a property of a control the
+  journey had merely waited for, so a control that went in between made them
+  *throw* rather than fail — the same reading-as-broken-rather-than-false shape,
+  outside the seam that now prevents it. They go through `Journey.state(of:)`.
+  What is left is two `isHittable` reads, which nothing can fold: XCUITest does
+  not carry hittability on a snapshot, so it cannot be read in the same query as
+  the rest and would be a second round trip wearing `ElementState`'s clothes.
+  It is off the type by design, and polled inside `Journey.tap`.
+- **`waitUntilGone` asks the element, not the snapshot** — caught in review, and
+  the one real bug this change introduced. Rewriting it as `{ $0 == nil }` on
+  the new wait was tidy and wrong: `try?` swallows *every* snapshot failure, not
+  just "no matches", so an app too busy to answer would have read as *dismissed*
+  and passed. An assertion that passes when something is gone must not pass on
+  silence. Presence now goes through one private `waitForPresence`, which asks
+  `exists` — a query that answers false rather than failing, so it tells absence
+  from silence — and `waitUntilGone`, `appears` and `tap` all share it.
+
+**Verified** The read tests grew from two to four and run in 21 s: the read that
+used to throw, the read that holds it to answering honestly for a control that
+is there, and now both halves of the wait — that a vanished control arrives as
+`nil` and a present one arrives with its attributes. Then the full suite: 436
+unit tests in 23 s, and all five journeys. The tab waits were the conversion
+worth doubting, since `isSelected` had only ever been read off the element — the
+dismissal guard was run on its own first to settle that a snapshot reports it
+the same way.
+
+`testCoreJourney` also **priced the bug the review caught**. With `waitUntilGone`
+polling a snapshot it ran 135.1 s and then 134.9 s alone, against the 120.9 –
+124.2 s #48 recorded on this machine; with it back on `exists` it is 123.7 s.
+A snapshot is a materially heavier query than `exists`, and eight dismissal
+waits polling one every 200 ms cost about eleven seconds a run. That was visible
+as a number before it was understood as a defect, and it was read as network
+variance in the arXiv step — worth remembering, because the honest fix and the
+faster run turned out to be the same edit.
+
+**Learned: "51 closures, 8 of them reading properties" was the wrong count to
+design against.** The number that mattered was that **every** condition in the
+journeys was about a single control — which is what let the raw form be deleted
+rather than merely discouraged. That was not knowable from the ticket, and it is
+the whole difference between this and the lint alternative it weighed: a lint
+catches the two-query shape where it looks for it, whereas a wait that never
+offered the shape catches it everywhere, including in the code nobody has
+written yet. The lint was never prototyped, and did not need to be: the survey
+is what made the structural close free, and a lint would have cost a tool, a
+config and a rule that only ever catches the spellings it was taught. Worth
+checking for on the next deepening — the cheap structural close is often hiding
+in a call-site survey the ticket did not do.
+
+**Learned: the tidy rewrite is where the bug went.** Every converted condition
+was semantically checked and correct. The defect was in the one call the ticket
+never mentioned — `waitUntilGone`, rewritten on the new seam because it *could*
+be, which quietly swapped a question that answers false for one that can fail
+silently. Both review axes found it independently, which is the argument for
+running them: it was invisible from inside the change, where the line reads as
+the seam finally paying off.
+
+---
+
 ## 2026-08-22 — The bound on pre-ticking made silence mean no (#20, follow-up)
 
 **Built**
