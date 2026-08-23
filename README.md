@@ -26,6 +26,10 @@ Post-M6 (see [DEVLOG.md](DEVLOG.md) for dates):
 - **Full-text fetch** — articles that arrive as feed snippets pull the real story from the publisher page, then regenerate the on-device summary.
 - **Semantic zoom** on the knowledge graph — zooming spreads positions while dots/lines/labels stay constant screen size, so overview overlap always resolves; collision-culled labels; tap-a-dot glossary strip. Cluster (dependency) trees carry the same zoom, with pinch hint + recenter.
 - **Parser hardening** — XXE / external entities disabled; entitlements file for Keychain access (BYO-key storage).
+- **Suggested Sources are checked before you get them** — accepting a Pack's
+  suggestions asks each one you ticked whether it is really a feed, so a Pack
+  carrying a dead link or a homepage does not put it in your list. A Source that
+  merely refused or timed out is still added: that says nothing about the link.
 - **Visible Source health** — a sync records what each fetch actually was, so a
   Source that is being throttled, that has stopped answering, or that has
   published nothing for six months says so on its Settings row — with what it

@@ -10,6 +10,71 @@
 
 ---
 
+## 2026-08-23 — A suggested Source is asked whether it is a feed (#58)
+
+**Built**
+- **`FeedDiscovery`, ported from CareerPulse for its shape and none of its
+  parts.** #20 answered "may this suggestion become a Source" statically — is it
+  a URL, is it https — and asked the host nothing, so a Pack suggesting a 404 or
+  a homepage was subscribed exactly like a working feed. Answering an offer now
+  asks each ticked suggestion, and does not subscribe what answers with
+  something else.
+- **Three verdicts, and the third is the point.** A refusal is not a verdict
+  about the URL: reddit 429s a feed that is unquestionably a feed (ADR-0003), and
+  refusing to subscribe on that basis would cost the reader a Source because a
+  host was busy for a second. Only a host that *answered*, with something that is
+  not a feed, has said anything. `couldNotTell` is subscribed, and if the trouble
+  persists the Source says so on its own row — which is what #14 built yesterday.
+- **What the app turns away is not what the reader declined.** The reader ticked
+  it; it is the app that could not use it. Recording it as a decline would bury
+  it close to permanently under ADR-0011's rule, so it stays in the standing
+  offer and the sheet says why rather than dismissing over it.
+- **Being a feed is a property of the document, not of how much is in it.**
+  `RSSParser` grew `read` alongside `parse` — same parse, one more fact: whether
+  the *root* element was `<rss>`, `<feed>` or RDF. Judging by "has at least one
+  item" would have turned away a brand-new feed, which is exactly the Source a
+  Pack is most likely to be recommending early. Yesterday's `SourceFailure.empty`
+  makes the same distinction from the other side.
+- **The pacing moved to where its number already lives.** `HostPacing.askInTurn`
+  is what `FeedSyncService.fetchInTurn` was: group by host, groups concurrent,
+  one at a time within a group. Probing 30 suggestions at once would have been a
+  new unpaced fan-out in an app that spent #44 removing one. Every request handed
+  in is sent — refusing http stays at the caller, which is also what keeps the
+  pause a property of requests rather than list positions.
+- **One fetch, not a fourth copy of one.** The ported original carried its own
+  User-Agent, its own 5 MB check (`<`, not `<=`) and its own acceptance of
+  `http`. All three are questions this app answers once — `FeedSyncService.fetch`
+  is now shared, with the timeout as its one parameter, because a sync runs
+  unwatched and a reader holding a sheet open does not.
+
+**Verified** by the full unit suite — 467 tests in 43 suites, up from 453 — with
+fourteen new ones against `StubTransport` and no network. The two rules that
+carry the design were mutation-checked: never refusing anything fails "a
+suggestion that answers with a page instead of a feed is not subscribed", and
+refusing anything not confirmed a feed fails "a throttled suggestion is still
+subscribed". `SourceAcquisitionTests` had to start serving its own suggestions —
+answering an offer is a network call now, and `feed-0.test` was about to become a
+real DNS lookup. All ten UI journeys pass, including the standing-offer one,
+which now runs the probe against live hosts.
+
+**Learned: the seam was the work, and the port was twenty lines.** #27 read like
+three ports of similar size. `FeedDiscovery` itself collapsed to six lines once
+the fetch it needed already existed; what took the session was deciding *where*
+the probe attaches, given that `PackSourceOffer.pending` is called from a SwiftUI
+body on every toggle. Asking at accept rather than at offer is what makes it one
+burst on an explicit action instead of a burst on a screen the reader is looking
+at — and it is the reason the reader waits a moment on Add, which is a cost worth
+naming rather than hiding.
+
+**One exposure worth writing down.** `testStandingSourceOfferJourney` taps Add
+and then asserts an accepted Source reached Settings, so it now depends on real
+hosts. It is safe in the direction that matters — offline, every probe is
+`couldNotTell` and everything is still subscribed — but a host answering 200 with
+a landing page would fail it. Left as is rather than stubbed, because the journey
+already syncs for real; if it flakes, that is the first thing to look at.
+
+---
+
 ## 2026-08-23 — A Source that is being throttled says so (#14)
 
 **Built**

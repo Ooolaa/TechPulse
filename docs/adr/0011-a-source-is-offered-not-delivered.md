@@ -143,6 +143,21 @@ self-corrects the moment they answer it. Migrating it is not possible — the
 information was never written down — and "not now" was a fair description of what
 that button meant at the time.
 
+**A reader saying yes is necessary and is no longer sufficient.** Answering an
+offer now asks each ticked suggestion whether it is really a feed, and does not
+subscribe the ones that answer with something else (#58). That is a veto the app
+did not have under this decision as written — "the reader is what subscribes"
+narrows to "nothing is subscribed that the reader did not ask for". The veto is
+deliberately narrow: only a host that *answered*, with something that is not a
+feed, is refused. A refusal, a timeout or an empty answer says nothing about the
+URL — reddit 429s a feed that is unquestionably a feed (ADR-0003) — so those are
+subscribed, and if the trouble persists the Source says so on its own Settings
+row (#14). What is turned away is **not** recorded as declined, because the
+reader said yes: it stays in the standing offer, or one bad afternoon on the
+host's side would bury it under the "close to permanent" rule above. The case
+this exists for is a **generated** Pack (#27), whose suggested Sources are model
+output and are trusted accordingly.
+
 **`seedIfNeeded` installs the Pack before it touches Sources.** Which Sources a
 reader should be offered comes from the Pack they are on, and which Pack that is
 is only settled by `PackMigration.ensureBuiltinInstalled`. Anything added to

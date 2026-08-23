@@ -8,6 +8,23 @@ struct ParsedFeedItem {
     var publishedAt: Date?
 }
 
+/// What one document turned out to be.
+///
+/// The two halves are separate because "no entries" and "not a feed" are
+/// different answers, and a caller deciding whether a URL is worth subscribing
+/// to needs them apart (#58): a brand-new feed that has published nothing is
+/// still a feed, and an HTML page that happens to parse as XML is not one
+/// however many `<item>`-shaped things it contains.
+struct ParsedFeed {
+    let items: [ParsedFeedItem]
+
+    /// Whether the document's **root** element announced itself as a feed —
+    /// `<rss>`, `<feed>` or RDF. The root rather than any element anywhere,
+    /// because a page is free to contain the word and a feed is not free to
+    /// bury its own root.
+    let isFeedDocument: Bool
+}
+
 /// Tolerant feed parser: handles RSS 2.0 (`<item>`), Atom (`<entry>`)
 /// and RSS 1.0/RDF, which covers all seeded sources.
 final class RSSParser: NSObject, XMLParserDelegate {
@@ -15,20 +32,36 @@ final class RSSParser: NSObject, XMLParserDelegate {
     private var current: ParsedFeedItem?
     private var buffer = ""
 
-    static func parse(_ data: Data) -> [ParsedFeedItem] {
+    /// The root element's name, or nil while nothing has been opened yet.
+    private var root: String?
+
+    /// The three roots a feed can have. RDF arrives as `RDF`; the comparison is
+    /// lowercased, as every other element name here is.
+    private static let feedRoots: Set<String> = ["rss", "feed", "rdf"]
+
+    /// Everything one document is, in one parse.
+    static func read(_ data: Data) -> ParsedFeed {
         let delegate = RSSParser()
         let parser = XMLParser(data: data)
         // Security: never resolve external entities (XXE / billion-laughs).
         parser.shouldResolveExternalEntities = false
         parser.delegate = delegate
         parser.parse()
-        return delegate.items
+        return ParsedFeed(items: delegate.items,
+                          isFeedDocument: delegate.root.map(feedRoots.contains) ?? false)
+    }
+
+    /// The items alone, for the callers that only ever wanted those. A wrapper
+    /// over `read`, so there is one parse and one reading of what a feed is.
+    static func parse(_ data: Data) -> [ParsedFeedItem] {
+        read(data).items
     }
 
     func parser(_ parser: XMLParser, didStartElement elementName: String,
                 namespaceURI: String?, qualifiedName qName: String?,
                 attributes attributeDict: [String: String] = [:]) {
         let name = elementName.lowercased()
+        if root == nil { root = name }
         if name == "item" || name == "entry" {
             current = ParsedFeedItem()
         } else if current != nil {

@@ -33,6 +33,36 @@ struct SourceAcquisitionTests {
         Set(try context.fetch(FetchDescriptor<FeedSource>()).map(\.url.absoluteString))
     }
 
+    /// Answering an offer asks each ticked suggestion whether it is really a
+    /// feed (#58), so a test that answers one has to serve them — otherwise
+    /// `feed-0.test` is a real DNS lookup, and the suite is asserting on the
+    /// network. Served as feeds, because what these tests are about is what an
+    /// unticked box means and not what a bad URL does.
+    private func serveAsFeeds(_ suggestions: [PackFile.PackSource]) {
+        for suggestion in suggestions {
+            guard let url = URL(string: suggestion.url) else { continue }
+            StubTransport.serve(url, body: """
+            <?xml version="1.0"?>
+            <rss version="2.0"><channel>
+              <item><title>An item</title><guid>\(suggestion.url)</guid></item>
+            </channel></rss>
+            """)
+        }
+    }
+
+    private func stopServing(_ suggestions: [PackFile.PackSource]) {
+        for host in Set(suggestions.compactMap { URL(string: $0.url)?.host() }) {
+            StubTransport.stopServing(host: host)
+        }
+    }
+
+    private func accept(_ ticked: Set<String>, of offered: [PackFile.PackSource],
+                        in context: ModelContext) async -> PackSourceOffer.Accepted {
+        StubTransport.registerGlobally()
+        defer { StubTransport.unregisterGlobally() }
+        return await PackSourceOffer.accept(ticked, of: offered, context: context)
+    }
+
     /// The standing offer as `SettingsView` computes it — off the Sources the
     /// view already holds, rather than a fetch of its own.
     private func standing(_ suggestions: [PackFile.PackSource],
@@ -263,12 +293,14 @@ struct SourceAcquisitionTests {
     /// arrives pre-ticked. This is that flow, unchanged — a short offer still
     /// buries what the reader deliberately unticked.
     @Test("on an offer that opened ticked, unticking one still declines it")
-    func untickingAShortOfferDeclines() throws {
+    func untickingAShortOfferDeclines() async throws {
         let context = try makeContext()
         let offered = packSuggesting(PackSourceOffer.preCheckedUpTo).suggestedSources
+        serveAsFeeds(offered)
+        defer { stopServing(offered) }
         let kept = Set(offered.dropLast().map(\.url))
 
-        #expect(PackSourceOffer.accept(kept, of: offered, context: context)
+        #expect(await accept(kept, of: offered, in: context).subscribed
                 == offered.count - 1)
 
         // The one left unticked was ticked when the sheet opened, so leaving it
@@ -282,13 +314,15 @@ struct SourceAcquisitionTests {
     /// bury them close to permanently on a list the reader never saw ticked —
     /// which is the consent problem #20 exists to fix, not to deepen.
     @Test("on an offer that opened unticked, the ones not ticked are unanswered, not declined")
-    func longOfferLeavesTheRestUnanswered() throws {
+    func longOfferLeavesTheRestUnanswered() async throws {
         let context = try makeContext()
         let offered = packSuggesting(PackSourceOffer.preCheckedUpTo + 3).suggestedSources
+        serveAsFeeds(offered)
+        defer { stopServing(offered) }
         #expect(!PackSourceOffer.opensTicked(offered), "this offer must open unticked")
         let taken = Set(offered.prefix(3).map(\.url))
 
-        #expect(PackSourceOffer.accept(taken, of: offered, context: context) == 3)
+        #expect(await accept(taken, of: offered, in: context).subscribed == 3)
 
         // The three are subscribed; the rest are still on offer rather than
         // buried, and nothing at all was recorded as declined.

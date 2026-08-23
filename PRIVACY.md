@@ -40,14 +40,19 @@ your reading it touches, is not on this list and never will be.
 The app makes these outbound connections, all over HTTPS:
 
 1. **Feed downloads** — the public RSS/Atom feeds of the Sources you enabled.
-2. **Article pages** — when a feed carries only a snippet, the article's own page
+2. **Checking a suggested Source** — when you accept Sources a Pack suggested,
+   the app fetches each one you ticked, once, to confirm it really is a feed
+   before subscribing you to it. Same request as a feed download, to the same
+   address, a moment earlier — and only for the ones you ticked. Nothing about
+   you is sent, and one you left unticked is never contacted.
+3. **Article pages** — when a feed carries only a snippet, the article's own page
    from its publisher, fetched when you open it. The same traffic as any news
    reader.
-3. **arXiv search** — when you ask a Concept with little to read for more, the
+4. **arXiv search** — when you ask a Concept with little to read for more, the
    app queries `export.arxiv.org` for recent papers. **The Concept's name is
    sent** as the search term, so this one discloses what you are studying to
    arXiv. It happens only when you ask for it.
-4. **Your own Claude key (optional)** — described next.
+5. **Your own Claude key (optional)** — described next.
 
 ## The opt-in path: your own Claude key
 

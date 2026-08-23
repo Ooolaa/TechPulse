@@ -226,6 +226,19 @@ struct PackSourceOfferView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var accepted: Set<String>
 
+    /// Suggestions already taken this visit, so the list stops offering what
+    /// the reader has: the sheet only stays open when something was turned
+    /// away, and it must not invite them to add the same Sources twice.
+    @State private var added: Set<String> = []
+
+    /// Suggestions the app asked and found were not feeds. The reader said yes
+    /// to these, so the sheet owes them the reason rather than dismissing over
+    /// it (#58).
+    @State private var refused: Set<String> = []
+
+    /// Set while the ticked suggestions are being asked whether they are feeds.
+    @State private var isChecking = false
+
     init(offer: SourceOffer) {
         self.offer = offer
         // Ticked or not by the same rule `PackSourceOffer.accept` reads when it
@@ -250,24 +263,32 @@ struct PackSourceOfferView: View {
                                     Text(source.name)
                                         .font(.system(size: 15, weight: .medium))
                                         .foregroundStyle(Theme.textPrimary)
-                                    Text(source.category)
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(Theme.textTertiary)
+                                    if refused.contains(source.url) {
+                                        Text("Didn't answer as a feed — not added")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Theme.danger)
+                                            .accessibilityIdentifier("refusedSource")
+                                    } else {
+                                        Text(source.category)
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Theme.textTertiary)
+                                    }
                                 }
                                 Spacer()
-                                Image(systemName: accepted.contains(source.url)
-                                      ? "checkmark.circle.fill" : "circle")
+                                Image(systemName: tickmark(for: source))
                                     .font(.system(size: 19))
-                                    .foregroundStyle(accepted.contains(source.url)
-                                                     ? Theme.stateKnown : Theme.stateNew)
+                                    .foregroundStyle(tint(for: source))
                             }
                         }
+                        .disabled(added.contains(source.url))
                         .accessibilityIdentifier("offeredSource")
                     }
                 } header: {
                     SettingsHeader("Suggested by \(offer.field)")
                 } footer: {
-                    Text("Nothing is subscribed until you say so, and you can turn any Source off later in Settings.")
+                    Text(refused.isEmpty
+                         ? "Nothing is subscribed until you say so, and you can turn any Source off later in Settings."
+                         : "Each Source is asked whether it is really a feed before it is added. The ones above that were not are left out — they stay suggested in Settings, so you can try them again later.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -287,28 +308,61 @@ struct PackSourceOfferView: View {
                     .accessibilityIdentifier("declineSources")
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add \(accepted.count)") {
-                        // Subscribing and recording what was turned down are one
-                        // call, because what an unticked box means depends on
-                        // whether it arrived ticked — see `PackSourceOffer.accept`.
-                        let added = PackSourceOffer.accept(accepted, of: offer.sources,
-                                                           context: modelContext)
-                        dismiss()
-                        // Sources are only synced by themselves when the Feed
-                        // is half an hour stale, and the point of taking these
-                        // was having something to read now.
-                        if added > 0 {
-                            Task {
-                                await FeedSyncService.syncAll(context: modelContext)
-                                await IntelligenceService.analyzePending(context: modelContext)
-                            }
-                        }
+                    Button(isChecking ? "Checking…" : "Add \(accepted.count)") {
+                        Task { await add() }
                     }
-                    .disabled(accepted.isEmpty)
+                    .disabled(accepted.isEmpty || isChecking)
                     .accessibilityIdentifier("acceptSources")
                 }
             }
         }
+    }
+
+    private func tickmark(for source: PackFile.PackSource) -> String {
+        if added.contains(source.url) { return "checkmark.circle.fill" }
+        if refused.contains(source.url) { return "exclamationmark.circle" }
+        return accepted.contains(source.url) ? "checkmark.circle.fill" : "circle"
+    }
+
+    private func tint(for source: PackFile.PackSource) -> Color {
+        if refused.contains(source.url) { return Theme.danger }
+        return accepted.contains(source.url) || added.contains(source.url)
+            ? Theme.stateKnown : Theme.stateNew
+    }
+
+    /// Answers the offer, and keeps the sheet open only when there is something
+    /// to say.
+    ///
+    /// Asking the hosts takes a moment, which is why the button says so. The
+    /// alternative — subscribe instantly and let the reader discover the dud on
+    /// its Settings row — is what #14 already does, and it leaves a Source in
+    /// their list that never belonged there. A generated Pack's suggestions are
+    /// model output (#27), which is the case that makes asking first worth the
+    /// wait.
+    private func add() async {
+        isChecking = true
+        let result = await PackSourceOffer.accept(accepted, of: offer.sources,
+                                                  context: modelContext)
+        isChecking = false
+
+        // Sources are only synced by themselves when the Feed is half an hour
+        // stale, and the point of taking these was having something to read now.
+        if result.subscribed > 0 {
+            Task {
+                await FeedSyncService.syncAll(context: modelContext)
+                await IntelligenceService.analyzePending(context: modelContext)
+            }
+        }
+        guard !result.refused.isEmpty else {
+            dismiss()
+            return
+        }
+        // Something the reader asked for could not be used. Dismissing would
+        // leave them to work out from a shorter Settings list which one it was.
+        let turnedAway = Set(result.refused.map(\.url))
+        added.formUnion(accepted.subtracting(turnedAway))
+        accepted.subtract(turnedAway)
+        refused = turnedAway
     }
 }
 

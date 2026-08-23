@@ -33,27 +33,24 @@ enum FeedSyncService {
         let enabled = FetchDescriptor<FeedSource>(predicate: #Predicate { $0.isEnabled })
         guard let sources = try? context.fetch(enabled), !sources.isEmpty else { return 0 }
 
-        // Fetch by host: the groups run concurrently, so a cold sync is still
-        // ~max rather than ~sum of feed latencies for the Sources that do not
-        // share a host, and the Sources inside one group go one at a time.
-        // Host is the unit because host is what the far end counts by — two
-        // subreddits are two Sources and one server (#44).
-        //
-        // Hosts are case-insensitive, so `Reddit.com` and `reddit.com` are one
-        // group and not two. A URL with no host is filed under one empty key
-        // with the others of its kind, which is the conservative reading: a
-        // host that cannot be named cannot be shown to be a different one.
-        let requests = sources.enumerated().map { (index: $0.offset, url: $0.element.url) }
-        let byHost = Dictionary(grouping: requests) { $0.url.host()?.lowercased() ?? "" }
-        let outcomes = await withTaskGroup(of: [(index: Int, outcome: FetchOutcome)].self) { group in
-            for hostGroup in byHost.values {
-                group.addTask { await fetchInTurn(hostGroup) }
-            }
-            var results = [Int: FetchOutcome]()
-            for await fetched in group {
-                for entry in fetched { results[entry.index] = entry.outcome }
-            }
-            return results
+        // Only what may be sent is handed to the pacing. An http Source is
+        // refused here rather than sent — `Egress` leaves over TLS only — and
+        // refusing it *before* the queue is also what keeps the pause a
+        // property of requests: a Source the guard turns away does not make the
+        // Source behind it wait for a request no host ever received. It is
+        // still an outcome, and the one failure nothing on the wire can
+        // explain, which is why it is recorded at the guard.
+        var outcomes = [Int: FetchOutcome]()
+        var askable = [(key: Int, url: URL)]()
+        for (index, source) in sources.enumerated() {
+            if source.url.scheme == "https" { askable.append((index, source.url)) }
+            else { outcomes[index] = .failed(.insecure) }
+        }
+        // One host at a time, hosts concurrently (#44). A Source missing from
+        // the answers was never asked — the sync was cancelled before its
+        // host's group reached it — which is not the same as one that failed.
+        for (index, outcome) in await HostPacing.askInTurn(askable, { await fetch($0) }) {
+            outcomes[index] = outcome
         }
 
         let existing = (try? context.fetch(FetchDescriptor<Article>())) ?? []
@@ -195,59 +192,33 @@ enum FeedSyncService {
         }
     }
 
-    /// One host's Sources, one request at a time.
-    ///
-    /// The pause separates requests, not list positions: it is paid only after
-    /// this host was actually asked something, so the first Source waits for
-    /// nothing, no sync ends on a wait, and a Source that is never asked — one
-    /// the scheme guard turns away — does not make the Source behind it wait
-    /// for a request the host never received.
-    ///
-    /// It *is* paid after a request that failed. A failure is most likely the
-    /// throttling the pause exists for, and that is the worst moment to ask the
-    /// same host again immediately.
-    private nonisolated static func fetchInTurn(
-        _ sources: [(index: Int, url: URL)]
-    ) async -> [(index: Int, outcome: FetchOutcome)] {
-        var fetched = [(index: Int, outcome: FetchOutcome)]()
-        var asked = false
-        for source in sources {
-            // Not a request, so not something to pace against: an http Source
-            // is refused here rather than sent (`Egress` leaves over TLS only).
-            // It is still an outcome — the one failure nothing on the wire can
-            // ever explain, so the record has to be written where it happens.
-            guard source.url.scheme == "https" else {
-                fetched.append((source.index, .failed(.insecure)))
-                continue
-            }
-            if asked {
-                // Cancellation ends the group here rather than releasing the
-                // rest of it back to back, which is the thing being avoided.
-                // The Sources left behind report nothing rather than a failure:
-                // they were not asked, and were not refused either.
-                do { try await Task.sleep(for: HostPacing.betweenRequests) }
-                catch { break }
-            }
-            asked = true
-            fetched.append((source.index, await fetch(source.url)))
-        }
-        return fetched
-    }
-
     /// What one request came back as. Not `Data?`: the failures are the point
     /// of #14, and an optional could only say that there had been one.
-    private enum FetchOutcome {
+    enum FetchOutcome {
         case arrived(Data)
         case failed(SourceFailure)
     }
 
-    /// One request, to a Source `fetchInTurn` has decided is askable. A Source
-    /// that times out, errors, or answers non-2xx or over the response limit
-    /// contributes nothing — and costs the Sources around it nothing either.
-    /// It does now say which of those happened, which is all a reader needs to
-    /// tell a throttled Source from a quiet one.
-    private nonisolated static func fetch(_ url: URL) async -> FetchOutcome {
-        var request = URLRequest(url: url, timeoutInterval: 30)
+    /// How long a sync waits on one host. Generous, because a sync runs
+    /// unwatched — `FeedDiscovery` passes a shorter one, because a reader is
+    /// watching that.
+    nonisolated static let timeout: TimeInterval = 30
+
+    /// One request for a feed, to a URL the caller has decided is askable —
+    /// https, since `Egress` leaves over TLS only, which `syncAll` checks
+    /// before anything reaches here. A Source that times out, errors, or
+    /// answers non-2xx, empty, or over the response limit contributes nothing —
+    /// and costs the Sources around it nothing either. It does now say which of
+    /// those happened, which is all a reader needs to tell a throttled Source
+    /// from a quiet one.
+    ///
+    /// Shared with `FeedDiscovery`, which asks the same question of a URL
+    /// nobody has subscribed to yet (#58). One agent, one response limit, one
+    /// reading of what a refusal was — the property #28 folded three copies of
+    /// these questions into one to get.
+    nonisolated static func fetch(_ url: URL,
+                                  timeout: TimeInterval = timeout) async -> FetchOutcome {
+        var request = URLRequest(url: url, timeoutInterval: timeout)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         guard let (data, response) = try? await URLSession.shared.data(for: request) else {
             // No answer to judge. As likely to be the reader's connection as

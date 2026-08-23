@@ -129,7 +129,10 @@ popularity exists.
 
 **Acquired** is how a Source comes to be one, and "chosen" is literal at every
 step but one. A Pack **suggests** Sources; the app **offers** them; the reader
-subscribes. The exception is the first launch of a store with nothing to read at
+subscribes — and the app asks a suggestion whether it is really a feed before
+subscribing anyone to it, which is the one place it may decline something the
+reader accepted. It declines only what answered and was not a feed: a host that
+refused or said nothing has said nothing about its URL. The exception is the first launch of a store with nothing to read at
 all, which subscribes to what the Active Pack suggests — there is no reading yet
 to weigh an offer against. Every launch after that subscribes to nothing: a
 Source added to a Pack in a new version of the app is acquired as a **standing

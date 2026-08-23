@@ -105,8 +105,22 @@ enum PackSourceOffer {
         opensTicked(sources) ? Set(sources.map(\.url)) : []
     }
 
-    /// Answering the offer: subscribe what the reader ticked, and record what
-    /// they turned down.
+    /// What answering an offer came to.
+    struct Accepted {
+        /// How many became Sources.
+        let subscribed: Int
+
+        /// Ticked, asked, and shown not to be a feed — so not subscribed.
+        ///
+        /// Deliberately **not** recorded as declined either. The reader said
+        /// yes; it is the app that could not use it, and a suggestion nobody
+        /// turned down has to stay in the standing offer, or one afternoon on
+        /// the host's side buries it close to permanently (ADR-0011).
+        let refused: [PackFile.PackSource]
+    }
+
+    /// Answering the offer: ask what the reader ticked whether it is really a
+    /// feed, subscribe what is, and record what they turned down.
     ///
     /// **An unticked box is an answer only where the box arrived ticked.**
     /// ADR-0011 made a leftover count as a decline because the sheet was always
@@ -117,17 +131,44 @@ enum PackSourceOffer {
     /// never shown as ticked. Unanswered is what the standing offer is for, and
     /// "Not now" is still there for a reader who means to refuse the lot.
     ///
-    /// One call rather than two at the call site, so the rule cannot be
+    /// **Only what is shown not to be a feed is turned away.** A host that
+    /// refused, timed out or answered nothing has said nothing about its URL —
+    /// reddit 429s a feed that is unquestionably a feed (ADR-0003) — so those
+    /// are subscribed, and if the trouble persists the Source says so on its own
+    /// Settings row (#14). That is a better place to lose an argument with a
+    /// host than the moment the reader asked for it.
+    ///
+    /// Only the ticked ones are asked: probing what the reader left alone would
+    /// spend a host's patience on a Source nobody wanted.
+    ///
+    /// One call rather than three at the call site, so the rules cannot be
     /// half-applied by a caller that remembers to subscribe and forgets what
-    /// silence meant.
+    /// silence meant, or that subscribes before asking (#58).
     @discardableResult
     static func accept(_ accepted: Set<String>,
                        of offered: [PackFile.PackSource],
-                       context: ModelContext) -> Int {
+                       context: ModelContext) async -> Accepted {
         if opensTicked(offered) {
             recordDeclined(offered.filter { !accepted.contains($0.url) })
         }
-        return subscribe(offered.filter { accepted.contains($0.url) }, context: context)
+        let ticked = offered.filter { accepted.contains($0.url) }
+        // Keyed by the suggestion's own URL text, which is what identifies a
+        // `PackSource` everywhere else here — the sheet's ticks are that string
+        // too. Non-https never gets this far: `url(_:)` refuses it, which is
+        // also what keeps `askInTurn`'s contract true, since it sends whatever
+        // it is handed.
+        let verdicts = await HostPacing.askInTurn(
+            ticked.compactMap { suggestion in
+                url(suggestion).map { (key: suggestion.url, url: $0) }
+            },
+            { await FeedDiscovery.probe($0) }
+        )
+        // A suggestion with no verdict was never asked — the probe was
+        // cancelled before its host's group reached it. Not asked is not
+        // refused, so it is subscribed like the rest.
+        let refused = ticked.filter { verdicts[$0.url] == .notAFeed }
+        let usable = ticked.filter { verdicts[$0.url] != .notAFeed }
+        return Accepted(subscribed: subscribe(usable, context: context), refused: refused)
     }
 
     // MARK: - The standing offer
