@@ -35,35 +35,47 @@ enum HostPacing {
     /// the others of its kind, which is the conservative reading: a host that
     /// cannot be named cannot be shown to be a different one.
     ///
-    /// **Every request handed in is sent.** What may not be sent at all —
-    /// anything that is not https, since `Egress` leaves over TLS only — is the
-    /// caller's to refuse *before* this, and that is also what keeps the pause a
-    /// property of requests rather than of list positions: a URL that never
-    /// enters here cannot make the one behind it wait for a request no host
-    /// received. The pause *is* paid after a request that failed, because a
-    /// failure is most likely the throttling it exists for, and that is the
-    /// worst moment to ask the same host again immediately.
+    /// **Anything that is not https is answered with `refusal` and never
+    /// sent** — `Egress` leaves over TLS only. The rule lives here rather than
+    /// in each caller because a caller that forgot it would send the request,
+    /// and a rule enforced by everyone remembering it is the shape #36 folded
+    /// away. Refusing it here also keeps the pause a property of *requests*
+    /// rather than of list positions: a URL nothing was sent for does not make
+    /// the one behind it wait for an answer no host was ever asked for.
+    ///
+    /// The pause *is* paid after a request that failed, because a failure is
+    /// most likely the throttling it exists for, and that is the worst moment
+    /// to ask the same host again immediately. And no group ends on a wait: the
+    /// pause is paid before a request, never after the last one.
     ///
     /// Keyed rather than positional, so a caller with two requests to the same
     /// URL still gets two answers. Cancellation ends a host's group where it
     /// stands rather than releasing the rest of it back to back, so the answers
     /// may be fewer than the requests — a key that is absent was never asked,
-    /// which is not the same as one that failed.
+    /// which is not the same as one that failed and not the same as one that
+    /// was refused.
     nonisolated static func askInTurn<Key: Hashable & Sendable, Answer: Sendable>(
         _ requests: [(key: Key, url: URL)],
+        refusingUnencryptedWith refusal: Answer,
         _ ask: @Sendable @escaping (URL) async -> Answer
     ) async -> [Key: Answer] {
-        let byHost = Dictionary(grouping: requests) { $0.url.host()?.lowercased() ?? "" }
-        return await withTaskGroup(of: [(key: Key, answer: Answer)].self) { group in
+        var answers = [Key: Answer]()
+        var sendable = [(key: Key, url: URL)]()
+        for request in requests {
+            if request.url.scheme == "https" { sendable.append(request) }
+            else { answers[request.key] = refusal }
+        }
+        let byHost = Dictionary(grouping: sendable) { $0.url.host()?.lowercased() ?? "" }
+        let asked = await withTaskGroup(of: [(key: Key, answer: Answer)].self) { group in
             for hostGroup in byHost.values {
                 group.addTask { await askOneHost(hostGroup, ask) }
             }
-            var answers = [Key: Answer]()
-            for await asked in group {
-                for entry in asked { answers[entry.key] = entry.answer }
-            }
-            return answers
+            var fetched = [(key: Key, answer: Answer)]()
+            for await entries in group { fetched += entries }
+            return fetched
         }
+        for entry in asked { answers[entry.key] = entry.answer }
+        return answers
     }
 
     private nonisolated static func askOneHost<Key: Hashable & Sendable, Answer: Sendable>(

@@ -33,25 +33,17 @@ enum FeedSyncService {
         let enabled = FetchDescriptor<FeedSource>(predicate: #Predicate { $0.isEnabled })
         guard let sources = try? context.fetch(enabled), !sources.isEmpty else { return 0 }
 
-        // Only what may be sent is handed to the pacing. An http Source is
-        // refused here rather than sent — `Egress` leaves over TLS only — and
-        // refusing it *before* the queue is also what keeps the pause a
-        // property of requests: a Source the guard turns away does not make the
-        // Source behind it wait for a request no host ever received. It is
-        // still an outcome, and the one failure nothing on the wire can
-        // explain, which is why it is recorded at the guard.
-        var outcomes = [Int: FetchOutcome]()
-        var askable = [(key: Int, url: URL)]()
-        for (index, source) in sources.enumerated() {
-            if source.url.scheme == "https" { askable.append((index, source.url)) }
-            else { outcomes[index] = .failed(.insecure) }
-        }
-        // One host at a time, hosts concurrently (#44). A Source missing from
-        // the answers was never asked — the sync was cancelled before its
-        // host's group reached it — which is not the same as one that failed.
-        for (index, outcome) in await HostPacing.askInTurn(askable, { await fetch($0) }) {
-            outcomes[index] = outcome
-        }
+        // One host at a time, hosts concurrently (#44). An http Source is
+        // refused rather than sent — `Egress` leaves over TLS only — and comes
+        // back as the one failure nothing on the wire can ever explain. A
+        // Source missing from the answers was never asked: the sync was
+        // cancelled before its host's group reached it, which is neither a
+        // failure nor a refusal.
+        let outcomes = await HostPacing.askInTurn(
+            sources.enumerated().map { (key: $0.offset, url: $0.element.url) },
+            refusingUnencryptedWith: .failed(.insecure),
+            { await fetch($0) }
+        )
 
         let existing = (try? context.fetch(FetchDescriptor<Article>())) ?? []
         var knownGuids = Set(existing.map(\.guid))

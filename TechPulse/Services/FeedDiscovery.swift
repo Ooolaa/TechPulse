@@ -19,7 +19,17 @@ import Foundation
 /// Ported from CareerPulse (`Services/PackDraft.swift` at `af8ab0c`), which is
 /// where its shape comes from and not its parts: that version carried its own
 /// User-Agent, its own 5 MB check and its own acceptance of `http`, all three
-/// of which this app has since answered once and centrally.
+/// of which this app has since answered once and centrally. Its fourth
+/// difference does not arise here and is worth saying so: it filed what it
+/// found under `category: "My sources"`, which is not a Cluster, because it was
+/// built for a URL the reader pasted. A Pack's suggestion arrives carrying its
+/// author's Cluster, so nothing here invents one — the question comes back the
+/// day a paste-a-URL screen does, along with the site-discovery half below.
+///
+/// The name is the ported one and reaches slightly past what this does today:
+/// it renders a verdict on one URL and discovers nothing. CareerPulse's other
+/// half — reading a site's advertised `<link rel="alternate">` — is deliberately
+/// left behind until there is a reader-typed address to discover *from* (#58).
 enum FeedDiscovery {
     /// How long a probe waits on one host.
     ///

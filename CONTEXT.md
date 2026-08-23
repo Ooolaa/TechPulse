@@ -129,10 +129,8 @@ popularity exists.
 
 **Acquired** is how a Source comes to be one, and "chosen" is literal at every
 step but one. A Pack **suggests** Sources; the app **offers** them; the reader
-subscribes — and the app asks a suggestion whether it is really a feed before
-subscribing anyone to it, which is the one place it may decline something the
-reader accepted. It declines only what answered and was not a feed: a host that
-refused or said nothing has said nothing about its URL. The exception is the first launch of a store with nothing to read at
+subscribes — and the app **Probes** a suggestion before subscribing anyone to
+it, which is the one place it may decline something the reader accepted. The exception is the first launch of a store with nothing to read at
 all, which subscribes to what the Active Pack suggests — there is no reading yet
 to weigh an offer against. Every launch after that subscribes to nothing: a
 Source added to a Pack in a new version of the app is acquired as a **standing
@@ -173,5 +171,23 @@ to it is changing the product's central promise, not adding a detail. Work done
 on the device — however much of your reading it touches — is not Egress, which is
 what makes the promise sayable at all. Described the same way wherever it is
 described: **no passage of what you are reading leaves, and a word you select is
-the most of an article that ever does.**
+the most of an article that ever does.** Everything on the list leaves over TLS;
+a request that cannot is refused rather than downgraded.
+
+Five entries: a Source's feed, a **Probe** of one the reader is accepting, an
+article's own page, an arXiv search carrying a Concept's name, and the opt-in
+Claude key path. The first three carry nothing about the reader at all.
 _Avoid_: telemetry, analytics, tracking, upload, data collection
+
+**Probe**:
+One request asking whether a URL is a Source at all, made when the reader
+accepts a suggestion and before anything is subscribed. The same request the
+app would make to read that Source, a moment earlier — it carries nothing about
+the reader, and one they left unticked is never sent.
+
+A Probe answers three ways, and the third is why the word is not "check": it is
+a Source, it is not one, or **nothing was learned** — a host that refused, timed
+out or said nothing has said nothing about its URL. Only the middle answer turns
+a suggestion away.
+_Avoid_: validate, verify, check, discover (a Probe asks about one URL and finds
+nothing the reader did not name)

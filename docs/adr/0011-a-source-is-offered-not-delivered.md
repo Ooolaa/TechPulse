@@ -31,7 +31,15 @@ That cost three things at once.
   field; the seeder ignored the choice.
 
 **Decision:** a Source is offered. The Pack a reader is on is what suggests, and
-the reader is what subscribes.
+nothing is subscribed that the reader did not ask for.
+
+**Correction (2026-08-23):** this read "and the reader is what subscribes." That
+was true of every path the app then had, and #58 narrowed it: answering an offer
+now Probes each ticked suggestion, and does not subscribe one that answers with
+something other than a feed. So the reader asking is necessary and is no longer
+sufficient — the app has a veto, bounded as the consequence below describes. The
+decision stands; the sentence was an absolute, and the half that matters is the
+half about consent rather than the half about mechanism.
 
 - **The Pack file is the only list anything reads.** `SeedData.defaultSources`
   is gone; suggestions are read off `ActivePack.inUse.suggestedSources` — the
@@ -144,11 +152,10 @@ information was never written down — and "not now" was a fair description of w
 that button meant at the time.
 
 **A reader saying yes is necessary and is no longer sufficient.** Answering an
-offer now asks each ticked suggestion whether it is really a feed, and does not
-subscribe the ones that answer with something else (#58). That is a veto the app
-did not have under this decision as written — "the reader is what subscribes"
-narrows to "nothing is subscribed that the reader did not ask for". The veto is
-deliberately narrow: only a host that *answered*, with something that is not a
+offer now **Probes** each ticked suggestion, and does not subscribe one that
+answers with something other than a feed (#58). That is a veto the app did not
+have under this decision as first written; see the correction above it. The veto
+is deliberately narrow: only a host that *answered*, with something that is not a
 feed, is refused. A refusal, a timeout or an empty answer says nothing about the
 URL — reddit 429s a feed that is unquestionably a feed (ADR-0003) — so those are
 subscribed, and if the trouble persists the Source says so on its own Settings
@@ -157,6 +164,13 @@ reader said yes: it stays in the standing offer, or one bad afternoon on the
 host's side would bury it under the "close to permanent" rule above. The case
 this exists for is a **generated** Pack (#27), whose suggested Sources are model
 output and are trusted accordingly.
+
+That last part is a constraint on whoever answers an offer, not only on
+`accept`: the rule above about an unticked box is read off *the list `accept` is
+handed*, so handing it the original offer a second time turns everything already
+subscribed — and everything the app itself turned away — into a decline. A sheet
+that stays open after a partial answer has to narrow what it is asking about.
+`reAnsweringWithTheWholeOfferWouldBuryARefusal` pins the hazard.
 
 **`seedIfNeeded` installs the Pack before it touches Sources.** Which Sources a
 reader should be offered comes from the Pack they are on, and which Pack that is

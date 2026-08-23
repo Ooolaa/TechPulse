@@ -226,15 +226,21 @@ struct PackSourceOfferView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var accepted: Set<String>
 
-    /// Suggestions already taken this visit, so the list stops offering what
-    /// the reader has: the sheet only stays open when something was turned
-    /// away, and it must not invite them to add the same Sources twice.
-    @State private var added: Set<String> = []
+    /// What this sheet is still asking about: every suggestion at first, and
+    /// after a partial answer only the ones that were turned away.
+    ///
+    /// Narrowing it is not cosmetic. `PackSourceOffer.accept` reads its
+    /// pre-ticked rule off the list it is handed and treats an unticked entry
+    /// as a decline — so handing it the *original* list a second time would
+    /// record everything already subscribed, and every Source the app itself
+    /// turned away, as suggestions the reader refused. That is exactly what
+    /// ADR-0011's rule forbids, arrived at by a second tap on Add.
+    @State private var remaining: [PackFile.PackSource]
 
-    /// Suggestions the app asked and found were not feeds. The reader said yes
-    /// to these, so the sheet owes them the reason rather than dismissing over
-    /// it (#58).
-    @State private var refused: Set<String> = []
+    /// Whether what is left in `remaining` is there because the app turned it
+    /// away. One flag rather than a set: after a partial answer the list *is*
+    /// the refusals, since everything else was taken and is gone from it.
+    @State private var wasRefused = false
 
     /// Set while the ticked suggestions are being asked whether they are feeds.
     @State private var isChecking = false
@@ -244,13 +250,14 @@ struct PackSourceOfferView: View {
         // Ticked or not by the same rule `PackSourceOffer.accept` reads when it
         // decides whether silence was an answer — one policy, not two.
         _accepted = State(initialValue: PackSourceOffer.preChecked(offer.sources))
+        _remaining = State(initialValue: offer.sources)
     }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(offer.sources, id: \.url) { source in
+                    ForEach(remaining, id: \.url) { source in
                         Button {
                             if accepted.contains(source.url) {
                                 accepted.remove(source.url)
@@ -263,7 +270,7 @@ struct PackSourceOfferView: View {
                                     Text(source.name)
                                         .font(.system(size: 15, weight: .medium))
                                         .foregroundStyle(Theme.textPrimary)
-                                    if refused.contains(source.url) {
+                                    if wasRefused {
                                         Text("Didn't answer as a feed — not added")
                                             .font(.system(size: 12))
                                             .foregroundStyle(Theme.danger)
@@ -275,20 +282,22 @@ struct PackSourceOfferView: View {
                                     }
                                 }
                                 Spacer()
-                                Image(systemName: tickmark(for: source))
+                                Image(systemName: accepted.contains(source.url)
+                                      ? "checkmark.circle.fill" : "circle")
                                     .font(.system(size: 19))
-                                    .foregroundStyle(tint(for: source))
+                                    .foregroundStyle(wasRefused ? Theme.danger
+                                                     : accepted.contains(source.url)
+                                                       ? Theme.stateKnown : Theme.stateNew)
                             }
                         }
-                        .disabled(added.contains(source.url))
                         .accessibilityIdentifier("offeredSource")
                     }
                 } header: {
                     SettingsHeader("Suggested by \(offer.field)")
                 } footer: {
-                    Text(refused.isEmpty
-                         ? "Nothing is subscribed until you say so, and you can turn any Source off later in Settings."
-                         : "Each Source is asked whether it is really a feed before it is added. The ones above that were not are left out — they stay suggested in Settings, so you can try them again later.")
+                    Text(wasRefused
+                         ? "Each Source is asked whether it really is one before it is added, and these answered with something else. Nothing was recorded against them — try again, or install this Pack from the library whenever you want to be asked about them again."
+                         : "Nothing is subscribed until you say so, and you can turn any Source off later in Settings.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -302,7 +311,11 @@ struct PackSourceOfferView: View {
                         // raise the same suggestions at every launch. Choosing
                         // this Pack from the library asks again — see
                         // `PackSourceOffer.recordDeclined`.
-                        PackSourceOffer.recordDeclined(offer.sources)
+                        //
+                        // `remaining`, so a reader who took some and then said
+                        // "not now" to what was left declines what was left,
+                        // rather than the Sources they just subscribed to.
+                        PackSourceOffer.recordDeclined(remaining)
                         dismiss()
                     }
                     .accessibilityIdentifier("declineSources")
@@ -318,18 +331,6 @@ struct PackSourceOfferView: View {
         }
     }
 
-    private func tickmark(for source: PackFile.PackSource) -> String {
-        if added.contains(source.url) { return "checkmark.circle.fill" }
-        if refused.contains(source.url) { return "exclamationmark.circle" }
-        return accepted.contains(source.url) ? "checkmark.circle.fill" : "circle"
-    }
-
-    private func tint(for source: PackFile.PackSource) -> Color {
-        if refused.contains(source.url) { return Theme.danger }
-        return accepted.contains(source.url) || added.contains(source.url)
-            ? Theme.stateKnown : Theme.stateNew
-    }
-
     /// Answers the offer, and keeps the sheet open only when there is something
     /// to say.
     ///
@@ -341,7 +342,7 @@ struct PackSourceOfferView: View {
     /// wait.
     private func add() async {
         isChecking = true
-        let result = await PackSourceOffer.accept(accepted, of: offer.sources,
+        let result = await PackSourceOffer.accept(accepted, of: remaining,
                                                   context: modelContext)
         isChecking = false
 
@@ -359,10 +360,14 @@ struct PackSourceOfferView: View {
         }
         // Something the reader asked for could not be used. Dismissing would
         // leave them to work out from a shorter Settings list which one it was.
-        let turnedAway = Set(result.refused.map(\.url))
-        added.formUnion(accepted.subtracting(turnedAway))
-        accepted.subtract(turnedAway)
-        refused = turnedAway
+        //
+        // What is left is exactly the refusals, still ticked: the reader said
+        // yes and nothing has happened to change that, so a second tap on Add
+        // asks the same hosts again rather than reading their silence as a
+        // decline.
+        remaining = result.refused
+        accepted = Set(result.refused.map(\.url))
+        wasRefused = true
     }
 }
 

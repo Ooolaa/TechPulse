@@ -154,13 +154,14 @@ enum PackSourceOffer {
         let ticked = offered.filter { accepted.contains($0.url) }
         // Keyed by the suggestion's own URL text, which is what identifies a
         // `PackSource` everywhere else here — the sheet's ticks are that string
-        // too. Non-https never gets this far: `url(_:)` refuses it, which is
-        // also what keeps `askInTurn`'s contract true, since it sends whatever
-        // it is handed.
+        // too. Nothing http can be ticked in the first place: `pending` builds
+        // the offer through `url(_:)`, which refuses it, so the refusal below
+        // is a second lock on a door already shut rather than the only one.
         let verdicts = await HostPacing.askInTurn(
             ticked.compactMap { suggestion in
                 url(suggestion).map { (key: suggestion.url, url: $0) }
             },
+            refusingUnencryptedWith: .couldNotTell(.insecure),
             { await FeedDiscovery.probe($0) }
         )
         // A suggestion with no verdict was never asked — the probe was

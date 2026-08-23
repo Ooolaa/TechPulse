@@ -176,7 +176,10 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
   No passage of what you are reading is on that list; a word you select is the
   most of an article that ever leaves. Every new feature is measured against the
   stance, and against saying what it actually does; a feature that adds a line
-  to the list is changing the promise, not adding a detail.
+  to the list is changing the promise, not adding a detail. The list has five
+  entries. #58 added one — a **Probe** of a suggested Source at the moment the
+  reader accepts it — which is the same request as reading that Source, a moment
+  earlier, and carries nothing about the reader.
 - **Zero third-party dependencies** — still a feature.
 - **Fallback-first:** every AI feature must work (degraded is fine) on
   hardware without Apple Intelligence — the reference device guarantees it.

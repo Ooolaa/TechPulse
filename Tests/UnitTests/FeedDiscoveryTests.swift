@@ -256,6 +256,111 @@ struct FeedDiscoveryTests {
         #expect(result.subscribed == 2)
     }
 
+    /// The bound that matters at a Pack's full size, asserted the way
+    /// `aPackAtTheCapFansOutByHostNotBySource` asserts it rather than by
+    /// timing: at `PackFile.maxSuggestedSources` the fan-out is bounded by how
+    /// many *hosts* the suggestions sit on and not by how many suggestions
+    /// there are. Two sources on one host would pass against any
+    /// implementation that merely serialised everything.
+    @Test("a Pack's worth of suggestions is probed a host at a time, not all at once")
+    func probingAPackAtTheCapFansOutByHostNotBySuggestion() async throws {
+        let context = try makeContext()
+        let hostCount = 10
+        let hosts = (0..<hostCount).map { "cap-\($0).discover.test" }
+        defer { for host in hosts { StubTransport.stopServing(host: host) } }
+        // Three per host, so suggestions outnumber hosts three to one and the
+        // two possible bounds are far enough apart to tell apart.
+        let offered = (0..<PackFile.maxSuggestedSources).map { index in
+            suggestion("/rss-\(index).xml", host: hosts[index % hostCount], name: "Feed \(index)")
+        }
+        for source in offered {
+            StubTransport.serve(URL(string: source.url)!, body: feed(items: 1))
+        }
+
+        let result = await accept(offered, in: context)
+
+        #expect(StubTransport.peakConcurrency(among: hosts) <= hostCount,
+                "the probe opened more requests at once than there are hosts to ask")
+        #expect(hosts.allSatisfy { StubTransport.requests(to: $0).count == 3 },
+                "one suggestion is one request — a retry would double the fan-out")
+        #expect(result.subscribed == PackFile.maxSuggestedSources)
+    }
+
+    /// `Egress` leaves over TLS only, and the offer is where that is enforced
+    /// for a suggestion: an http one is never put to the reader, so it can
+    /// never be ticked and the probe never sees it. Without this the guard was
+    /// three doc comments and no test at this seam.
+    @Test("an http suggestion is never offered, so it is never asked")
+    func anHTTPSuggestionIsNeverOffered() async throws {
+        let context = try makeContext()
+        let plaintext = PackFile.PackSource(name: "Plaintext",
+                                            url: "http://\(Self.host)/feed.xml",
+                                            category: "LLMs")
+        let secure = suggestion("/secure.xml", name: "Secure")
+        StubTransport.serve(url("/secure.xml"), body: feed(items: 1))
+
+        let offer = PackSourceOffer.pending([plaintext, secure], context: context)
+
+        #expect(offer.map(\.name) == ["Secure"], "the http suggestion never reached the sheet")
+        let result = await accept(offer, in: context)
+        #expect(result.subscribed == 1)
+        #expect(StubTransport.requests(to: Self.host).count == 1,
+                "and nothing was sent for the one that was refused")
+    }
+
+    /// The trap a second tap on Add used to spring. `accept` reads its
+    /// pre-ticked rule off the list it is handed, so answering again with the
+    /// *original* offer would record everything already subscribed — and every
+    /// Source the app itself turned away — as a decline. The sheet narrows what
+    /// it is asking about; this pins the rule that makes the narrowing
+    /// necessary.
+    @Test("answering again with only what is left declines nothing that was taken or refused")
+    func answeringAgainDoesNotDeclineWhatWasTakenOrRefused() async throws {
+        let context = try makeContext()
+        let good = suggestion("/good.xml", name: "Good")
+        let page = suggestion("/page.html", host: Self.otherHost, name: "Page")
+        StubTransport.serve(url("/good.xml"), body: feed(items: 2))
+        StubTransport.serve(url("/page.html", host: Self.otherHost),
+                            body: "<html><body>Not a feed</body></html>")
+
+        let first = await accept([good, page], in: context)
+        #expect(first.refused.map(\.name) == ["Page"])
+        // What the sheet does next: it asks again about what is left, still
+        // ticked, rather than re-offering the whole list.
+        let second = await accept(first.refused, in: context)
+
+        #expect(second.refused.map(\.name) == ["Page"], "asked again, and answered the same way")
+        #expect(PackSourceOffer.declined.isEmpty,
+                "nothing the reader said yes to was recorded as a refusal")
+        #expect(try subscribedURLs(in: context) == [good.url],
+                "and the one that worked was not subscribed twice")
+    }
+
+    /// The hazard the narrowing avoids, written down rather than left as a
+    /// warning in a doc comment. Answering a *second* time with the original
+    /// list turns everything not still ticked into a decline — the Sources
+    /// already subscribed and the one the app itself turned away — which is why
+    /// `PackSourceOfferView` narrows what it asks about instead. If this ever
+    /// stops being true, the comment on `remaining` can go.
+    @Test("re-answering with the whole original offer is what would bury a refusal")
+    func reAnsweringWithTheWholeOfferWouldBuryARefusal() async throws {
+        let context = try makeContext()
+        let good = suggestion("/good.xml", name: "Good")
+        let page = suggestion("/page.html", host: Self.otherHost, name: "Page")
+        StubTransport.serve(url("/good.xml"), body: feed(items: 2))
+        StubTransport.serve(url("/page.html", host: Self.otherHost),
+                            body: "<html><body>Not a feed</body></html>")
+        let offered = [good, page]
+
+        _ = await accept(offered, in: context)
+        // The mistake: the whole offer again, with only what worked still
+        // ticked — which is what "untick the ones that failed" would produce.
+        _ = await accept(offered, ticking: [good.url], in: context)
+
+        #expect(PackSourceOffer.declined == [page.url],
+                "silence on a re-answer reads as a decline, so the sheet must not re-answer")
+    }
+
     /// The other half of `accept`, unchanged by probing: above
     /// `preCheckedUpTo` nothing arrives ticked, so an unticked box is not an
     /// answer and must not be recorded as a decline (#20 follow-up).
