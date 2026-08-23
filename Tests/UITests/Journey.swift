@@ -219,7 +219,12 @@ final class Journey {
         guard there else { return }
         // Hittability is the one attribute a snapshot does not carry, so it
         // cannot go through a wait that reads one — and polling for it in here
-        // is what keeps a raw `() -> Bool` wait off a journey's menu.
+        // is what keeps a raw `() -> Bool` wait off a journey's menu. Reading
+        // it off a live element is safe where reading `label` would not be:
+        // `isHittable` re-resolves its query and answers false for a control
+        // that has gone rather than raising, so the `exists` in front of it is
+        // belt-and-braces rather than what keeps this line from throwing (#54,
+        // and `.out-of-scope/hittability-through-the-journey-seam.md`).
         _ = poll({ element.exists && element.isHittable }, until: 2)
         // Between the wait and the tap the screen can move on — a sheet that
         // re-renders takes its buttons with it — and tapping something that has
