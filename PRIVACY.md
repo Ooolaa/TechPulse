@@ -97,8 +97,8 @@ paths, and they are the same two the rest of the app's AI features use:
   the phone in aeroplane mode.
 - **On hardware without it, with your own Claude key**, one request goes to
   `api.anthropic.com` under your key. What it carries is **the field name you
-  typed**, cut to 60 characters, and a fixed instruction describing the shape of
-  the reply. Nothing else: not your Concepts, not your Mastery, not your reading
+  typed**, trimmed and length-capped, and a fixed instruction describing the
+  shape of the reply. Nothing else: not your Concepts, not your Mastery, not your reading
   history, not your Sources, and no passage of anything you have read. There is
   nothing of yours to send — a Pack is generated to *become* your map, so the
   question is "what does someone learning this field need to know", and your own

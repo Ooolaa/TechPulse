@@ -184,8 +184,13 @@ struct PackGenerateView: View {
                     }
                 }
             } header: {
-                SettingsHeader(group.cluster
-                               + (group.cluster == draft.file.specialtyCluster ? " · side quest" : ""))
+                // "Side quest: On-Device AI" is how `ProgressTabView` already
+                // names the specialty lane to a reader — the Cluster after the
+                // words, so the lane is what is being called optional and not
+                // the Concepts in it.
+                SettingsHeader(group.cluster == draft.file.specialtyCluster
+                               ? "Side quest · \(group.cluster)"
+                               : group.cluster)
             }
         }
     }

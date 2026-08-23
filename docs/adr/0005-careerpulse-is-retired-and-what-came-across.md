@@ -53,7 +53,7 @@ listed alongside them.
   a regulated-fields banner. TechPulse did none of those when this was written, so
   the claims were removed rather than inherited.
 
-  **Amended 2026-08-23:** the sentence above said "TechPulse does none of those",
+  **Correction (2026-08-23):** the sentence above said "TechPulse does none of those",
   in the present tense, and two of the three have since become true — #58 Probes
   a suggested Source the reader is accepting, and #27 generates Packs. Both were
   written into `PRIVACY.md` against the code, not restored from CareerPulse's
@@ -75,11 +75,20 @@ listed alongside them.
 
 ## Tracked, and since brought across
 
-**Amended 2026-08-23:** this section was "Tracked, not yet brought across", and
-held the only outstanding entry in the inventory. #58 and #27 closed it. Kept
-here rather than moved up to *Brought across*, because what the inventory records
-about these files is that they were tracked — that is the state this ADR found
-them in, and where they went is the part that has since become true.
+**Correction (2026-08-23):** this section was headed "Tracked, not yet brought
+across", and held the only outstanding entry in the inventory. #58 and #27 closed
+it. Kept here rather than moved up to *Brought across*, because what the
+inventory records about these files is that they were tracked — that is the state
+this ADR found them in, and where they went is the part that has since become
+true.
+
+Its one bullet has been rewritten in place, so what it used to say is quoted
+here: that `PackDraft` "is also a prerequisite for editing an imported Pack, and
+`FeedDiscovery` (which lives in the same file) is what would let #20 cap and
+probe an imported Pack's suggested Sources instead of trusting them." Both
+predictions held — #58 is the second one — and the sentence is quoted rather than
+merely replaced because it was written as a forecast, and a forecast that came
+true is worth being able to see was made.
 
 - **`Services/PackGenerator.swift`**, **`Services/PackDraft.swift`** and
   **`Tests/UnitTests/PackDraftTests.swift`** — tracked as **#27**, ported

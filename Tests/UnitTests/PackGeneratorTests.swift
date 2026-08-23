@@ -344,6 +344,13 @@ struct GeneratedPackInstallTests {
         existing.isMarkedKnown = true
         context.insert(existing)
         let firstSeen = existing.firstSeen
+        // History is its own table, and its own half of the promise: Mastery is
+        // where the reader got to, a `LearningEvent` is how they got there, and
+        // the weekly intent reads the second rather than the first.
+        context.insert(LearningEvent(kind: "markedKnown", conceptName: "RAG",
+                                     masteryDelta: 0.3))
+        context.insert(LearningEvent(kind: "read", conceptName: "Salinity",
+                                     masteryDelta: 0.1))
         try context.save()
 
         try PackInstaller.install(draft().file, origin: .generated,
@@ -357,5 +364,10 @@ struct GeneratedPackInstallTests {
         #expect(rag.category == "Reefs", "the Pack's own Cluster is adopted")
         #expect(try context.fetch(FetchDescriptor<Concept>()).count == 2,
                 "the generated Concept joined the dot that was there rather than twinning it")
+
+        let history = try context.fetch(FetchDescriptor<LearningEvent>())
+        #expect(Set(history.map(\.conceptName)) == ["RAG", "Salinity"],
+                "installing a generated Pack took the reader's history with it")
+        #expect(history.first { $0.conceptName == "RAG" }?.kind == "markedKnown")
     }
 }

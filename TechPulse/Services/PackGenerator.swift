@@ -89,16 +89,16 @@ enum PackGenerator {
 
     /// The tier this device reaches right now. Read by the view to say up front
     /// what will happen, and again by `generate` — a key can be added between.
+    /// Answered from the device and nothing else, including under a journey's
+    /// stand-in reply. An earlier version of the stand-in reported `.optIn` so
+    /// that a simulator would enable the button — which made the screen say
+    /// "your own Claude key designs this map" on a device with no key, and the
+    /// journey's own screenshot certify a screen no reader in that state could
+    /// see. What is stood in is the reply; what the device *is* is never stood
+    /// in.
     static var tier: Tier {
-        #if DEBUG
-        // A journey standing in a reply is standing in for the opt-in path,
-        // because that is the shape of reply it substitutes. Saying so here
-        // rather than in the view keeps the screen the reader's screen: the
-        // footer it shows and the button it enables are the real ones.
-        if UITestSupport.cannedGenerationReply != nil { return .optIn }
-        #endif
-        return Tier.choose(modelAvailable: IntelligenceService.isModelAvailable,
-                           hasKey: KeychainStore.hasAnthropicKey)
+        Tier.choose(modelAvailable: IntelligenceService.isModelAvailable,
+                    hasKey: KeychainStore.hasAnthropicKey)
     }
 
     /// Why a generation produced nothing. Every case is something to show the
@@ -177,13 +177,27 @@ enum PackGenerator {
                                   progress: @escaping (String) -> Void) async throws -> PackFile {
         #if DEBUG
         if let canned = UITestSupport.cannedGenerationReply {
-            progress("Asking Claude to design your map…")
+            // The line the tier this device actually reaches would have said. A
+            // stand-in that always announced Anthropic put "Asking Claude" on a
+            // screen whose own footer said the map was being designed on the
+            // phone — a journey photographing two contradictory sentences at
+            // once.
+            progress(tier == .onDevice ? designingClusters : askingRemotely)
             guard let pack = parseRemoteJSON(canned) else {
-                throw GenerationError.modelFailure("the reply wasn't a pack")
+                throw GenerationError.modelFailure(notAPack)
             }
             return pack
         }
         #endif
+        // One tier, chosen and then followed — `deepen` and Explain do the same,
+        // and it is worth saying why rather than reading as an omission. A
+        // device whose on-device model fails *and* holds a key would generate
+        // fine on the opt-in path, but the reader has already been told, in the
+        // footer above the button they pressed, that this map was being designed
+        // on their phone and that nothing was being sent. Falling through would
+        // make that sentence false after the fact, which is the one thing an
+        // Egress promise cannot survive. They are told the attempt failed, and
+        // Try again is theirs to press.
         switch tier {
         case .onDevice:
             return try await generateOnDevice(field: field, progress: progress)
@@ -204,7 +218,7 @@ enum PackGenerator {
 
     private static func generateOnDevice(field: String,
                                          progress: (String) -> Void) async throws -> PackFile {
-        progress("Designing the clusters…")
+        progress(designingClusters)
         let planSession = LanguageModelSession(instructions: onDeviceInstructions.plan)
         guard let planResponse = try? await planSession.respond(
             to: "Field: \(field). Produce the cluster plan.",
@@ -249,6 +263,10 @@ enum PackGenerator {
                         suggestedSources: [])
     }
 
+    /// The first thing the on-device path says. Shared with the journey's
+    /// stand-in reply, which stands in for whichever model the tier names.
+    private static let designingClusters = "Designing the clusters…"
+
     private static let onDeviceInstructions = (
         plan: "You design a field of study as a skill tree of named clusters.",
         cluster: """
@@ -259,6 +277,13 @@ enum PackGenerator {
     )
 
     // MARK: Opt-in — the reader's own key, single shot
+
+    /// The two lines the opt-in path says, written once. A journey's stand-in
+    /// reply substitutes what Anthropic would have answered and takes the same
+    /// path afterwards, so it says the same things — two copies would drift and
+    /// the screenshot would be of a screen production never draws.
+    private static let askingRemotely = "Asking Claude to design your map…"
+    private static let notAPack = "the reply wasn't a pack"
 
     /// What the opt-in path sends, built purely so that it is a unit test rather
     /// than a claim in a document (#29).
@@ -299,7 +324,7 @@ enum PackGenerator {
     private static func generateRemote(field: String,
                                        progress: (String) -> Void) async throws -> PackFile {
         guard let key = KeychainStore.read() else { throw GenerationError.unavailable }
-        progress("Asking Claude to design your map…")
+        progress(askingRemotely)
         let prompt = remotePrompt(field: field)
         let text: String
         do {
@@ -312,7 +337,7 @@ enum PackGenerator {
             throw GenerationError.modelFailure(error.localizedDescription)
         }
         guard let pack = parseRemoteJSON(text) else {
-            throw GenerationError.modelFailure("the reply wasn't a pack")
+            throw GenerationError.modelFailure(notAPack)
         }
         return pack
     }

@@ -177,6 +177,13 @@ a request that cannot is refused rather than downgraded.
 Five entries: a Source's feed, a **Probe** of one the reader is accepting, an
 article's own page, an arXiv search carrying a Concept's name, and the opt-in
 Claude key path. The first three carry nothing about the reader at all.
+
+The list is of *paths*, so a feature can widen what an entry carries without
+lengthening it — and that is still a change to the promise, described wherever
+the promise is. Three features share the fifth entry, and they send different
+things: a Concept's name, definition and Cluster; a word the reader selected
+with their Pack's Field and Cluster names; and, for a generated Pack, the Field
+name they typed and nothing else.
 _Avoid_: telemetry, analytics, tracking, upload, data collection
 
 **Probe**:

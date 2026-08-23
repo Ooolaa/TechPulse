@@ -560,12 +560,17 @@ final class TechPulseUITests: XCTestCase {
     /// Naming a field, watching a map be built from it, dropping a Concept that
     /// does not belong, and installing what is left (#27).
     ///
-    /// **What is stood in, and what is not.** The simulator has neither Apple
-    /// Intelligence nor a Claude key, so the only tier a journey could otherwise
-    /// reach here is the third one — a stated reason, photographed below as its
-    /// own step because "never a silent failure" is an acceptance criterion, and
-    /// not the feature. `UITestLaunch.cannedGeneration` substitutes the model's
-    /// *reply*: everything after it is the real code, and the reply is
+    /// **What is stood in, and what is not.** A simulator reports Apple
+    /// Intelligence available and then has no model assets behind it, so a real
+    /// generation there ends on a reason — photographed by
+    /// `testGenerationAlwaysAnswers` because "never a silent failure" is an
+    /// acceptance criterion, and not the feature.
+    /// `UITestLaunch.cannedGeneration` substitutes the model's *reply* and
+    /// nothing else: `PackGenerator.tier` still answers from the device, so the
+    /// footer and the enabled button below are the real ones. It follows that
+    /// this journey needs a device that reaches *some* tier — on one that
+    /// reaches none, Generate stays refused and the wait below fails saying so.
+    /// Everything after the reply is the real code, and the reply is
     /// deliberately as dirty as a real one — fenced, wrapped in prose, naming
     /// one Concept twice in two cases, depending on itself and on a Concept it
     /// never contains. `UITestLaunchTests` holds it to being both dirty and
@@ -693,9 +698,10 @@ final class TechPulseUITests: XCTestCase {
     /// Intelligence available and then has no model assets behind it, so this
     /// lands on the reason; a Mac with the assets installed lands on a draft
     /// some minutes later; a device with neither model nor key never enables the
-    /// button at all, which is checked in `testPackGenerationJourney` before a
-    /// field is typed. Pinning one of the three would be asserting on which
-    /// machine the suite is running.
+    /// button at all, and the branch below asserts that the screen says why
+    /// instead. Pinning one of the three would be asserting on which machine the
+    /// suite is running — and the third branch is the reason this journey does
+    /// not simply assert `isEnabled`.
     ///
     /// Nothing is installed either way — the sheet is cancelled — so this
     /// journey leaves the reader's Pack exactly where it found it.
@@ -714,15 +720,6 @@ final class TechPulseUITests: XCTestCase {
         journey.waitFor(fieldInput, "the generate screen never opened")
         let generate = app.buttons["generatePack"].firstMatch
         journey.waitFor(generate, "the generate screen has no Generate button")
-
-        // Hardware that can reach no tier says so instead, and Generate stays
-        // refused — there is nothing to tap and nothing to wait for.
-        guard Journey.state(of: generate)?.isEnabled == true
-                || app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Generate'"))
-                    .firstMatch.exists else {
-            XCTFail("Generate is refused and the screen does not say why")
-            return
-        }
 
         journey.tap(fieldInput, "the field input")
         fieldInput.typeText("Marine Biology")

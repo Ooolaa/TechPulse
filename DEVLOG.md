@@ -79,7 +79,17 @@ worth exactly one screenshot (`13f-generation-answered`, asserting only that
 Generate always answers, because which of the three answers depends on which
 machine the suite runs on) and is not the feature. `-uitest-canned-generation`
 stands in the model's **reply**; `parseRemoteJSON`, `sanitize` and
-`PackValidator` all really run over it. The canned reply is deliberately as dirty
+`PackValidator` all really run over it.
+
+The first version of that stand-in also made `PackGenerator.tier` report the
+opt-in path, so the button would enable — and the review caught what that cost:
+the screen then said "your own Claude key designs this map" on a device with no
+key, and the journey's own screenshot certified a screen no reader in that state
+could see. **What the device *is* is never stood in.** `tier` answers honestly
+now and the stand-in says whatever line that tier would have said. The price is
+that this journey needs a device reaching some tier at all; on one that reaches
+none, Generate stays refused and the journey fails saying so, which is the loud
+failure rather than the quiet one. The canned reply is deliberately as dirty
 as a real one, and `UITestLaunchTests` holds it to being both dirty and mendable
 — a fixture quietly cleaned up would walk the journey past the code the feature
 is mostly made of and still be green, which is #30's failure wearing a different

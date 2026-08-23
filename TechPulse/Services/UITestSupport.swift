@@ -27,13 +27,20 @@ enum UITestSupport {
     /// Pass to stand a canned model reply in for the one `PackGenerator` would
     /// ask a model for.
     ///
-    /// The state this reaches is otherwise unreachable in a journey: the
-    /// simulator has no Apple Intelligence and no Claude key, so every
-    /// generation there ends on the third tier — a stated reason, which is worth
-    /// photographing once and is not the feature. Everything downstream of the
-    /// model is the real code, because what is substituted is the *reply*, not
-    /// the pipeline: `parseRemoteJSON`, `sanitize` and `PackValidator` all run
-    /// over `CannedGeneration.reply` exactly as they would over Anthropic's.
+    /// The state this reaches is otherwise unreachable in a journey: a simulator
+    /// reports Apple Intelligence *available* and then has no model assets
+    /// behind it, so every real generation there ends on a reason — worth
+    /// photographing once, and not the feature.
+    ///
+    /// What is substituted is the *reply*, not the pipeline: `parseRemoteJSON`,
+    /// `sanitize` and `PackValidator` all run over `CannedGeneration.reply`
+    /// exactly as they would over Anthropic's. `PackGenerator.tier` is
+    /// deliberately **not** substituted with it — the screen says what this
+    /// device can do, and a journey that made it say otherwise would photograph
+    /// a screen no reader in that state can see. The cost is that this argument
+    /// needs a device that reaches some tier at all; on one that reaches none,
+    /// Generate stays refused and the journey fails saying so, which is the loud
+    /// failure rather than the quiet one.
     static let cannedGenerationArgument = "-uitest-canned-generation"
 
     /// The Article the core journey reads.
