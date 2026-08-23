@@ -2,7 +2,12 @@ import Foundation
 import SwiftData
 
 /// Fetches all enabled feed sources and caches new articles in SwiftData.
-/// Offline-first: failures are silently skipped; whatever is cached stays readable.
+///
+/// Offline-first: a failure costs the Source that suffered it and nothing else,
+/// and whatever is cached stays readable. It is no longer *silent*, though —
+/// every attempt ends by writing what it was on the Source it was for, so a
+/// Source that is being throttled, refused, or was never a valid thing to ask
+/// can be told apart from one having a quiet week (#14, `SourceHealth`).
 @MainActor
 enum FeedSyncService {
     /// Newest items parsed per feed per sync (arXiv daily feeds can carry hundreds).
@@ -40,13 +45,13 @@ enum FeedSyncService {
         // host that cannot be named cannot be shown to be a different one.
         let requests = sources.enumerated().map { (index: $0.offset, url: $0.element.url) }
         let byHost = Dictionary(grouping: requests) { $0.url.host()?.lowercased() ?? "" }
-        let payloads = await withTaskGroup(of: [(index: Int, data: Data)].self) { group in
+        let outcomes = await withTaskGroup(of: [(index: Int, outcome: FetchOutcome)].self) { group in
             for hostGroup in byHost.values {
                 group.addTask { await fetchInTurn(hostGroup) }
             }
-            var results = [Int: Data]()
+            var results = [Int: FetchOutcome]()
             for await fetched in group {
-                for entry in fetched { results[entry.index] = entry.data }
+                for entry in fetched { results[entry.index] = entry.outcome }
             }
             return results
         }
@@ -78,10 +83,34 @@ enum FeedSyncService {
         // offers its newest first, and neither is the app's decision to make.
         var queues: [SourceQueue] = []
         for (index, source) in sources.enumerated() {
-            guard let data = payloads[index] else { continue }
-            queues.append(SourceQueue(sourceName: source.name,
-                                      items: Array(RSSParser.parse(data).prefix(perFeedLimit))))
-            source.lastFetched = .now
+            // The two records are written together and never both: what a
+            // Source last *did* is one fact, so a success clears the failure it
+            // recovered from and a failure leaves the date it last worked alone.
+            switch outcomes[index] {
+            case .arrived(let data):
+                let items = RSSParser.parse(data)
+                queues.append(SourceQueue(sourceName: source.name,
+                                          items: Array(items.prefix(perFeedLimit))))
+                source.lastFetched = .now
+                source.lastFailure = nil
+                // What this Source is publishing, taken from the whole answer
+                // rather than the prefix the round-robin will draw on: how much
+                // of a feed the app takes is the cap's business, and how recently
+                // the Source published is not. Clamped like the Article below —
+                // some publishers post-date — and left alone when the answer
+                // carried no date at all.
+                if let newest = items.compactMap(\.publishedAt).map({ min($0, .now) }).max() {
+                    source.newestOffered = newest
+                }
+            case .failed(let failure):
+                source.lastFailure = failure
+            case nil:
+                // Never attempted — the sync was cancelled before this host's
+                // group reached it. Nothing was learned about this Source, so
+                // nothing about it is rewritten: an expiring background refresh
+                // must not leave the reader's Settings full of failures.
+                continue
+            }
         }
 
         // Round-robin: one item per Source per turn, until the cap is spent or
@@ -179,35 +208,62 @@ enum FeedSyncService {
     /// same host again immediately.
     private nonisolated static func fetchInTurn(
         _ sources: [(index: Int, url: URL)]
-    ) async -> [(index: Int, data: Data)] {
-        var fetched = [(index: Int, data: Data)]()
+    ) async -> [(index: Int, outcome: FetchOutcome)] {
+        var fetched = [(index: Int, outcome: FetchOutcome)]()
         var asked = false
         for source in sources {
             // Not a request, so not something to pace against: an http Source
             // is refused here rather than sent (`Egress` leaves over TLS only).
-            guard source.url.scheme == "https" else { continue }
+            // It is still an outcome — the one failure nothing on the wire can
+            // ever explain, so the record has to be written where it happens.
+            guard source.url.scheme == "https" else {
+                fetched.append((source.index, .failed(.insecure)))
+                continue
+            }
             if asked {
                 // Cancellation ends the group here rather than releasing the
                 // rest of it back to back, which is the thing being avoided.
+                // The Sources left behind report nothing rather than a failure:
+                // they were not asked, and were not refused either.
                 do { try await Task.sleep(for: HostPacing.betweenRequests) }
                 catch { break }
             }
             asked = true
-            if let data = await fetch(source.url) { fetched.append((source.index, data)) }
+            fetched.append((source.index, await fetch(source.url)))
         }
         return fetched
+    }
+
+    /// What one request came back as. Not `Data?`: the failures are the point
+    /// of #14, and an optional could only say that there had been one.
+    private enum FetchOutcome {
+        case arrived(Data)
+        case failed(SourceFailure)
     }
 
     /// One request, to a Source `fetchInTurn` has decided is askable. A Source
     /// that times out, errors, or answers non-2xx or over the response limit
     /// contributes nothing — and costs the Sources around it nothing either.
-    private nonisolated static func fetch(_ url: URL) async -> Data? {
+    /// It does now say which of those happened, which is all a reader needs to
+    /// tell a throttled Source from a quiet one.
+    private nonisolated static func fetch(_ url: URL) async -> FetchOutcome {
         var request = URLRequest(url: url, timeoutInterval: 30)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              ResponseLimit.accepts(data: data, response: response)
-        else { return nil }
-        return data
+        guard let (data, response) = try? await URLSession.shared.data(for: request) else {
+            // No answer to judge. As likely to be the reader's connection as
+            // the Source, and `SourceFailure.unreachable` is worded for that.
+            return .failed(.unreachable)
+        }
+        switch ResponseLimit.verdict(data: data, response: response) {
+        // An empty body passes every question `ResponseLimit` asks — it is a
+        // 2xx, and zero is under the cap — and answers none of the ones a
+        // reader has. It is judged here rather than there because "zero bytes
+        // is not a feed" is a fact about feeds, and the other two fetchers
+        // behind that cap are not fetching one.
+        case .acceptable: return data.isEmpty ? .failed(.empty) : .arrived(data)
+        case .refused(let status): return .failed(.refusal(status: status))
+        case .oversized: return .failed(.oversized)
+        }
     }
 
     /// Cap the offline cache: read articles older than 60 days are deleted.

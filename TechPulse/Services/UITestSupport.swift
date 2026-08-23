@@ -20,6 +20,10 @@ enum UITestSupport {
     /// Pass alongside the wipe to plant one known Article at the top of the Feed.
     static let seedArticleArgument = "-uitest-seed-article"
 
+    /// Pass alongside the wipe to plant Sources in the two states a journey
+    /// cannot otherwise reach: throttled, and answering but long dead.
+    static let seedSourceHealthArgument = "-uitest-seed-source-health"
+
     /// The Article the core journey reads.
     ///
     /// Without it, "open a Concept from an Article" depended on whether the
@@ -52,6 +56,39 @@ enum UITestSupport {
             Quantization is the other half of the bill: smaller weights, more \
             requests per GPU, and a quality loss you measure rather than assume.
             """
+    }
+
+    /// Sources in known health, for the journey that photographs a Settings
+    /// row saying so (#14).
+    ///
+    /// Planted rather than produced, because producing them means a host that
+    /// really 429s and a publisher that really stopped in 2020 — a journey that
+    /// asserts on the network asserts on the weather. The states themselves are
+    /// held to `FeedSyncService`'s behaviour by `FeedSyncTests` against
+    /// `StubTransport`; this fixture is only about whether the reader can see
+    /// them.
+    ///
+    /// Both carry a `lastFetched`, which also settles the journey's other
+    /// hazard: the Feed syncs on launch when nothing has been fetched for
+    /// half an hour, so without a recent date here the journey would go to the
+    /// real network and overwrite the very states it came to photograph.
+    enum SeededHealth {
+        static let throttledName = "Throttled Source"
+        static let stoppedName = "Stopped Source"
+
+        /// The Cluster both are filed under — an existing one, so the journey
+        /// photographs the list a reader really has rather than a lane of its
+        /// own that nothing else would ever be in.
+        static let category = "LLMs"
+
+        /// How long ago the throttled Source last worked. Long enough that
+        /// "answered 3 days ago" beside a live failure reads as the two
+        /// different facts they are.
+        static let lastWorked: TimeInterval = 3 * 86_400
+
+        /// How long ago the stopped Source last published. Past
+        /// `SourceHealth.likelyDeadAfter` by years, as Kaggle's Medium blog is.
+        static let stoppedPublishing: TimeInterval = 5 * 365 * 86_400
     }
 
     /// Defaults that outlive a store wipe and would otherwise keep seeding and
@@ -134,6 +171,48 @@ enum UITestSupport {
         article.isRead = true
         article.readAt = .now
         context.insert(article)
+        try? context.save()
+    }
+
+    static func seedSourceHealthIfRequested(context: ModelContext) {
+        guard ProcessInfo.processInfo.arguments.contains(seedSourceHealthArgument) else { return }
+        seedSourceHealth(context: context)
+    }
+
+    /// Plants the two Sources. Separate from the argument check so a test can
+    /// plant them without launching the app, and assert what health makes of
+    /// them.
+    static func seedSourceHealth(context: ModelContext) {
+        let throttled = FeedSource(name: SeededHealth.throttledName,
+                                   url: URL(string: "https://throttled.uitest.invalid/feed.xml")!,
+                                   category: SeededHealth.category)
+        throttled.lastFetched = .now.addingTimeInterval(-SeededHealth.lastWorked)
+        throttled.newestOffered = .now.addingTimeInterval(-SeededHealth.lastWorked)
+        throttled.lastFailure = .throttled
+        context.insert(throttled)
+
+        let stopped = FeedSource(name: SeededHealth.stoppedName,
+                                 url: URL(string: "https://stopped.uitest.invalid/feed.xml")!,
+                                 category: SeededHealth.category)
+        stopped.lastFetched = .now
+        stopped.newestOffered = .now.addingTimeInterval(-SeededHealth.stoppedPublishing)
+        context.insert(stopped)
+
+        // The cache each of them is reported against: the throttled one still
+        // has reading in it, which is the offline-first half — failing out loud
+        // must not read as having lost anything.
+        for index in 0..<2 {
+            context.insert(Article(guid: "uitest-throttled-\(index)",
+                                   title: "Cached before the throttling \(index)",
+                                   content: "Body",
+                                   publishedAt: .now.addingTimeInterval(-SeededHealth.lastWorked),
+                                   sourceName: SeededHealth.throttledName))
+        }
+        context.insert(Article(guid: "uitest-stopped-0",
+                               title: "The last thing this Source ever published",
+                               content: "Body",
+                               publishedAt: .now.addingTimeInterval(-SeededHealth.stoppedPublishing),
+                               sourceName: SeededHealth.stoppedName))
         try? context.save()
     }
 

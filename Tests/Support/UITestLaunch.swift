@@ -11,5 +11,10 @@ import Foundation
 enum UITestLaunch {
     static let resetStore = "-uitest-reset-store"
     static let seedArticle = "-uitest-seed-article"
+    static let seedSourceHealth = "-uitest-seed-source-health"
     static let seededArticleTitle = "How embeddings, attention and RAG fit together"
+
+    /// The Sources `seedSourceHealth` plants, by the names a journey looks for.
+    static let throttledSourceName = "Throttled Source"
+    static let stoppedSourceName = "Stopped Source"
 }

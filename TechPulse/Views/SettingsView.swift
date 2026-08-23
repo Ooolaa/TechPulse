@@ -16,6 +16,11 @@ struct SettingsView: View {
     /// this screen shows what is suggested and subscribes to none of it.
     @State private var offer: SourceOffer?
 
+    /// What each Source is doing. Held rather than computed, because this body
+    /// redraws on every toggle in the list below and reading health tallies
+    /// every cached Article.
+    @State private var health: [PersistentIdentifier: SourceHealth] = [:]
+
     private var lastSynced: Date? {
         sources.compactMap(\.lastFetched).max()
     }
@@ -47,6 +52,25 @@ struct SettingsView: View {
     private func rearmReminder() {
         ReminderScheduler.intention = intention
         WidgetRefresh.refresh(context: modelContext)
+    }
+
+    private func readHealth() {
+        health = SourceHealth.read(sources, in: modelContext)
+    }
+
+    /// Everything a fetch writes, in one comparable value.
+    ///
+    /// Health is re-read when this changes, which is exactly when a sync
+    /// recorded something — from this screen's own button, from the Feed's
+    /// launch sync, or from a background refresh while Settings is open. An
+    /// `onAppear`-shaped refresh would have caught only the first of the three,
+    /// and re-reading on every redraw would tally the whole cache per toggle.
+    private var syncRecord: [String] {
+        sources.map { source in
+            "\(source.lastFetched?.timeIntervalSince1970 ?? 0)"
+                + "|\(source.lastFailure?.rawValue ?? "")"
+                + "|\(source.newestOffered?.timeIntervalSince1970 ?? 0)"
+        }
     }
 
     private var grouped: [(category: String, sources: [FeedSource])] {
@@ -102,6 +126,9 @@ struct SettingsView: View {
                                     Text(source.url.host() ?? source.url.absoluteString)
                                         .font(.system(size: 12))
                                         .foregroundStyle(Theme.textTertiary)
+                                    if let reading = health[source.persistentModelID] {
+                                        SourceHealthLine(health: reading)
+                                    }
                                 }
                             }
                             .tint(Theme.stateKnown)
@@ -131,6 +158,8 @@ struct SettingsView: View {
                     LabeledContent("Storage used", value: storageUsed)
                 } header: {
                     SettingsHeader("Sync & Storage")
+                } footer: {
+                    Text("Each Source above says when it last answered and how much of it you have to read offline. One that is being throttled, that has stopped answering, or that has published nothing for months says so, rather than just going quiet.")
                 }
                 Section {
                     Toggle("Remind me to read", isOn: Binding(
@@ -232,10 +261,88 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .scrollContentBackground(.hidden)
             .background(Theme.background)
+            .task { readHealth() }
+            .onChange(of: syncRecord) { readHealth() }
             .sheet(item: $offer) { offer in
                 PackSourceOfferView(offer: offer)
             }
         }
+    }
+}
+
+/// What one Source is doing, under its name and host.
+///
+/// The wording is here rather than on `SourceHealth` because it is copy: the
+/// reading is what the app observed, and how much of it to say to a reader —
+/// and in what words — gets rewritten without the observation changing.
+///
+/// "Likely dead" is deliberately hedged and deliberately dated. Nothing
+/// observable separates a publisher that stopped from one between posts, so the
+/// row says the month it last heard anything and lets the reader judge.
+struct SourceHealthLine: View {
+    let health: SourceHealth
+
+    var body: some View {
+        Text(summary)
+            .font(.system(size: 12))
+            .foregroundStyle(warrantsAttention ? Theme.danger : Theme.textTertiary)
+            .accessibilityIdentifier("sourceHealth")
+    }
+
+    /// Whether the row should be read as something to look at. A Source
+    /// nobody has asked yet is not one of them: the reader has done nothing
+    /// wrong by subscribing a minute ago.
+    private var warrantsAttention: Bool {
+        switch health.state {
+        case .failing, .likelyDead: true
+        case .neverFetched, .answering: false
+        }
+    }
+
+    private var summary: String {
+        switch health.state {
+        case .neverFetched:
+            "Not fetched yet"
+        case .failing(let failure):
+            join([reason(failure), cached, lastAnswered])
+        case .likelyDead:
+            join(["Likely dead", nothingSince, cached])
+        case .answering:
+            join([cached, lastAnswered])
+        }
+    }
+
+    private func join(_ parts: [String?]) -> String {
+        parts.compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private func reason(_ failure: SourceFailure) -> String {
+        switch failure {
+        case .throttled: "Throttled"
+        case .refused: "Refused"
+        // Worded as an absence rather than a fault: this is the one failure as
+        // likely to be about the reader's connection as about the Source.
+        case .unreachable: "No answer"
+        case .oversized: "Reply too large"
+        case .empty: "Answered with nothing"
+        case .insecure: "Not https, so never asked"
+        }
+    }
+
+    private var cached: String {
+        switch health.cached {
+        case 0: "no articles"
+        case 1: "1 article"
+        default: "\(health.cached) articles"
+        }
+    }
+
+    private var lastAnswered: String? {
+        health.lastFetched.map { "answered \($0.formatted(.relative(presentation: .named)))" }
+    }
+
+    private var nothingSince: String? {
+        health.newestOffered.map { "nothing since \($0.formatted(.dateTime.month(.wide).year()))" }
     }
 }
 

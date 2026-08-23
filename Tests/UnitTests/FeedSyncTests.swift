@@ -20,6 +20,13 @@ import SwiftData
 // non-overlap alone is also true of two requests fired back to back, which is
 // the hammering, so the pause itself is pinned as a lower bound on how long a
 // same-host sync takes.
+//
+// "Nobody was told" outlived #44, which paced the requests without telling
+// anyone about the ones that still came back empty. The health tests at the
+// foot of this suite are the other half (#14): each of them drives a failure
+// `StubTransport` can express — a 429, an unregistered path, an answer over the
+// response limit — and asserts what the Source says about itself afterwards,
+// where `aThrottledSourceIsIsolated` could only assert that nothing else broke.
 
 @MainActor
 @Suite("Feed sync", .serialized)
@@ -487,5 +494,268 @@ struct FeedSyncTests {
 
         #expect(try cachedGuids(in: context).contains("repeat-2"),
                 "two known guids were passed over without spending the Source's turn")
+    }
+
+    // MARK: - Visible Source health (#14)
+
+    /// The reading one Settings row draws. `read` is batched for the screen;
+    /// a test is asking about one Source, so it says so here once.
+    private func health(of source: FeedSource, in context: ModelContext,
+                        asOf now: Date = .now) throws -> SourceHealth {
+        try #require(SourceHealth.read([source], in: context, asOf: now)[source.persistentModelID])
+    }
+
+    /// The case ADR-0003 has a live finding about, from the reader's side.
+    /// `aThrottledSourceIsIsolated` above asserts the *absence* of an effect —
+    /// the 429 contributed nothing and stopped nothing. This is the presence
+    /// this issue exists to give it: the refusal is on the record, and the
+    /// Source that answered is not tarred with it.
+    @Test("a throttled Source records the refusal instead of going quiet")
+    func aThrottledSourceRecordsWhyItIsEmpty() async throws {
+        let context = try makeContext()
+        let url = URL(string: "https://\(Self.host)/throttled.xml")!
+        let throttled = FeedSource(name: "Throttled", url: url, category: "LLMs")
+        context.insert(throttled)
+        StubTransport.serve(url, status: 429, body: "")
+        let healthy = source(named: "Healthy", host: Self.otherHost, path: "/healthy.xml",
+                             items: 4, in: context)
+
+        _ = await sync(context)
+
+        #expect(throttled.lastFailure == .throttled)
+        #expect(throttled.lastFetched == nil, "a 429 is not a fetch, and must not date one")
+        #expect(try health(of: throttled, in: context).state == .failing(.throttled))
+        #expect(healthy.lastFailure == nil, "the Source that answered is not the one at fault")
+        #expect(healthy.lastFetched != nil)
+    }
+
+    /// Any other refusal is a refusal and no more. 429 is the only status the
+    /// app names, because it is the only one it has an answer for.
+    @Test("a Source answering something other than 429 is recorded as refused")
+    func aNon429RefusalIsRecordedAsRefused() async throws {
+        let context = try makeContext()
+        let url = URL(string: "https://\(Self.host)/gone.xml")!
+        let gone = FeedSource(name: "Gone", url: url, category: "LLMs")
+        context.insert(gone)
+        StubTransport.serve(url, status: 404, body: "")
+
+        _ = await sync(context)
+
+        #expect(gone.lastFailure == .refused)
+    }
+
+    /// A host that never answers at all — the failure that is as likely to be
+    /// the reader's connection as the Source. Driven by a path the stub does
+    /// not serve, which fails the request rather than answering an empty 200.
+    @Test("a Source that does not answer is recorded as unreachable")
+    func aSourceThatNeverAnswersIsRecordedAsUnreachable() async throws {
+        let context = try makeContext()
+        // A second Source on the host is what arms the stub for it at all; this
+        // one's own path is deliberately unregistered.
+        source(named: "Healthy", host: Self.otherHost, path: "/healthy.xml", items: 1, in: context)
+        let silent = FeedSource(name: "Silent",
+                                url: URL(string: "https://\(Self.otherHost)/nothing-here.xml")!,
+                                category: "LLMs")
+        context.insert(silent)
+
+        _ = await sync(context)
+
+        #expect(silent.lastFailure == .unreachable)
+    }
+
+    /// The `ResponseLimit` half. An answer over the cap is discarded rather
+    /// than parsed — and now says that it was, rather than looking like a
+    /// Source with no news.
+    @Test("an answer over the response limit is recorded rather than dropped in silence")
+    func anOversizedAnswerIsRecorded() async throws {
+        let context = try makeContext()
+        let url = URL(string: "https://\(Self.host)/huge.xml")!
+        let huge = FeedSource(name: "Huge", url: url, category: "LLMs")
+        context.insert(huge)
+        StubTransport.serve(url, body: Data(count: ResponseLimit.maxBytes + 1))
+
+        _ = await sync(context)
+
+        #expect(huge.lastFailure == .oversized)
+        #expect(huge.lastFetched == nil)
+    }
+
+    /// The Source the scheme guard turns away. It is never sent — Egress leaves
+    /// over TLS only — so nothing on the wire can ever explain it, which is
+    /// exactly why the record has to be written where the refusal happens.
+    @Test("a Source that is never asked records why, rather than looking untried")
+    func aSourceThatIsNeverAskedSaysWhy() async throws {
+        let context = try makeContext()
+        let insecure = FeedSource(name: "Insecure",
+                                  url: URL(string: "http://\(Self.host)/insecure.xml")!,
+                                  category: "LLMs")
+        context.insert(insecure)
+        source(named: "Healthy", path: "/healthy.xml", items: 3, in: context)
+
+        _ = await sync(context)
+
+        #expect(insecure.lastFailure == .insecure)
+        #expect(StubTransport.requests(to: Self.host).count == 1, "and still nothing was sent")
+    }
+
+    /// The third state, and the reason failure is recorded separately rather
+    /// than as a missing `lastFetched`: a Source nobody has asked yet is not a
+    /// Source with a problem, and a Settings row must not accuse it of one.
+    @Test("a Source nobody has asked yet is not a Source with a problem")
+    func anUnaskedSourceIsNotFailing() async throws {
+        let context = try makeContext()
+        let fresh = source(named: "Fresh", path: "/fresh.xml", items: 3, in: context)
+
+        let reading = try health(of: fresh, in: context)
+
+        #expect(reading.state == .neverFetched)
+        #expect(reading.cached == 0)
+        #expect(reading.lastFetched == nil)
+    }
+
+    @Test("health counts what is cached under the Source and how new it is")
+    func healthReportsTheCacheItDescribes() async throws {
+        let context = try makeContext()
+        let feed = orderedSource(named: "Feed", host: Self.host, path: "/feed.xml",
+                                 entries: [("feed-0", 3), ("feed-1", 9), ("feed-2", 20)],
+                                 in: context)
+
+        _ = await sync(context)
+
+        let reading = try health(of: feed, in: context)
+        #expect(reading.state == .answering)
+        #expect(reading.cached == 3)
+        #expect(reading.lastFetched != nil)
+        let newest = try #require(reading.newestOffered)
+        #expect(abs(newest.timeIntervalSince(.now.addingTimeInterval(-3 * 86_400))) < 120,
+                "the newest the Source offered, not the newest the app happened to take")
+    }
+
+    /// The Kaggle case (ROADMAP item 12): a Source that answers perfectly well
+    /// and has published nothing since 2020. Nothing on the wire is wrong with
+    /// it, so only the age of what it offers can say so.
+    @Test("a Source whose newest item is months old is flagged as likely dead")
+    func aSourceThatStoppedPublishingIsFlagged() async throws {
+        let context = try makeContext()
+        let stopped = orderedSource(named: "Stopped", host: Self.host, path: "/stopped.xml",
+                                    entries: [("stopped-0", 900), ("stopped-1", 950)],
+                                    in: context)
+
+        _ = await sync(context)
+
+        let reading = try health(of: stopped, in: context)
+        #expect(reading.state == .likelyDead)
+        #expect(reading.lastFetched != nil, "it answered — that is what makes the silence legible")
+        #expect(reading.cached == 2)
+        let newest = try #require(reading.newestOffered)
+        #expect(try health(of: stopped, in: context,
+                           asOf: newest.addingTimeInterval(SourceHealth.likelyDeadAfter)).state
+                == .answering,
+                "six months to the second is not yet months old")
+    }
+
+    /// Offline-first, which failing out loud must not cost: the articles a
+    /// Source gave the reader before it broke stay readable, and the date it
+    /// last worked is still there to be shown beside the failure.
+    @Test("a Source that starts failing keeps everything it already gave the reader")
+    func aFailingSourceKeepsItsCachedReading() async throws {
+        let context = try makeContext()
+        let url = URL(string: "https://\(Self.host)/flaky.xml")!
+        let flaky = FeedSource(name: "Flaky", url: url, category: "LLMs")
+        context.insert(flaky)
+        StubTransport.serve(url, body: feed(items: 4, guidPrefix: "/flaky.xml"))
+
+        _ = await sync(context)
+        let workedAt = try #require(flaky.lastFetched)
+        StubTransport.serve(url, status: 429, body: "")
+        _ = await sync(context)
+
+        #expect(flaky.lastFailure == .throttled)
+        #expect(flaky.lastFetched == workedAt, "the day it last worked is not overwritten by a 429")
+        let reading = try health(of: flaky, in: context)
+        #expect(reading.state == .failing(.throttled))
+        #expect(reading.cached == 4, "and what it already gave the reader is still readable")
+    }
+
+    /// The other direction: a failure is what is wrong *now*, so answering
+    /// clears it. Without this a Source that recovered would wear its worst day
+    /// forever.
+    @Test("a Source that answers again stops saying it failed")
+    func aRecoveredSourceStopsSayingItFailed() async throws {
+        let context = try makeContext()
+        let url = URL(string: "https://\(Self.host)/recovers.xml")!
+        let recovering = FeedSource(name: "Recovers", url: url, category: "LLMs")
+        context.insert(recovering)
+        StubTransport.serve(url, status: 429, body: "")
+
+        _ = await sync(context)
+        #expect(recovering.lastFailure == .throttled)
+        StubTransport.serve(url, body: feed(items: 2, guidPrefix: "/recovers.xml"))
+        _ = await sync(context)
+
+        #expect(recovering.lastFailure == nil)
+        #expect(recovering.lastFetched != nil)
+        #expect(try health(of: recovering, in: context).state == .answering)
+    }
+
+    /// ADR-0003's finding is two failures, and this is the second: reddit
+    /// answered `r/MachineLearning/top/.rss?t=week` with **429 and then zero
+    /// bytes**. A zero-byte 200 passes every question `ResponseLimit` asks, so
+    /// without this it dated `lastFetched` and read as a Source having a quiet
+    /// week — which is the exact confusion this issue exists to end.
+    @Test("a Source answering 200 with nothing in it is not a Source that answered")
+    func anEmptyAnswerIsNotAFetch() async throws {
+        let context = try makeContext()
+        let url = URL(string: "https://\(Self.host)/nothing.xml")!
+        let nothing = FeedSource(name: "Nothing", url: url, category: "LLMs")
+        context.insert(nothing)
+        StubTransport.serve(url, body: "")
+
+        _ = await sync(context)
+
+        #expect(nothing.lastFailure == .empty)
+        #expect(nothing.lastFetched == nil, "zero bytes is not a feed, and must not date one")
+    }
+
+    /// The reason "likely dead" is judged from the Source and not from the
+    /// cache. `prune` deletes read Articles over 60 days old, and *every*
+    /// Article a Source that died in 2020 has to offer is over 60 days old — so
+    /// read off the cache, the flag cleared itself exactly when the reader
+    /// finished the last of what the Source ever published.
+    @Test("a Source that stopped publishing stays flagged once its articles are gone")
+    func theDeadFlagSurvivesAnEmptiedCache() async throws {
+        let context = try makeContext()
+        let stopped = orderedSource(named: "Stopped", host: Self.host, path: "/stopped.xml",
+                                    entries: [("stopped-0", 900)], in: context)
+
+        _ = await sync(context)
+        for article in try context.fetch(FetchDescriptor<Article>()) { context.delete(article) }
+        try context.save()
+
+        let reading = try health(of: stopped, in: context)
+        #expect(reading.cached == 0, "the reader has read and pruned everything it ever gave them")
+        #expect(reading.state == .likelyDead, "which is not the same as it having come back to life")
+    }
+
+    /// The accepted trade, asserted rather than left to be discovered: an
+    /// Article names its Source, names are not unique, so two Sources under one
+    /// name are reported the same cache. The failure half is per-Source and
+    /// stays exact, which is the half this issue is mostly about.
+    @Test("two Sources under one name are reported the same cache and their own failures")
+    func collidingNamesShareACacheButNotAFailure() async throws {
+        let context = try makeContext()
+        let working = source(named: "AI Weekly", path: "/a.xml", items: 3, in: context)
+        let brokenURL = URL(string: "https://\(Self.otherHost)/b.xml")!
+        let broken = FeedSource(name: "AI Weekly", url: brokenURL, category: "LLMs")
+        context.insert(broken)
+        StubTransport.serve(brokenURL, status: 429, body: "")
+
+        _ = await sync(context)
+
+        let readings = SourceHealth.read([working, broken], in: context)
+        #expect(readings[working.persistentModelID]?.cached == 3)
+        #expect(readings[broken.persistentModelID]?.cached == 3, "one name, one cache to count")
+        #expect(readings[working.persistentModelID]?.state == .answering)
+        #expect(readings[broken.persistentModelID]?.state == .failing(.throttled))
     }
 }

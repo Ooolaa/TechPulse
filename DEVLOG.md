@@ -10,6 +10,84 @@
 
 ---
 
+## 2026-08-23 — A Source that is being throttled says so (#14)
+
+**Built**
+- **Every fetch writes what it was, on the Source it was for.** `syncAll`
+  discarded failures with `try?` and returned `Data?`, so a Source that 429ed,
+  timed out, or answered over the response limit contributed nothing and said
+  nothing — indistinguishable, from the reader's side, from a quiet week. The
+  fetch returns an outcome now, and the Source carries a `SourceFailure` when
+  the outcome was one. ADR-0003's consequence records it: the pacing half was
+  #44, this is the half that tells anyone.
+- **Two records, not one, and never both.** `lastFetched` is when the Source
+  last *worked* and a failure leaves it alone; `lastFailure` is what is wrong
+  with it *now* and a success clears it. Both `nil` is the third state — never
+  tried — which one field could not have told apart from working, and which a
+  Settings row must not accuse of anything.
+- **`SourceHealth` derives what a row says and stores none of it.** What the
+  last fetch did and what is cached under the Source's name are both already in
+  the store; a third copy would only be something to keep in step. Batched for
+  the screen, so the Articles are tallied once rather than once per row.
+- **A 200 carrying nothing is not an answer.** ADR-0003's finding is two
+  failures and the second nearly got away: reddit returned **429 and then zero
+  bytes**, and a zero-byte 200 passes every question `ResponseLimit` asks. It
+  would have dated `lastFetched` and read as a quiet week, which is the exact
+  confusion this issue exists to end. Judged at the feed fetch rather than at
+  the shared cap, because "zero bytes is not a feed" is a fact about feeds and
+  the other two fetchers behind that cap are not fetching one.
+- **The Kaggle case, which nothing on the wire can see.** A Source that answers
+  perfectly well and has published nothing since 2020 is `likelyDead` past six
+  months (ROADMAP item 12's number). The hedge is the point — nothing separates
+  a publisher that stopped from one between posts — so the row says the month it
+  last heard anything and lets the reader judge.
+- **What a Source publishes is recorded on the Source, not read off the cache.**
+  The first version derived "newest item" from the cached Articles, and that
+  flag deleted itself for exactly the Source it was written for: `prune` drops
+  read Articles over 60 days old, and *every* Article a blog that died in 2020
+  has to offer is over 60 days old. A reader who finished the last of Kaggle's
+  posts turned its row back to healthy. `FeedSource.newestOffered` is written
+  from the feed at sync, so the judgement survives the reader reading.
+- **`ResponseLimit` answers with a verdict as well as a yes/no.** Recording
+  *why* needs the difference between a refusal and an oversized reply, and
+  `accepts` is now a wrapper over `verdict`, so there is still one reading of
+  what makes a response acceptable. That is the property `PRIVACY.md`'s sentence
+  about 5 MB rests on.
+- **The http Source is a failure too.** It is never sent — Egress leaves over
+  TLS only — so nothing on the wire can ever explain it, which is exactly why
+  the record is written at the guard that turns it away. A sync cancelled
+  mid-group writes nothing for the Sources it never reached: not asked is not
+  refused, and an expiring background refresh must not fill Settings with
+  failures it invented.
+
+**Verified** by the full unit suite — 453 tests in 42 suites, up from 438 —
+including twelve new ones at the feed-sync seam against `StubTransport`, written
+red first: every one of them failed on `lastFailure == nil` before the recording
+existed. All ten UI journeys still pass. A UI journey (`12-source-health.png`) photographs the two states a
+reader is meant to see, and was mutation-checked — looking for "Likely undead"
+fails it, so the assertion is reading the row and not the fixture. The journey's
+Sources are planted with a recent `lastFetched`, which is also what stops the
+Feed's launch sync going to the real network and overwriting the states the
+journey came to photograph.
+
+Two of the three fixes above came out of the review rather than the build: the
+zero-byte case and the pruned-cache case were both *green* first time round, and
+both were the issue's headline example. The tests that caught them are the ones
+that name the real finding — "a Source answering 200 with nothing in it is not a
+Source that answered" — rather than the ones that name the mechanism.
+
+**Learned: "silently swallowed" was two different silences.** The obvious one is
+the failure — a 429 that leaves nothing behind but the fact that it happened, so
+if the attempt does not write it down, it is gone. The other one has no failure
+in it at all: a Source that answers 200 with a feed whose newest entry is from
+2020 is working exactly as designed, and only the *age of what it offers* can
+say otherwise. One is a fact about a request and had to be recorded at the fetch;
+the other is a fact about the cache and had to be derived from it. Trying to
+give them one home would have meant either storing a verdict that goes stale, or
+asking the network something only the store knows.
+
+---
+
 ## 2026-08-22 — A suite that forgot a model type inherited its rows (#40)
 
 **Built**

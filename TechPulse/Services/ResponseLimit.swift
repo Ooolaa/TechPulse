@@ -18,14 +18,34 @@ enum ResponseLimit {
     /// 5 MB dwarfs any legitimate feed, article page or search result.
     nonisolated static let maxBytes = 5_000_000
 
-    /// Whether a fetched response is worth parsing.
+    /// What one response is, in the terms the two questions above ask about.
     ///
     /// A response that is not `HTTPURLResponse` has no status to judge, so size
     /// alone decides — which is what all three fetchers already did, and is
     /// what makes this substitutable for each of them.
+    ///
+    /// The status is carried out rather than collapsed to a yes or no, because
+    /// a fetcher that has somewhere to record *why* a Source came back empty
+    /// needs the difference between "the host refused" and "the answer was too
+    /// big" (#14). The judgement itself stays here: two entry points, one
+    /// reading of what makes a response acceptable, which is the property that
+    /// makes `PRIVACY.md`'s sentence about 5 MB true of the whole app.
+    enum Verdict: Equatable, Sendable {
+        case acceptable
+        case refused(status: Int)
+        case oversized
+    }
+
+    nonisolated static func verdict(data: Data, response: URLResponse?) -> Verdict {
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            return .refused(status: http.statusCode)
+        }
+        return data.count <= maxBytes ? .acceptable : .oversized
+    }
+
+    /// Whether a fetched response is worth parsing — the same judgement, for
+    /// the callers that have nowhere to put the reason.
     nonisolated static func accepts(data: Data, response: URLResponse?) -> Bool {
-        let statusOK = (response as? HTTPURLResponse)
-            .map { (200..<300).contains($0.statusCode) } ?? true
-        return statusOK && data.count <= maxBytes
+        verdict(data: data, response: response) == .acceptable
     }
 }

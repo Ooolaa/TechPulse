@@ -138,6 +138,18 @@ raised again unless they install that Pack themselves. See ADR-0011.
 _Avoid_: feed, channel, subscription, publisher; and, for what a Pack puts in
 front of a reader, **default Source** — the app has no Sources of its own
 
+**Source Health**:
+What a Source is *doing*, as opposed to what it is: when it last answered, how
+much of your offline reading came from it, whether the last attempt failed and
+why, and whether what it does return has stopped being new. Derived from the
+Source and the cache whenever it is asked for, never stored, so it cannot
+disagree with the reading it describes. The app says what it observed —
+"throttled", "nothing since August 2021" — and stops there: nothing separates a
+publisher that has died from one between posts, so a Source that has gone quiet
+is **likely dead**, and the reader is the one who decides.
+_Avoid_: status, feed health, uptime, error (a Source that is never asked has
+none, and is not thereby healthy)
+
 **Reading Intention**:
 The user's own stated plan for when reading happens — a time, and the existing
 routine it follows. Stated by the reader rather than inferred from their

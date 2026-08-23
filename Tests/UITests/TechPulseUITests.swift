@@ -548,6 +548,45 @@ final class TechPulseUITests: XCTestCase {
         journey.finish()
     }
 
+    /// A Source that is failing, and one that has quietly stopped publishing,
+    /// both saying so where the reader can see them (#14).
+    ///
+    /// The states are planted rather than produced: a journey that waited for a
+    /// real host to 429 would be asserting on the weather. What is being tested
+    /// here is the last link in the chain — that a reading `FeedSyncTests` has
+    /// already pinned against `StubTransport` reaches a row and is legible on
+    /// it. Both planted Sources carry a recent `lastFetched`, which is also what
+    /// keeps the Feed's launch sync from going to the network and overwriting
+    /// them.
+    func testSourceHealthJourney() throws {
+        let journey = Journey("source health", steps: [
+            .required("12-source-health"),
+        ], launchArguments: ["-hasOnboarded", "YES", UITestLaunch.seedSourceHealth])
+        let app = journey.app
+        journey.start()
+
+        journey.tap(app.buttons["Settings"], "Settings tab")
+        let throttled = app.staticTexts[UITestLaunch.throttledSourceName].firstMatch
+        journey.scroll(to: throttled, "the throttled Source never appeared in Settings")
+
+        // The row says which failure, not merely that there was one — "empty
+        // because throttled" is the distinction this whole issue exists for.
+        journey.waitFor(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "Throttled ·")).firstMatch,
+            "a throttled Source reached Settings without saying it was throttled")
+
+        // And the Source that answers perfectly well and has published nothing
+        // for years is flagged rather than looking like a quiet week.
+        let stopped = app.staticTexts[UITestLaunch.stoppedSourceName].firstMatch
+        journey.scroll(to: stopped, "the stopped Source never appeared in Settings")
+        journey.waitFor(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "Likely dead")).firstMatch,
+            "a Source that stopped publishing in 2020 still reads as healthy")
+        journey.snap("12-source-health")
+
+        journey.finish()
+    }
+
     // MARK: - Guards
 
     /// The Concept sheet must be dismissable **whatever its scroll position** —

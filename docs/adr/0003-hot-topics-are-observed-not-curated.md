@@ -47,8 +47,13 @@ Per-host request pacing and visible Source health (ROADMAP item 12) were
 therefore prerequisites rather than nice-to-haves. The pacing half shipped in
 **#44**: Sources are grouped by URL host, the groups run concurrently, and the
 Sources inside one group go one at a time with `HostPacing.betweenRequests`
-between requests. The visible-health half is still open (**#14**) — a Source
-that comes back with nothing still says so to nobody.
+between requests. The visible half shipped in **#14**: every attempt now writes
+what it was on the Source it was for, so a 429 is a `SourceFailure` on the
+record rather than a `try?` returning `nil`, and Settings says *throttled*
+rather than showing an empty Cluster. Which is all a client can do about this
+host — pacing does not buy an answer and neither does saying so, but a reader
+who can see that reddit is refusing is a reader who can decide what to do about
+it.
 
 Intake is capped at 30/day. It *was* also sorted newest-first across every
 Source pooled together, so a "top this week" entry carrying a timestamp up to

@@ -96,10 +96,14 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
     (template §9.5 — the strongest willingness-to-pay feature).
 
 12. **Feed health & fairness** (lessons of the empty Data Science tag):
-    - *Source health in Settings*: show each source's cached-article count
-      and newest item date — a dead feed (Kaggle's Medium blog died in 2020)
-      should be visible, not silent. Consider flagging sources whose newest
-      item is > 6 months old.
+    - *Source health in Settings*: **shipped** (#14). Every fetch writes its
+      outcome to the Source — `FeedSource.lastFailure`, cleared the moment it
+      answers again — and `SourceHealth` derives what a row says from that plus
+      the cache: what it last answered, how much you have to read offline, and
+      — for a Source whose newest item is older than six months, as proposed
+      here — that it is **likely dead**. Kaggle's Medium blog died in 2020 and
+      nothing said so; a Source in that state now says so in red, with the
+      month it last published.
     - *Full per-source fairness for the daily cap*: **shipped** (#45), though
       not as proposed here. Reserving a minimum slot per enabled source was
       rejected on arithmetic in
