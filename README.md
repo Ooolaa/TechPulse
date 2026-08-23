@@ -2,7 +2,7 @@
 
 Offline-first iOS app that aggregates AI/tech news, summarizes articles **on-device** (Foundation Models), and grows a visual knowledge map of concepts you've learned. Full product spec: [TechPulse-Build-Spec.md](TechPulse-Build-Spec.md). UI reference: [design/](design/).
 
-**Privacy:** on-device by default, and no server of ours exists, so the "Data Not Collected" App Store label applies. Every outbound connection, and exactly what each one carries, is enumerated in [PRIVACY.md](PRIVACY.md) — **no passage of what you are reading is on that list**, only words you deliberately select. The opt-in exception is your own Claude API key (Settings → AI engine), which unlocks "Go deeper" and Explain on hardware without Apple Intelligence: "Go deeper" sends a concept's name, definition and cluster; Explain sends the word you selected plus your Pack's field and Cluster names, so your own map disambiguates the word instead of the article around it ([ADR-0006](docs/adr/0006-explain-disambiguates-from-your-pack-not-from-the-article.md), #29). On hardware with Apple Intelligence, Explain uses the surrounding sentence and stays on the device.
+**Privacy:** on-device by default, and no server of ours exists, so the "Data Not Collected" App Store label applies. Every outbound connection, and exactly what each one carries, is enumerated in [PRIVACY.md](PRIVACY.md) — **no passage of what you are reading is on that list**, only words you deliberately select. The opt-in exception is your own Claude API key (Settings → AI engine), which unlocks "Go deeper", Explain and Pack generation on hardware without Apple Intelligence: "Go deeper" sends a concept's name, definition and cluster; Explain sends the word you selected plus your Pack's field and Cluster names, so your own map disambiguates the word instead of the article around it ([ADR-0006](docs/adr/0006-explain-disambiguates-from-your-pack-not-from-the-article.md), #29); generating a Pack sends the field name you typed and nothing else, because a Pack is generated to *become* your map and there is nothing of yours to disambiguate it with (#27). On hardware with Apple Intelligence, all three run on-device: Explain uses the surrounding sentence and stays on the phone, and a Pack is designed a cluster at a time without anything leaving.
 
 ## Status — All milestones (M1–M6) complete ✅
 
@@ -26,6 +26,15 @@ Post-M6 (see [DEVLOG.md](DEVLOG.md) for dates):
 - **Full-text fetch** — articles that arrive as feed snippets pull the real story from the publisher page, then regenerate the on-device summary.
 - **Semantic zoom** on the knowledge graph — zooming spreads positions while dots/lines/labels stay constant screen size, so overview overlap always resolves; collision-culled labels; tap-a-dot glossary strip. Cluster (dependency) trees carry the same zoom, with pinch hint + recenter.
 - **Parser hardening** — XXE / external entities disabled; entitlements file for Keychain access (BYO-key storage).
+- **Generate a Pack from a field you name** — "Marine Biology", "Site
+  Reliability": the app designs the map instead of you picking one, on-device
+  where it can and with your own Claude key where it cannot, saying why rather
+  than failing silently where it can do neither. Model output is never trusted —
+  duplicate names, self-references, dangling dependencies and cycles are scrubbed
+  before the same validator an imported Pack faces sees it, and you review the
+  draft (dropping or renaming anything that does not belong) before it becomes
+  your map. A generated Pack is labelled **Generated** wherever your Pack is
+  named.
 - **Suggested Sources are probed before you get them** — accepting a Pack's
   suggestions asks each one you ticked whether it is a Source at all, so a Pack
   carrying a dead link or a homepage does not put one in your list. A host that

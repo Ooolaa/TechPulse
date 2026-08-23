@@ -20,6 +20,7 @@ struct UITestLaunchTests {
         #expect(UITestLaunch.resetStore == UITestSupport.resetStoreArgument)
         #expect(UITestLaunch.seedArticle == UITestSupport.seedArticleArgument)
         #expect(UITestLaunch.seedSourceHealth == UITestSupport.seedSourceHealthArgument)
+        #expect(UITestLaunch.cannedGeneration == UITestSupport.cannedGenerationArgument)
     }
 
     @Test("the journey looks for the Sources the app plants")
@@ -47,6 +48,56 @@ struct UITestLaunchTests {
         #expect(throttled.cached == 2,
                 "failing out loud must not read as having lost the reading it already gave")
         #expect(try reading(named: UITestSupport.SeededHealth.stoppedName).state == .likelyDead)
+    }
+
+    /// The generation journey is worth running only while the reply it stands
+    /// in is the kind of reply the sanitizer exists for. A fixture quietly
+    /// cleaned up would walk the journey past the code the feature is mostly
+    /// made of — and would still be green, which is #30's failure wearing a
+    /// different hat.
+    @Test("the canned model reply really is the mess the sanitizer is for")
+    func cannedGenerationReplyIsDirty() throws {
+        let raw = try #require(PackGenerator.parseRemoteJSON(UITestSupport.CannedGeneration.reply),
+                               "the reply must survive the fences and prose around it")
+
+        let duplicated = UITestSupport.CannedGeneration.duplicatedConcept
+        #expect(raw.concepts.filter { $0.name.lowercased() == duplicated.lowercased() }.count == 2,
+                "the reply should name one Concept twice, in two cases")
+        #expect(raw.concepts.contains { $0.dependencies.contains($0.name) },
+                "the reply should contain a Concept that depends on itself")
+        let names = Set(raw.concepts.map(\.name))
+        #expect(raw.concepts.contains { $0.dependencies.contains { !names.contains($0) } },
+                "the reply should depend on a Concept it never contains")
+        #expect(raw.specialtyCluster.map { !raw.clusterOrder.contains($0) } == true,
+                "the reply's specialty lane should name a Cluster it never declares")
+        #expect(raw.stages.contains { $0.concepts.contains { !names.contains($0) } },
+                "the reply should stage a Concept it never contains")
+        #expect(raw.suggestedSources.isEmpty,
+                "the journey must not depend on a host answering")
+    }
+
+    /// And the other half: dirty as it is, it has to reach the review screen.
+    /// A reply the sanitizer cannot mend would fail the journey on the reason
+    /// screen, which is a different test than the one it means to be.
+    @Test("the canned reply sanitizes into a pack that installs")
+    func cannedGenerationReplyBecomesInstallable() throws {
+        let raw = try #require(PackGenerator.parseRemoteJSON(UITestSupport.CannedGeneration.reply))
+
+        let clean = PackGenerator.sanitize(raw)
+
+        try PackValidator.validate(clean)
+        #expect(clean.field == UITestSupport.CannedGeneration.field)
+        #expect(clean.concepts.filter {
+            $0.name.lowercased() == UITestSupport.CannedGeneration.duplicatedConcept.lowercased()
+        }.count == 1, "the duplicate is what the journey counts to see the sanitizer ran")
+        #expect(clean.specialtyCluster.map(clean.clusterOrder.contains) == true)
+    }
+
+    @Test("the journey looks for the field the canned reply is a map of")
+    func cannedGenerationNamesMatchTheApp() {
+        #expect(UITestLaunch.generatedField == UITestSupport.CannedGeneration.field)
+        #expect(UITestLaunch.duplicatedGeneratedConcept
+                == UITestSupport.CannedGeneration.duplicatedConcept)
     }
 
     @Test("the journey looks for the Article the app plants")

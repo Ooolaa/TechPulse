@@ -13,6 +13,12 @@ struct PackLibraryView: View {
     @Query(filter: #Predicate<InstalledPack> { $0.isActive }) private var activeRecords: [InstalledPack]
 
     @State private var isImporting = false
+    @State private var isGenerating = false
+    /// The draft the generate sheet handed back, installed once that sheet has
+    /// gone. Installing from inside its callback would have the offer sheet
+    /// presenting into a view still dismissing another one, and one of the two
+    /// loses.
+    @State private var generated: PackDraft?
     /// The validator's reason, shown verbatim — the reader has to be able to
     /// go and fix the file.
     @State private var rejection: String?
@@ -27,6 +33,7 @@ struct PackLibraryView: View {
             activeSection
             builtinSection
             importSection
+            generateSection
         }
         .navigationTitle("Pack")
         .navigationBarTitleDisplayMode(.inline)
@@ -48,6 +55,17 @@ struct PackLibraryView: View {
             Button("OK", role: .cancel) {}
         } message: { reason in
             Text(reason)
+        }
+        .sheet(isPresented: $isGenerating) {
+            if let draft = generated {
+                generated = nil
+                install(generated: draft)
+            }
+        } content: {
+            PackGenerateView { draft in
+                generated = draft
+                isGenerating = false
+            }
         }
         .sheet(item: $offer) { offer in
             PackSourceOfferView(offer: offer)
@@ -118,6 +136,27 @@ struct PackLibraryView: View {
         }
     }
 
+    /// The other way to get a Pack: ask for one.
+    ///
+    /// Offered on every device, including the ones that cannot generate — the
+    /// screen behind it says *why* rather than the row being missing, which is
+    /// the difference between a feature this iPhone does not have and a feature
+    /// the reader cannot find.
+    private var generateSection: some View {
+        Section {
+            Button { isGenerating = true } label: {
+                Text("Generate a Pack…")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.stateLearning)
+            }
+            .accessibilityIdentifier("generatePackRow")
+        } header: {
+            SettingsHeader("From a field you name")
+        } footer: {
+            Text("Name a field and the app designs a map of it — on this iPhone where it can, or with your own Claude key. What comes back is checked exactly like an imported Pack, and you look at it before it becomes your map.")
+        }
+    }
+
     private func packRow(field: String, detail: String, isActive: Bool) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
@@ -161,6 +200,16 @@ struct PackLibraryView: View {
     private func install(_ builtin: BuiltinPacks.Builtin) {
         installing(builtin.pack) {
             try PackMigration.installBuiltin(builtin, context: modelContext)
+        }
+    }
+
+    /// A generated Pack goes in the same way an imported one does — same
+    /// validator, same Source offer, same widget refresh. The only thing that
+    /// differs is the `PackOrigin` the record carries, which is what the reader
+    /// is told about where their map came from.
+    private func install(generated draft: PackDraft) {
+        installing(draft.file) {
+            try PackInstaller.install(draft.file, origin: draft.origin, context: modelContext)
         }
     }
 

@@ -151,10 +151,12 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
     emits the format — which is the marketplace format, so nothing here was lost
     but the two-app plan.
 
-    CareerPulse is retired. What came across, what is still tracked (#27) and
-    what was dropped is recorded file by file in
+    CareerPulse is retired. What came across and what was dropped is recorded
+    file by file in
     [ADR-0005](docs/adr/0005-careerpulse-is-retired-and-what-came-across.md).
-    The repo stays as history; nothing new is built there.
+    The port is now closed in both senses: #27 brought the draft and generator
+    types across, which was the last thing that inventory still tracked. The repo
+    stays as history; nothing new is built there.
 
     *Still open from the original intent:* a **Pack marketplace** — Packs
     installable from somewhere other than a file someone sent you. Explicitly out
@@ -179,7 +181,10 @@ journeys, verified in light and dark. Runs on the physical iPhone 14 Pro
   to the list is changing the promise, not adding a detail. The list has five
   entries. #58 added one — a **Probe** of a suggested Source at the moment the
   reader accepts it — which is the same request as reading that Source, a moment
-  earlier, and carries nothing about the reader.
+  earlier, and carries nothing about the reader. #27 added **none**: Pack
+  generation's opt-in path is the fifth entry, not a sixth, and what it puts on
+  the wire is a field name the reader typed. A feature can widen what an entry
+  carries without lengthening the list, and that is still worth writing down.
 - **Zero third-party dependencies** — still a feature.
 - **Fallback-first:** every AI feature must work (degraded is fine) on
   hardware without Apple Intelligence — the reference device guarantees it.

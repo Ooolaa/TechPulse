@@ -10,6 +10,94 @@
 
 ---
 
+## 2026-08-23 — A reader can generate the field they want a map of (#27)
+
+**Built**
+- **`PackGenerator` and `PackDraft`, the last thing ADR-0005's inventory still
+  tracked.** ADR-0001's port list named "the draft and generator types"; #3, #4
+  and #5 brought everything else across and nothing covered these, so epic #2 has
+  promised a reader who "picks a field, **or generates one**" since June with no
+  way to generate one. The port is closed in both senses now.
+- **Model output is never trusted, and the sanitizer is the feature.** A model
+  asked for fifty Concepts hands back duplicates, Concepts that depend on
+  themselves, Dependencies on Concepts it never emitted, cycles, and a specialty
+  Cluster missing from its own list. `sanitize` mends each of those and
+  `PackValidator` — the same code an imported Pack faces — has the last word.
+  Where there is a choice it mends rather than refuses: a cycle costs one
+  Concept its Dependencies, because a flat Concept is a worse map and a far
+  better outcome than "generation failed" over an edge the reader cannot see.
+- **The one agreement that had already broken, held by a test now.** #22 made the
+  validator reject Concept names differing only in case. `sanitize` had folded
+  case since CareerPulse and happened to agree; nothing held them together, so
+  the *next* rule would not have been noticed. It is a table test over five
+  hostile replies now — whatever goes in, what comes out validates.
+- **And the same rule found a real defect in the ported code.**
+  `PackDraft.renameConcept`'s guard compared the new name exactly, so renaming
+  "RAG" to "vector database" beside "Vector Database" produced a draft that would
+  not install. True in CareerPulse, false here since #22. A port is not finished
+  when it compiles.
+- **Three tiers, and the third one talks.** On-device (staged, a Cluster at a
+  time — the small model does better in steps), else the reader's own Claude key,
+  else a reason on screen. `PackGenerator.Tier` is deliberately not `ExplainTier`
+  — Explain's third tier says nothing, and a reader who tapped Generate asked a
+  question — but *which* tier a device reaches is one policy, so a test holds the
+  two enums to the same answer for all four inputs rather than a comment asking
+  the next reader to remember.
+- **The reader gets the last word before anything is installed.** `sanitize` can
+  only mend what the validator would refuse; it cannot tell a Concept that
+  belongs in the field from one the model invented. So the draft is reviewed —
+  grouped by Cluster, swipe to drop, tap to rename, with `PackDraft` keeping
+  Dependencies and Stages in step so the thing being reviewed stays installable.
+  Installing itself stays in `PackLibraryView`, so a generated Pack gets the same
+  Source offer and the same widget refresh an imported one does.
+- **The generator asks no host anything.** The ported version probed its
+  suggested Sources itself. #58 has since put that question where every
+  suggestion meets it — the moment the reader accepts one — and a second copy
+  here would spend a host's patience on suggestions nobody ticked. The on-device
+  path suggests nothing at all: a small model asked for feed URLs invents
+  plausible ones, and an invented URL costs the reader a decision about a Source
+  that never existed.
+- **`PRIVACY.md` gained the paragraph its closing note promised**, and the note
+  went. The opt-in path sends **the field name the reader typed** and a fixed
+  instruction, and nothing else — no Concepts, no Mastery, no Sources, no
+  passage of anything read. That is a test (`remotePrompt` is pure) rather than a
+  sentence, which is #29's whole lesson. **Egress gains no entry**: generation's
+  opt-in path *is* the fifth one. A feature can widen what an entry carries
+  without lengthening the list, and `README.md` and `ROADMAP.md`'s standing
+  constraints say so alongside the file.
+
+**Verified** by the full unit suite — 498 tests in 47 suites, up from 471 — and
+all twelve UI journeys. Three rules that carry the design were mutation-checked:
+comparing rename targets exactly again turns "rename onto a case variant is a
+no-op" red, dropping the case-folded dedupe fails the sanitizer table, and
+removing the suggested-source cap fails it in five different ways at once.
+
+**The journey needed a seam, and it is the reply rather than the pipeline.** A
+simulator reports Apple Intelligence *available* and then has no model assets
+behind it, so every real generation there ends on the reason screen — which is
+worth exactly one screenshot (`13f-generation-answered`, asserting only that
+Generate always answers, because which of the three answers depends on which
+machine the suite runs on) and is not the feature. `-uitest-canned-generation`
+stands in the model's **reply**; `parseRemoteJSON`, `sanitize` and
+`PackValidator` all really run over it. The canned reply is deliberately as dirty
+as a real one, and `UITestLaunchTests` holds it to being both dirty and mendable
+— a fixture quietly cleaned up would walk the journey past the code the feature
+is mostly made of and still be green, which is #30's failure wearing a different
+hat.
+
+**Learned: a wait that is satisfied by the wrong thing is not a wait.**
+`testPackSelectionJourney` failed once in the full run and passed alone. It taps
+Add, waits for `"Security Engineering"`, then taps the navigation bar's first
+button to go back — but that label is *also* the built-in row's own, sitting in
+the library behind the still-open sheet, so the wait was already satisfied and
+the tap landed on "Not now". Latent since #58 made answering an offer a network
+call; adding a second sheet to that screen was enough to surface it. The fix is
+one `waitUntilGone`. The lesson is the one #48 and #53 keep teaching from a new
+angle: a journey's wait has to name a condition only the state it is waiting for
+can satisfy.
+
+---
+
 ## 2026-08-23 — A suggested Source is asked whether it is a feed (#58)
 
 **Built**

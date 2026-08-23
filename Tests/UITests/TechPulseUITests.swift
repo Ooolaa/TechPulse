@@ -448,6 +448,13 @@ final class TechPulseUITests: XCTestCase {
         journey.waitFor(accept, "the Pack's suggested Sources were never offered", timeout: 15)
         journey.snap("10c-source-offer")
         journey.tap(accept, "accept sources")
+        // Answering the offer asks each ticked host whether it is a feed, so
+        // the sheet stays up while that runs (#58). Waited on explicitly,
+        // because the assertion below cannot stand in for it: "Security
+        // Engineering" is also the built-in row's own label, sitting in the
+        // library *behind* the sheet — so it is already on screen, and `goBack`
+        // would tap the sheet's own navigation bar rather than the library's.
+        journey.waitUntilGone(accept, "the offer sheet never closed", timeout: 30)
 
         // The map is now the other Pack's.
         journey.waitFor(app.staticTexts["Security Engineering"].firstMatch, "the Pack did not switch")
@@ -544,6 +551,215 @@ final class TechPulseUITests: XCTestCase {
         journey.scroll(to: app.staticTexts["Krebs on Security"].firstMatch,
                        "the accepted Sources never reached Settings")
         journey.snap("11c-suggestion-taken")
+
+        journey.finish()
+    }
+
+    // MARK: - Generating a Pack
+
+    /// Naming a field, watching a map be built from it, dropping a Concept that
+    /// does not belong, and installing what is left (#27).
+    ///
+    /// **What is stood in, and what is not.** The simulator has neither Apple
+    /// Intelligence nor a Claude key, so the only tier a journey could otherwise
+    /// reach here is the third one — a stated reason, photographed below as its
+    /// own step because "never a silent failure" is an acceptance criterion, and
+    /// not the feature. `UITestLaunch.cannedGeneration` substitutes the model's
+    /// *reply*: everything after it is the real code, and the reply is
+    /// deliberately as dirty as a real one — fenced, wrapped in prose, naming
+    /// one Concept twice in two cases, depending on itself and on a Concept it
+    /// never contains. `UITestLaunchTests` holds it to being both dirty and
+    /// mendable, so a fixture quietly cleaned up fails there rather than walking
+    /// this journey past the code the feature is mostly made of.
+    ///
+    /// It ends on the flagship Pack, so it leaves nothing behind for the next
+    /// journey — the same courtesy `testPackSelectionJourney` pays.
+    func testPackGenerationJourney() throws {
+        let journey = Journey("pack generation", steps: [
+            .required("13-generate-a-pack"),
+            .required("13a-field-named"),
+            .required("13b-draft-review"),
+            .required("13c-concept-dropped"),
+            .required("13d-generated-pack-active"),
+            .required("13e-generated-map"),
+        ], launchArguments: ["-hasOnboarded", "YES", UITestLaunch.cannedGeneration])
+        let app = journey.app
+        journey.start()
+
+        journey.tap(app.buttons["Settings"], "Settings tab")
+        let packRow = app.buttons["packRow"].firstMatch
+        journey.waitFor(packRow, "Settings has no Pack row")
+        journey.tap(packRow, "Pack row")
+
+        // The other way to get a Pack, offered beside the two that already are.
+        let generateRow = app.buttons["generatePackRow"].firstMatch
+        journey.waitFor(generateRow, "the Pack library offers no way to generate one")
+        journey.tap(generateRow, "generate a Pack")
+
+        let fieldInput = app.textFields["generateField"].firstMatch
+        journey.waitFor(fieldInput, "the generate screen never opened")
+        journey.snap("13-generate-a-pack")
+
+        // Generate is refused until there is a field to generate for — a map of
+        // nothing is not a thing to ask a model about.
+        let generate = app.buttons["generatePack"].firstMatch
+        journey.waitFor(generate, "the generate screen has no Generate button")
+        XCTAssertEqual(Journey.state(of: generate)?.isEnabled, false,
+                       "Generate was offered before a field was named")
+
+        journey.tap(fieldInput, "the field input")
+        fieldInput.typeText(UITestLaunch.generatedField)
+        journey.settle("the typed field to land")
+        journey.snap("13a-field-named")
+        journey.waitUntil(generate, "Generate stayed refused after a field was named") {
+            $0?.isEnabled == true
+        }
+        generate.tap()
+
+        // The draft: what came back, grouped by Cluster, with the reader's own
+        // last word still to come.
+        let draft = app.staticTexts[UITestLaunch.generatedField].firstMatch
+        journey.waitFor(draft, "the generated Pack never reached the review screen", timeout: 60)
+        journey.settle("the draft to finish drawing")
+        journey.snap("13b-draft-review")
+
+        // The sanitizer really ran: the reply names this Concept twice, in two
+        // cases, and one dot is what the installer would resolve them onto.
+        let duplicated = app.staticTexts
+            .matching(identifier: UITestLaunch.duplicatedGeneratedConcept)
+        XCTAssertEqual(duplicated.count, 1,
+                       """
+                       the review screen shows \(duplicated.count) copies of \
+                       “\(UITestLaunch.duplicatedGeneratedConcept)” — the model named it twice \
+                       in two cases and the sanitizer should have folded them onto one
+                       """)
+
+        // A Concept the reader does not want never becomes a dot. The draft
+        // stays installable: dropping one carries through its Dependencies and
+        // its Stage.
+        let concepts = app.buttons.matching(identifier: "generatedConcept")
+        let before = concepts.count
+        XCTAssertGreaterThan(before, 1, "a draft worth reviewing has more than one Concept")
+        concepts.element(boundBy: before - 1).swipeLeft()
+        journey.tap(app.buttons["Drop"].firstMatch, "the Drop action")
+        journey.waitUntil(app.buttons["installGenerated"].firstMatch,
+                          "the review screen went away when a Concept was dropped") { $0 != nil }
+        XCTAssertEqual(concepts.count, before - 1, "the dropped Concept is still listed")
+        journey.snap("13c-concept-dropped")
+
+        journey.tap(app.buttons["installGenerated"].firstMatch, "install the generated Pack")
+
+        // Installed, active, and said to be generated — which is the whole
+        // point of `PackOrigin` being reader-visible.
+        journey.waitFor(app.staticTexts[UITestLaunch.generatedField].firstMatch,
+                        "the generated Pack did not become the active one", timeout: 20)
+        journey.scroll(to: app.staticTexts
+            .matching(NSPredicate(format: "label CONTAINS 'Generated'")).firstMatch,
+                       "the reader is not told the active Pack was generated")
+        journey.snap("13d-generated-pack-active")
+
+        // And it is a map, not a record: the Concepts the reply named are dots.
+        journey.goBack(to: packRow, "Settings never came back")
+        journey.tap(app.buttons["Knowledge"], "Knowledge tab")
+        journey.settle("the generated map to draw", timeout: 5)
+        journey.snap("13e-generated-map")
+
+        // Back to the flagship, so the next journey opens where this one found
+        // things. No Source offer is expected — the flagship's Sources arrived
+        // with onboarding — but decline one if it appears.
+        journey.tap(app.buttons["Settings"], "Settings tab")
+        journey.tap(packRow, "Pack row")
+        let builtins = app.buttons.matching(identifier: "builtinPack")
+        journey.waitFor(builtins.element(boundBy: 0), "the Pack library never came back")
+        journey.tap(builtins.element(boundBy: 0), "the flagship Pack")
+        let decline = app.buttons["declineSources"].firstMatch
+        if journey.appears(decline) { decline.tap() }
+        journey.waitFor(app.staticTexts["AI Engineering"].firstMatch,
+                        "switching back did not restore the flagship Pack")
+
+        journey.finish()
+    }
+
+    /// Tapping Generate always answers (#27).
+    ///
+    /// The real path, with nothing stood in: whatever this hardware can reach,
+    /// the screen ends on a draft to review or on a reason to read, and never on
+    /// neither. That is the acceptance criterion worth a journey — "never a
+    /// silent failure, and never a crash on hardware without Apple
+    /// Intelligence" — and it is the one assertion that holds on every device
+    /// the suite might run on.
+    ///
+    /// Deliberately not asserting *which*. A simulator reports Apple
+    /// Intelligence available and then has no model assets behind it, so this
+    /// lands on the reason; a Mac with the assets installed lands on a draft
+    /// some minutes later; a device with neither model nor key never enables the
+    /// button at all, which is checked in `testPackGenerationJourney` before a
+    /// field is typed. Pinning one of the three would be asserting on which
+    /// machine the suite is running.
+    ///
+    /// Nothing is installed either way — the sheet is cancelled — so this
+    /// journey leaves the reader's Pack exactly where it found it.
+    func testGenerationAlwaysAnswers() throws {
+        let journey = Journey("generation answers", steps: [
+            .required("13f-generation-answered"),
+        ], launchArguments: ["-hasOnboarded", "YES"])
+        let app = journey.app
+        journey.start()
+
+        journey.tap(app.buttons["Settings"], "Settings tab")
+        journey.tap(app.buttons["packRow"].firstMatch, "Pack row")
+        journey.tap(app.buttons["generatePackRow"].firstMatch, "generate a Pack")
+
+        let fieldInput = app.textFields["generateField"].firstMatch
+        journey.waitFor(fieldInput, "the generate screen never opened")
+        let generate = app.buttons["generatePack"].firstMatch
+        journey.waitFor(generate, "the generate screen has no Generate button")
+
+        // Hardware that can reach no tier says so instead, and Generate stays
+        // refused — there is nothing to tap and nothing to wait for.
+        guard Journey.state(of: generate)?.isEnabled == true
+                || app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Generate'"))
+                    .firstMatch.exists else {
+            XCTFail("Generate is refused and the screen does not say why")
+            return
+        }
+
+        journey.tap(fieldInput, "the field input")
+        fieldInput.typeText("Marine Biology")
+        journey.settle("the typed field to land")
+
+        guard Journey.state(of: generate)?.isEnabled == true else {
+            // The third tier: refused, with the reason on screen before the
+            // reader asks rather than behind the tap.
+            XCTAssertTrue(app.staticTexts
+                .matching(NSPredicate(format: "label CONTAINS 'Apple Intelligence'"))
+                .firstMatch.exists,
+                          "generation is refused on this hardware and does not say why")
+            journey.snap("13f-generation-answered")
+            journey.finish()
+            return
+        }
+
+        generate.tap()
+
+        // Either outcome is an answer. Neither is what this exists to catch.
+        let review = app.buttons["installGenerated"].firstMatch
+        let failure = app.staticTexts["generationFailure"].firstMatch
+        let deadline = Date().addingTimeInterval(180)
+        while Date() < deadline, !review.exists, !failure.exists {
+            _ = review.waitForExistence(timeout: 2)
+        }
+        XCTAssertTrue(review.exists || failure.exists,
+                      "Generate produced neither a draft to review nor a reason, in three minutes")
+        journey.settle("whatever came back to finish drawing")
+        journey.snap("13f-generation-answered")
+
+        // Nothing installed: the sheet goes, and the Pack library is as it was.
+        journey.tap(app.buttons["cancelGeneration"].firstMatch, "cancel generation")
+        journey.waitFor(app.buttons["generatePackRow"].firstMatch,
+                        "the Pack library never came back")
+        XCTAssertTrue(app.staticTexts["AI Engineering"].firstMatch.exists,
+                      "cancelling a generation changed the active Pack")
 
         journey.finish()
     }

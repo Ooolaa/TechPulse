@@ -24,6 +24,18 @@ enum UITestSupport {
     /// cannot otherwise reach: throttled, and answering but long dead.
     static let seedSourceHealthArgument = "-uitest-seed-source-health"
 
+    /// Pass to stand a canned model reply in for the one `PackGenerator` would
+    /// ask a model for.
+    ///
+    /// The state this reaches is otherwise unreachable in a journey: the
+    /// simulator has no Apple Intelligence and no Claude key, so every
+    /// generation there ends on the third tier — a stated reason, which is worth
+    /// photographing once and is not the feature. Everything downstream of the
+    /// model is the real code, because what is substituted is the *reply*, not
+    /// the pipeline: `parseRemoteJSON`, `sanitize` and `PackValidator` all run
+    /// over `CannedGeneration.reply` exactly as they would over Anthropic's.
+    static let cannedGenerationArgument = "-uitest-canned-generation"
+
     /// The Article the core journey reads.
     ///
     /// Without it, "open a Concept from an Article" depended on whether the
@@ -89,6 +101,81 @@ enum UITestSupport {
         /// How long ago the stopped Source last published. Past
         /// `SourceHealth.likelyDeadAfter` by years, as Kaggle's Medium blog is.
         static let stoppedPublishing: TimeInterval = 5 * 365 * 86_400
+    }
+
+    /// The model reply a journey generates a Pack from.
+    ///
+    /// Deliberately the kind of reply a model really sends: fenced, wrapped in
+    /// prose, and dirty in four of the ways `PackGenerator.sanitize` exists to
+    /// mend — a Concept named twice in two cases, one that depends on itself,
+    /// one that depends on a Concept the reply never contains, and a specialty
+    /// Cluster that is not in its own `clusterOrder`. A clean fixture would walk
+    /// the journey past the code the feature is mostly made of.
+    ///
+    /// It suggests no Sources on purpose. A suggestion is Probed at the moment
+    /// the reader accepts it, and a journey that offers one is a journey whose
+    /// verdict depends on a host answering — #58's does, knowingly; this one has
+    /// no reason to.
+    ///
+    /// `UITestLaunchTests` holds it to both halves of that: that it really is
+    /// dirty, and that it really sanitizes into something installable.
+    enum CannedGeneration {
+        static let field = "Marine Biology"
+
+        /// The Concept the reply names twice, in two cases — what the journey
+        /// looks for to prove the sanitizer ran.
+        static let duplicatedConcept = "Salinity"
+
+        static let reply = """
+            Sure — here's a map of that field:
+            ```json
+            {"formatVersion": 1,
+             "field": "Marine Biology",
+             "specialtyCluster": "Deep Sea",
+             "clusterOrder": ["Foundations", "Reefs"],
+             "concepts": [
+               {"name": "Salinity", "cluster": "Foundations",
+                "definition": "How much salt seawater holds, and why it drives everything else.",
+                "dependencies": ["Salinity"]},
+               {"name": "salinity", "cluster": "Foundations",
+                "definition": "A duplicate the model emitted in another case.",
+                "dependencies": []},
+               {"name": "Ocean Currents", "cluster": "Foundations",
+                "definition": "The circulation that moves heat, salt and larvae around the planet.",
+                "dependencies": ["Salinity", "Thermohaline Physics"]},
+               {"name": "Photosynthesis at Depth", "cluster": "Foundations",
+                "definition": "How light thins with depth, and what still lives where it runs out.",
+                "dependencies": ["Ocean Currents"]},
+               {"name": "Coral Symbiosis", "cluster": "Reefs",
+                "definition": "The algae living inside coral tissue, and the trade that keeps both alive.",
+                "dependencies": ["Photosynthesis at Depth"]},
+               {"name": "Bleaching", "cluster": "Reefs",
+                "definition": "What a reef does when the water is too warm for its algae to stay.",
+                "dependencies": ["Coral Symbiosis"]},
+               {"name": "Reef Fish Territories", "cluster": "Reefs",
+                "definition": "How a crowded reef divides itself up between its residents.",
+                "dependencies": ["Coral Symbiosis"]}
+             ],
+             "stages": [
+               {"title": "Stage 1 · The water itself", "subtitle": "Start here",
+                "concepts": ["Salinity", "Ocean Currents", "Photosynthesis at Depth"]},
+               {"title": "Stage 2 · Reefs", "subtitle": "",
+                "concepts": ["Coral Symbiosis", "Bleaching", "Reef Fish Territories"]},
+               {"title": "Stage 3 · Nothing", "subtitle": "",
+                "concepts": ["Hydrothermal Vents"]}
+             ],
+             "suggestedSources": []}
+            ```
+            Happy to adjust the clusters if you'd like a different emphasis.
+            """
+    }
+
+    /// The canned reply, when a journey asked for one. Nil in every other run,
+    /// including every release build — this whole file is `DEBUG` only.
+    static var cannedGenerationReply: String? {
+        ProcessInfo.processInfo.arguments.contains(cannedGenerationArgument)
+            ? CannedGeneration.reply
+            : nil
     }
 
     /// Defaults that outlive a store wipe and would otherwise keep seeding and

@@ -50,8 +50,18 @@ listed alongside them.
   `x-api-key` header, each turn them red).
 - **`PRIVACY.md`** → `PRIVACY.md`, **rewritten rather than copied**. The original
   described a product that generates Packs, probes suggested feed URLs, and shows
-  a regulated-fields banner. TechPulse does none of those, so the claims were
-  removed rather than inherited.
+  a regulated-fields banner. TechPulse did none of those when this was written, so
+  the claims were removed rather than inherited.
+
+  **Amended 2026-08-23:** the sentence above said "TechPulse does none of those",
+  in the present tense, and two of the three have since become true — #58 Probes
+  a suggested Source the reader is accepting, and #27 generates Packs. Both were
+  written into `PRIVACY.md` against the code, not restored from CareerPulse's
+  wording, which is the distinction this entry was making. The third is still
+  true: there is no regulated-fields banner and no ticket for one. Amended rather
+  than left standing because "does none of those" is the kind of sentence that
+  gets quoted forward — and this ADR's own lesson is that a claim survives on
+  being written down rather than on being true.
 
   Writing it is what found **#29**, and the finding is the reason this file was
   worth bringing across at all. The first draft repeated what `README.md` and
@@ -63,17 +73,42 @@ listed alongside them.
   rather than against its predecessors, which also turned up the undisclosed
   arXiv egress and an "exhausts memory" claim the 5 MB checks do not support.
 
-## Tracked, not yet brought across
+## Tracked, and since brought across
+
+**Amended 2026-08-23:** this section was "Tracked, not yet brought across", and
+held the only outstanding entry in the inventory. #58 and #27 closed it. Kept
+here rather than moved up to *Brought across*, because what the inventory records
+about these files is that they were tracked — that is the state this ADR found
+them in, and where they went is the part that has since become true.
 
 - **`Services/PackGenerator.swift`**, **`Services/PackDraft.swift`** and
-  **`Tests/UnitTests/PackDraftTests.swift`** — tracked as **#27**. ADR-0001's
-  port list explicitly includes "the draft and generator types", and epic #2
-  promises a reader who "picks a field, **or generates one**". Neither was
-  ported, and no ticket covered them, so this was the one place where the port
-  was genuinely incomplete rather than deliberately narrowed. `PackDraft` is also
-  a prerequisite for editing an imported Pack, and `FeedDiscovery` (which lives
-  in the same file) is what would let #20 cap and probe an imported Pack's
-  suggested Sources instead of trusting them.
+  **`Tests/UnitTests/PackDraftTests.swift`** — tracked as **#27**, ported
+  2026-08-23. ADR-0001's port list explicitly includes "the draft and generator
+  types", and epic #2 promises a reader who "picks a field, **or generates one**".
+  Neither was ported, and no ticket covered them, so this was the one place where
+  the port was genuinely incomplete rather than deliberately narrowed. `PackDraft`
+  is also a prerequisite for editing an imported Pack.
+
+  Two of the ported parts were dropped on the way, both for the reason the
+  *Dropped* entries below give: work justified by where it came from rather than
+  by wanting it. `PackGenerator.probeSources` went, because #58 had since put the
+  probe where every suggestion meets one — at the moment the reader accepts it —
+  and a second copy inside the generator would spend a host's patience on
+  suggestions nobody has ticked. The on-device path's suggested Sources went with
+  it: a small model asked for feed URLs invents plausible ones, and an invented
+  URL costs the reader a decision about a Source that never existed.
+
+  It also found one thing the inventory could not have: **the ported code was
+  already wrong for this app.** #22 made `PackValidator` reject Concept names
+  differing only in case, which `sanitize` happened to agree with and
+  `PackDraft.renameConcept` did not — its guard compared the new name exactly, so
+  renaming "RAG" to "vector database" beside "Vector Database" produced a draft
+  that would not install. A port is not finished when it compiles.
+
+- **`FeedDiscovery`**, which lived inside `Services/PackDraft.swift` — split out
+  of #27 as **#58** and ported 2026-08-23, for its shape and none of its parts.
+  It is what let #20 stop trusting an imported Pack's suggested Sources and ask
+  each accepted one whether it is a Source at all.
 
 ## Dropped
 

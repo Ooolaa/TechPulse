@@ -56,7 +56,7 @@ The app makes these outbound connections, all over HTTPS:
 
 ## The opt-in path: your own Claude key
 
-If *you* add a Claude API key, two features use it, and they send different
+If *you* add a Claude API key, three features use it, and they send different
 things. Requests go **directly to api.anthropic.com under your key**, through no
 server of ours (there is none).
 
@@ -74,15 +74,48 @@ server of ours (there is none).
   you already have, offline, and the match allows for case, hyphens and plurals,
   so selecting "LoRAs" opens your "LoRA"
   ([ADR-0007](docs/adr/0007-explain-matches-the-map-on-spelling-not-on-meaning.md)).
+- **Generating a Pack** — asking the app to design a map of a field sends **the
+  field name you typed**, and that is the whole of it. Described in full below.
 
 On hardware with Apple Intelligence, Explain runs on-device and uses the sentence
 around the word instead, which is a better clue and costs nothing because it
 never leaves the phone. The two paths deliberately send different things; see
 [ADR-0006](docs/adr/0006-explain-disambiguates-from-your-pack-not-from-the-article.md).
 
-Both features work without a key on hardware with Apple Intelligence, where the
-analysis runs on-device and nothing is transmitted. Remove the key any time in
-Settings → AI engine, and both fall back to on-device or stop.
+All three work without a key on hardware with Apple Intelligence, where they run
+on-device and nothing is transmitted. Remove the key any time in Settings → AI
+engine, and each falls back to on-device or stops.
+
+## Generating a Pack
+
+You can name a field — "Marine Biology", "Site Reliability" — and have the app
+design a map of it instead of picking one of the Packs that ship with it. Two
+paths, and they are the same two the rest of the app's AI features use:
+
+- **On hardware with Apple Intelligence**, the map is designed **on your iPhone**,
+  a cluster at a time. **Nothing is sent anywhere**, and the feature works with
+  the phone in aeroplane mode.
+- **On hardware without it, with your own Claude key**, one request goes to
+  `api.anthropic.com` under your key. What it carries is **the field name you
+  typed**, cut to 60 characters, and a fixed instruction describing the shape of
+  the reply. Nothing else: not your Concepts, not your Mastery, not your reading
+  history, not your Sources, and no passage of anything you have read. There is
+  nothing of yours to send — a Pack is generated to *become* your map, so the
+  question is "what does someone learning this field need to know", and your own
+  map is not part of asking it.
+- **With neither**, the app says so and generates nothing. It does not fall back
+  on sending anything.
+
+What comes back is treated as untrusted input, exactly like a Pack file someone
+handed you: it is scrubbed of contradictions, checked by the same validator an
+import goes through, and shown to you to look over before anything is installed.
+A model's suggested feed URLs are not contacted while it is being generated —
+they become ordinary suggestions, asked whether they are feeds only if and when
+you accept them, like every other suggestion in the app.
+
+A Pack you generated is labelled **Generated** wherever your Pack is named, so
+you can always tell a map you asked a model for from one the app shipped or one
+you were given.
 
 ## Your API key
 
@@ -104,24 +137,20 @@ and is removed from the Keychain when you delete it.
   it. Note what this does and does not
   do: the response is already in memory by the time it is measured, so the limit
   bounds what the app keeps and works on, not what it allocates.
-- An **imported Pack is untrusted input**: it is validated before anything is
-  installed, and a Pack that fails is rejected with a reason rather than
-  partially applied.
+- A Pack from outside the app is **untrusted input**, and a **generated Pack is
+  no different** — it is model output, which is untrusted whether or not the app
+  asked for it. Both are validated before anything is installed, and one that
+  fails is rejected with a reason rather than partially applied.
 - Article text is treated as **attacker-controlled** — whoever writes a feed you
   subscribed to chooses those bytes. It is never auto-linked, and where any of it
   reaches a model — the word you selected on either Explain path, the surrounding
   sentence on the on-device one — it is passed as reference material under
   system-side instructions saying it is not to be followed as instructions.
 
-## Imported Packs
+## Imported and generated Packs
 
-A Pack is a file, and a file can come from anywhere. Installing one never
-destroys what you have already learned: your Concepts, their Mastery and your
-reading history survive a Pack change, and a Pack that would be ambiguous or
-malformed is refused at import rather than allowed to corrupt your map.
-
----
-
-*TechPulse does not generate Packs. If Pack generation ships, what leaves the
-device on each of its paths will be described here before the feature is
-released.*
+A Pack is a file, and a file can come from anywhere — including a model. Whether
+you imported it or asked for it, installing one never destroys what you have
+already learned: your Concepts, their Mastery and your reading history survive a
+Pack change, and a Pack that would be ambiguous or malformed is refused before
+anything is installed rather than allowed to corrupt your map.
