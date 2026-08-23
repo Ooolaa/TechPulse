@@ -587,6 +587,22 @@ final class TechPulseUITests: XCTestCase {
         XCTAssertNotEqual(beforeScroll, app.screenshot().pngRepresentation,
                           "sheet did not scroll, so this test is not exercising the #26 case")
 
+        // Read off the element rather than through `Journey.state(of:)`, and
+        // tapped directly rather than through `journey.tap`. Both are
+        // deliberate (#54).
+        //
+        // Hittability is not on `ElementState` because XCUITest does not carry
+        // it on a snapshot — and unlike `label` / `isEnabled` / `isSelected`,
+        // it does not need to be: `isHittable` re-resolves its query and
+        // answers false for a control that has gone, rather than raising
+        // `Failed to get matching snapshot` the way those three do. Measured;
+        // see `.out-of-scope/hittability-through-the-journey-seam.md`. So this
+        // is two queries that cannot throw, not the #48 shape.
+        //
+        // And it stays out of `journey.tap` because `tap` *tolerates* an
+        // unhittable control — it polls, then taps anyway, since a row below
+        // the fold is not hittable until `tap()` scrolls it in. Here
+        // hittability **is** the assertion: it is the whole #26 guard.
         XCTAssertTrue(close.exists && close.isHittable,
                       "close button not reachable once the sheet is scrolled")
         close.tap()
@@ -614,6 +630,11 @@ final class TechPulseUITests: XCTestCase {
         for tab in ["Feed", "Knowledge", "Progress", "Settings"] {
             let button = app.buttons[tab].firstMatch
             journey.waitFor(button, "\(tab) tab missing")
+            // Asserted on the element, and not routed through `journey.tap`,
+            // for the reasons spelled out in
+            // `testConceptSheetDismissesWhileScrolled`: `isHittable` answers
+            // rather than throws, and `tap` would tolerate exactly what this
+            // line exists to catch (#54).
             XCTAssertTrue(button.isHittable, "\(tab) tab not hittable")
             button.tap()
         }
