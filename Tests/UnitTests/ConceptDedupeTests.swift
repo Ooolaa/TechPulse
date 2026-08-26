@@ -393,6 +393,27 @@ struct ConceptDedupeTests {
         var index = await ConceptIndex.prepared(concepts)
         let cold = Date.now.timeIntervalSince(coldStart)
 
+        // One embedding on the main actor before the clock starts, and not
+        // one of the eight.
+        //
+        // The first embedding that follows the map's own batch costs 60–130 ms
+        // where the next costs 2. It is charged once, and to whichever call
+        // happens to be next — which, with the eight lookups run immediately
+        // after `prepared`, was the first of them: measured per lookup, the
+        // eight were 104, 14, 2.3, 2.3, 2.3, 2.3, 2.4, 2.4 ms. Timing it as
+        // though it were the cost of a lookup is what #59 measured, and it is
+        // why this assertion passes behind the rest of the suite and fails
+        // alone: whether the charge lands inside the clock depends only on
+        // what ran before it in the same process.
+        //
+        // The claim is about what one Article costs, so the charge is paid
+        // here — where a launch has long since paid it by the time a second
+        // Article is analysed. That the *first* analysis after launch pays it
+        // on the main actor is a real cost and a different one, and the test
+        // that owns it measures main-actor time rather than wall clock:
+        // `analyzePendingDoesNotBlockTheMainActor`.
+        _ = SemanticLinker.embed("not a name on any map")
+
         // One Article's analysis attaches up to eight Concepts, so this is
         // eight lookups back to back. What is left on the main actor is one
         // embedding of each incoming name and a scan over meanings already in
@@ -404,9 +425,11 @@ struct ConceptDedupeTests {
                                                     context: context, index: &index)
         }
         let elapsed = Date.now.timeIntervalSince(started)
-        // Measured: 19 ms, against the 1.2 s the map's own meanings cost. It was
-        // a second of this alone until `SemanticLinker.distance` went through
-        // `vDSP` — 4,800 comparisons per Article is enough to notice.
+        // Measured: 18 ms — 2.3 ms a lookup, of which the incoming name's
+        // embedding is 1.9 and the 600-way scan is 0.4. It was a second of
+        // this alone until `SemanticLinker.distance` went through `vDSP` —
+        // 4,800 comparisons per Article is enough to notice, and they cost
+        // 2.9 ms measured on their own.
         #expect(elapsed < 0.1, "eight lookups against 600 Concepts took \(elapsed)s")
 
         // And the next Article in the same batch builds its own index, which is
