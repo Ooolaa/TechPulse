@@ -54,10 +54,11 @@ and one UI journey, `testCoreJourney`. They fail three ways:
 simulator, and it resolves on its own.** Measured on 2026-09-21 against the same
 `iPhone 17 Pro` / iOS 26.3.1, the same code, the same scheme:
 
-| Time | Result |
-| --- | --- |
-| 09:53 | 14 cases failing across those 6 suites |
-| 10:53 | **0 failing** — every one of those suites green |
+| Time | Where | Result |
+| --- | --- | --- |
+| 09:53 | simulator | 14 cases failing across those 6 suites |
+| 10:53 | simulator | **0 failing** — every one of those suites green |
+| 11:08 | **iPhone 14 Pro**, iOS 26.6.2 | **501 tests, 0 failing** — all six suites ran |
 
 Nothing in the repo changed between them to explain it: the failing test names
 exist unaltered on `origin/main`, and no commit touched those files. The
@@ -72,9 +73,39 @@ to check whether the whole cluster moves together. A failure that persists
 across runs once the embedding is warm is a real failure.
 
 The honest summary: an all-embedding failure cluster means the environment is
-cold; anything else means the code is broken. The real verification remains a
-physical device — ROADMAP records the suite green on an iPhone 14 Pro, where
-the fallback paths are first-class.
+cold; anything else means the code is broken.
+
+The device run is the one that settles it. An A16 has no Apple Intelligence, so
+if the embedding worked there it was never about the hardware being capable —
+and it did: 117 tests across those six suites, all green. ROADMAP's claim that
+the suite passes on an iPhone 14 Pro with the fallback paths first-class holds
+as written.
+
+## Running on the device
+
+The scheme is provisionable from the command line after all, which the project's
+own note doubted. Two things it needs that the simulator does not:
+
+```bash
+xcodebuild test -scheme TechPulseUnitTests \
+  -destination 'platform=iOS,id=<device udid>' \
+  DEVELOPMENT_TEAM=<team id>
+```
+
+Passed on the command line rather than written into `project.yml`, so a team id
+stays out of the repo. Get the udid from `xcrun devicectl list devices` and the
+team from a profile in `~/Library/Developer/Xcode/UserData/Provisioning Profiles`.
+
+The first run after a new certificate fails with *"the Developer App Certificate
+is not trusted"*, which no flag fixes: it is a prompt on the phone, under
+Settings → General → VPN & Device Management. It arrives as a `System Failures`
+suite with one failing "test", so read it as a launch failure rather than as the
+suite having an opinion.
+
+`TechPulseUITests` still cannot be provisioned this way, so the journeys and
+`testVoiceOverCanWalkTheMap` remain simulator-only. An accessibility change is
+worth walking by hand on the device regardless — the tree being populated is not
+the same claim as VoiceOver being usable.
 
 ## The journeys share the same cause
 
