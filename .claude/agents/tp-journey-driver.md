@@ -39,12 +39,13 @@ Read the `.xcresult` for failures, as `docs/agents/test-baseline.md` describes.
 Never count failures by grepping test names out of stdout — on the measured run
 the log named four tests where only two had failed.
 
-**The journeys sit on the same embedding floor as the unit suite.**
-`testCoreJourney` fails on the simulator for the same absent `NLEmbedding`:
-no Semantic Links, so nothing under *Related in meaning* and no related-concept
-chip to tap. That is the floor, not a regression. `testStandingSourceOfferJourney`
-is unclassified — retry it once before reporting, and don't assume it belongs to
-the floor just because it fails beside one.
+**The journeys share the unit suite's embedding cause.** `testCoreJourney` fails
+when `NLEmbedding` has no model yet: no Semantic Links, so nothing under
+*Related in meaning* and no related-concept chip to tap. That is a cold
+environment and clears on a re-run — it is not a standing exemption, so re-run
+before reporting and report it if it survives. `testStandingSourceOfferJourney`
+is unclassified; retry it once too, and don't assume it shares the cause just
+because it fails beside it.
 
 A UI failure that is really a simulator artifact — a permission sheet, a cold
 first launch, an animation that hadn't settled — is worth one retry before you

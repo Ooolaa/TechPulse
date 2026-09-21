@@ -43,9 +43,10 @@ useful thing you do.
 ## Filing
 
 When testing turns up a defect, file it with a reproduction, the expected and
-actual behaviour, and the test or journey that caught it. If it is the
-simulator's embedding floor (`docs/agents/test-baseline.md`), **do not file it** —
-it is known and declared.
+actual behaviour, and the test or journey that caught it. If it is the embedding
+cluster (`docs/agents/test-baseline.md`), re-run first — it clears when the
+embedding model downloads, and a ticket for it would be a ticket about the
+machine rather than the app. File it only if it survives a warm run.
 
 ## Report
 

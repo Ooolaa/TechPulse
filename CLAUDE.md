@@ -14,9 +14,9 @@ Single-context — `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agen
 
 ### Test baseline
 
-What a green run looks like, how to read an `.xcresult`, and the 14 failures the
-simulator floors at because `NLEmbedding` has no model there. See
-`docs/agents/test-baseline.md`.
+What a green run looks like, how to read an `.xcresult`, and why a cluster of
+embedding failures means a cold simulator rather than a regression — it clears
+once `NLEmbedding`'s model downloads. See `docs/agents/test-baseline.md`.
 
 ### Agents and the dev loop
 

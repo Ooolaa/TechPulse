@@ -34,17 +34,13 @@ its reason lives in a child of `nodeType: "Failure Message"`. Note that a failin
 `Test Case` has children (`Arguments`, `Failure Message`), so a walk that only
 counts childless nodes reports zero failures on a red run.
 
-## The embedding baseline
+## The embedding failures are transient, not a floor
 
-`SemanticLinker.embed` returns `nil` wherever `NLEmbedding` has no model — which
-includes the iOS simulator. This is a declared degradation path, not a defect:
-the map is poorer and the install still works.
-
-Measured on the simulator, 2026-09-21, `iPhone 17 Pro` / iOS 26.3.1:
-**513 tests in 49 suites, 14 cases failing in 6 suites.** All 14 trace to that
-one nil. The suites are Concept de-duplication, Concept neighbours, Hot
-candidates, Pack installer, Pack migration, Semantic linker, and they fail three
-ways:
+`SemanticLinker.embed` returns `nil` wherever `NLEmbedding` has no model. On a
+simulator whose embedding asset has not been downloaded yet, that takes out
+roughly **14 cases across 6 suites** — Concept de-duplication, Concept
+neighbours, Hot candidates, Pack installer, Pack migration, Semantic linker —
+and one UI journey, `testCoreJourney`. They fail three ways:
 
 - `SemanticLinker.embed(…) → nil` directly.
 - Empty results downstream — no Semantic Links after a Pack install, nothing on
@@ -54,30 +50,52 @@ ways:
   too fast and trips its own floor: *"analysis cost 0.327s — 600 Concepts were
   not really embedded"*.
 
-**Treat these 14 as the simulator's floor, not as work.** A run that reports
-them and nothing else is green. Escalate only a failure outside these suites, or
-a count above 14. The real verification is a physical device — ROADMAP records
-the suite green on an iPhone 14 Pro, where the fallback paths are first-class.
+**This is a transient environment state, not a permanent property of the
+simulator, and it resolves on its own.** Measured on 2026-09-21 against the same
+`iPhone 17 Pro` / iOS 26.3.1, the same code, the same scheme:
 
-## The journeys inherit the same floor
+| Time | Result |
+| --- | --- |
+| 09:53 | 14 cases failing across those 6 suites |
+| 10:53 | **0 failing** — every one of those suites green |
 
-The UI journeys run against the same absent `NLEmbedding`, so the floor is not
-confined to the unit suite. Measured the same day, `xcodebuild test -scheme
+Nothing in the repo changed between them to explain it: the failing test names
+exist unaltered on `origin/main`, and no commit touched those files. The
+embedding model became available to the simulator in between, most likely
+downloaded on demand during the intervening runs.
+
+**So: do not treat these as expected.** An earlier version of this file called
+them "the simulator's floor" and told agents to ignore them, which was wrong in
+the more dangerous direction — it would have had an agent wave through 14
+genuine failures. If you see this cluster, the response is to **re-run**, and
+to check whether the whole cluster moves together. A failure that persists
+across runs once the embedding is warm is a real failure.
+
+The honest summary: an all-embedding failure cluster means the environment is
+cold; anything else means the code is broken. The real verification remains a
+physical device — ROADMAP records the suite green on an iPhone 14 Pro, where
+the fallback paths are first-class.
+
+## The journeys share the same cause
+
+The UI journeys run against the same `NLEmbedding`, so a cold environment takes
+them out too. Measured while it was cold, `xcodebuild test -scheme
 TechPulse -only-testing:TechPulseUITests`, `iPhone 17 Pro` / iOS 26.3.1:
 **12 cases, 2 failing.**
 
-- **`testCoreJourney` — the floor.** Three assertions, all downstream of the
+- **`testCoreJourney` — the embedding cluster.** Three assertions, all downstream of the
   same nil: *"Semantic Links are computed for the whole Pack at install, so a
   frontier Concept no reading has met still has neighbours that mean something
   similar (#33)"*, the sheet offering chips but none under *Related in meaning*,
-  and then the related-concept chip never appearing to tap. Expected on the
-  simulator. The journey is asserting a real product claim; the simulator simply
-  cannot satisfy it.
+  and then the related-concept chip never appearing to tap. Re-run before
+  believing it: this journey asserts a real product claim, and it passes once
+  the embedding is warm.
 - **`testStandingSourceOfferJourney` — not classified.** *"the row outlived the
   suggestions it was holding (waited 10s)"*. This one has no established link to
   the embedding, and it is a 10-second wait, which is the shape of a flake.
   Retry it once. If it reproduces, it is worth a look rather than an assumption
-  — do not fold it into the floor on the strength of sitting next to one.
+  — do not fold it into the embedding cluster on the strength of sitting next to
+  one.
 
 `set -o pipefail` reports exit 65 on this run, which is what a caller should
 check. Note that the run's stdout names four distinct tests in its `error:`

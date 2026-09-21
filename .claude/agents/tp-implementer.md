@@ -38,9 +38,9 @@ question rather than guessing.
 
 Branch from the current branch. Write the test first where there is a natural
 one — 49 suites exist to be extended, and a bug fix without a test that would
-have caught it is half-done. Run `tp-test-runner`'s command and compare against
-the 14-failure simulator floor in `docs/agents/test-baseline.md`; don't chase
-those 14.
+have caught it is half-done. Run `tp-test-runner`'s command. If the embedding cluster in
+`docs/agents/test-baseline.md` comes up, re-run once before chasing it — it is
+a cold environment and clears itself.
 
 Keep the diff to the issue. Refactors you notice on the way become new issues,
 not extra commits.

@@ -9,17 +9,18 @@ so in one line and the cycle moves on — an empty stage is not a failure.
 
 ## The cycle
 
-1. **Verify.** `tp-test-runner`. If the suite is at its known simulator floor
-   (14 failures, `docs/agents/test-baseline.md`), it's green — continue. If there
-   are real regressions, **stop the cycle here** and report them; a red suite
-   makes everything downstream untrustworthy.
+1. **Verify.** `tp-test-runner`. If the embedding cluster comes up
+   (`docs/agents/test-baseline.md`), re-run once — it is a cold environment and
+   clears itself. If real regressions survive a re-run, **stop the cycle here**
+   and report them; a red suite makes everything downstream untrustworthy.
 
 2. **Exercise.** `tp-journey-driver` on the journeys touching whatever changed
    most recently, light and dark. All eight only when the last cycle landed
    something broad, or nothing has been walked in a while.
 
-3. **Groom.** `tp-issue-groomer`. File anything stages 1–2 turned up — excluding
-   the embedding floor, which is declared and not a defect. Triage what's
+3. **Groom.** `tp-issue-groomer`. File anything stages 1–2 turned up that
+   survived a re-run — the embedding cluster is the machine, not the app.
+   Triage what's
    untriaged and name the next `ready-for-agent` issue.
 
 4. **Implement.** `tp-implementer` on that one issue, to a PR. One issue per
@@ -34,7 +35,10 @@ so in one line and the cycle moves on — an empty stage is not a failure.
 - **Never merge, never force-push, never rewrite published history.**
 - One issue per cycle. Throughput comes from repeating the loop, not from
   widening it — five half-finished branches are worse than one merged PR.
-- Don't chase the 14 simulator embedding failures. They are the floor.
+- Re-run the embedding cluster before chasing it; it clears when the embedding
+  model downloads. But never wave a failure through as expected — that cluster
+  is the only one with a known environmental cause, and it should clear, not
+  persist.
 - If two stages disagree — a test says green and a journey says broken — report
   both rather than picking. That disagreement is the most interesting output the
   loop produces.
