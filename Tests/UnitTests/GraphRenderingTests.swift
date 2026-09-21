@@ -243,4 +243,55 @@ struct GraphRenderingTests {
         #expect(sim.edges.isEmpty)
         #expect(sim.nodes.count == 1)
     }
+
+    // MARK: - Reduce Motion
+
+    /// The promise of #66 is that a reader on Reduce Motion gets the same map,
+    /// not a lesser one. `configure` jitters every starting position by up to
+    /// 60pt, so two runs never agree coordinate for coordinate and comparing
+    /// them that way tests the random number generator rather than the layout.
+    /// What has to hold is that `settle` does the same *work* as animating:
+    /// it leaves the initial scatter behind, and it ends up with strength
+    /// governing distance exactly as the stepped path does.
+    @Test("settling in one pass does the work that animating frame by frame does")
+    func settleDoesTheWorkOfStepping() {
+        func pairDistance(_ run: (GraphSimulation) -> Void) -> (moved: CGFloat, strong: CGFloat, weak: CGFloat) {
+            let sim = GraphSimulation()
+            sim.configure(concepts: concepts("A", "B", "C", "D"),
+                          links: [ConceptLink(conceptA: "A", conceptB: "B", weight: 4, strength: 0.9),
+                                  ConceptLink(conceptA: "C", conceptB: "D", weight: 1, strength: 0.1)],
+                          in: size)
+            let before = sim.nodes.map(\.position)
+            run(sim)
+            let moved = zip(before, sim.nodes.map(\.position))
+                .map { hypot($0.x - $1.x, $0.y - $1.y) }.max() ?? 0
+            return (moved, distance(sim, "A", "B"), distance(sim, "C", "D"))
+        }
+        let stepped = pairDistance { settled($0) }
+        let inOnePass = pairDistance { $0.settle(in: size) }
+
+        // It actually ran: the net is not sitting on its starting scatter.
+        #expect(inOnePass.moved > 10, "settle moved the net by only \(inOnePass.moved)pt")
+        // And it ran to the same shape: strength decides distance either way.
+        #expect(inOnePass.strong < inOnePass.weak,
+                "strong pair \(inOnePass.strong)pt, weak pair \(inOnePass.weak)pt")
+        #expect(stepped.strong < stepped.weak)
+    }
+
+    /// A settled net that still drifts would animate on the next redraw, which
+    /// is the thing Reduce Motion asked not to happen.
+    @Test("a settled map has stopped moving, so a redraw shows no motion")
+    func settledMapDoesNotDrift() {
+        let sim = GraphSimulation()
+        sim.configure(concepts: concepts("A", "B", "C"),
+                      links: [ConceptLink(conceptA: "A", conceptB: "B", weight: 3, strength: 0.6)],
+                      in: size)
+        sim.settle(in: size)
+        let atRest = sim.nodes.map(\.position)
+        sim.step(in: size)
+        for (before, after) in zip(atRest, sim.nodes.map(\.position)) {
+            #expect(hypot(before.x - after.x, before.y - after.y) < 0.001,
+                    "a further tick moved a settled dot from \(before) to \(after)")
+        }
+    }
 }

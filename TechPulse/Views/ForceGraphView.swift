@@ -168,6 +168,17 @@ final class GraphSimulation {
         return priorityCache
     }
 
+    /// Runs the layout to wherever it was going to end up, in one pass.
+    ///
+    /// For a reader on Reduce Motion, who gets the settled net rather than the
+    /// eight seconds of it arranging itself. Same physics and the same stopping
+    /// rules as `step` — `step` goes idle on its own once the net settles or
+    /// the 240-frame cap bites, so running past that is free and the loop needs
+    /// no stopping rule of its own to drift out of step with the real one.
+    func settle(in size: CGSize) {
+        for _ in 0..<260 { step(in: size) }
+    }
+
     /// One physics tick: node repulsion + spring attraction on edges +
     /// centering force, with damping. Goes idle once motion dies down.
     func step(in size: CGSize) {
@@ -273,6 +284,10 @@ struct ForceGraphView: View {
     @State private var baseScale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var baseOffset: CGSize = .zero
+    /// Reduce Motion is a request for no animation, not for less map: the net
+    /// still arranges itself and the ripple still marks what today's reading
+    /// grew — neither is allowed to move while it says so.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private func nodeColor(_ state: Concept.MasteryState) -> Color {
         switch state {
@@ -321,10 +336,16 @@ struct ForceGraphView: View {
 
     var body: some View {
         GeometryReader { geo in
-            TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { timeline in
                 Canvas { ctx, size in
-                    sim.step(in: size)
-                    let pulsePhase = timeline.date.timeIntervalSinceReferenceDate
+                    // Paused, the Canvas draws once, so one tick would show the
+                    // net mid-arrangement and leave it there. Settling takes it
+                    // to the same place the animation was going.
+                    if reduceMotion { sim.settle(in: size) } else { sim.step(in: size) }
+                    // Held at the start of the loop rather than dropped: the
+                    // ripple becomes a static ring, so "today's reading grew
+                    // this dot" is still said, without saying it by moving.
+                    let pulsePhase = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
                         .truncatingRemainder(dividingBy: 1.4) / 1.4   // 0→1 loop
                     let center = CGPoint(x: size.width / 2, y: size.height / 2)
                     ctx.translateBy(x: offset.width + center.x * (1 - scale),
