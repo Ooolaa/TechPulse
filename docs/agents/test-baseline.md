@@ -58,3 +58,28 @@ ways:
 them and nothing else is green. Escalate only a failure outside these suites, or
 a count above 14. The real verification is a physical device — ROADMAP records
 the suite green on an iPhone 14 Pro, where the fallback paths are first-class.
+
+## The journeys inherit the same floor
+
+The UI journeys run against the same absent `NLEmbedding`, so the floor is not
+confined to the unit suite. Measured the same day, `xcodebuild test -scheme
+TechPulse -only-testing:TechPulseUITests`, `iPhone 17 Pro` / iOS 26.3.1:
+**12 cases, 2 failing.**
+
+- **`testCoreJourney` — the floor.** Three assertions, all downstream of the
+  same nil: *"Semantic Links are computed for the whole Pack at install, so a
+  frontier Concept no reading has met still has neighbours that mean something
+  similar (#33)"*, the sheet offering chips but none under *Related in meaning*,
+  and then the related-concept chip never appearing to tap. Expected on the
+  simulator. The journey is asserting a real product claim; the simulator simply
+  cannot satisfy it.
+- **`testStandingSourceOfferJourney` — not classified.** *"the row outlived the
+  suggestions it was holding (waited 10s)"*. This one has no established link to
+  the embedding, and it is a 10-second wait, which is the shape of a flake.
+  Retry it once. If it reproduces, it is worth a look rather than an assumption
+  — do not fold it into the floor on the strength of sitting next to one.
+
+`set -o pipefail` reports exit 65 on this run, which is what a caller should
+check. Note that the run's stdout names four distinct tests in its `error:`
+lines and *started* lines; only two of them actually failed. Counting test names
+out of the log over-reports. Read the `.xcresult`.
