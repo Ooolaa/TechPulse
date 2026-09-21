@@ -9,3 +9,7 @@ INTERVIEW-RESPONSE.md
 
 # Session handoff notes and scratch work.
 .scratch/
+
+# Agent worktrees. `.claude/agents/` and `.claude/commands/` are the repo's own
+# and are tracked; these are per-session checkouts of it.
+.claude/worktrees/

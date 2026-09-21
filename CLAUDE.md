@@ -11,3 +11,16 @@ The five canonical triage roles, used verbatim as label strings. See `docs/agent
 ### Domain docs
 
 Single-context — `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Test baseline
+
+What a green run looks like, how to read an `.xcresult`, and the 14 failures the
+simulator floors at because `NLEmbedding` has no model there. See
+`docs/agents/test-baseline.md`.
+
+### Agents and the dev loop
+
+Five agents in `.claude/agents/` cover the cycle — `tp-test-runner`,
+`tp-journey-driver`, `tp-issue-groomer`, `tp-implementer`, `tp-reviewer`.
+`/tp-loop` runs one pass through all five. These are agents; the five labels in
+`docs/agents/triage-labels.md` are issue states, and the two are unrelated.
