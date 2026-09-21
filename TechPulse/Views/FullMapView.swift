@@ -134,9 +134,9 @@ struct FullMapView: View {
             Spacer()
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 12) {
-                    legendDot(Theme.stateNew, "New")
-                    legendDot(Theme.stateLearning, "Learning")
-                    legendDot(Theme.stateKnown, "Known")
+                    legendDot(Theme.stateNew, Concept.MasteryState.new.label)
+                    legendDot(Theme.stateLearning, Concept.MasteryState.learning.label)
+                    legendDot(Theme.stateKnown, Concept.MasteryState.known.label)
                     Spacer()
                     Text("pinch to zoom")
                         .font(.system(size: 11))

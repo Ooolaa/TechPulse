@@ -869,6 +869,45 @@ final class TechPulseUITests: XCTestCase {
     }
 
     /// Usability guards: every tab reachable, primary controls hittable.
+    /// #65: the map is a `Canvas`, and a Canvas is one drawing — so the only
+    /// way to know a VoiceOver reader can walk it is to ask the accessibility
+    /// tree, which is what this does. The unit tests cover what a dot *says*;
+    /// only this covers whether anything is there to say it.
+    func testVoiceOverCanWalkTheMap() throws {
+        let journey = Journey("voiceover walks the map", steps: [],
+                              launchArguments: ["-hasOnboarded", "YES"])
+        let app = journey.app
+        journey.start()
+
+        journey.tap(app.buttons["Knowledge"], "Knowledge tab")
+
+        // The graph lives behind the full-map card, not on the tab itself —
+        // `ForceGraphView` is used by `FullMapView` and `ClusterDetailView`.
+        let fullMap = app.buttons["fullMapCard"].firstMatch
+        journey.waitFor(fullMap, "full map card missing")
+        journey.tap(fullMap, "full map card")
+
+        let map = app.otherElements["knowledgeGraph"].firstMatch
+        journey.waitFor(map, "knowledge graph missing")
+        journey.settle("the force layout to settle", timeout: 3)
+
+        // The blob this issue is about: a Canvas with no children exposes
+        // itself and nothing else.
+        let dots = map.descendants(matching: .any)
+            .allElementsBoundByAccessibilityElement
+            .filter { !$0.label.isEmpty }
+        XCTAssertFalse(dots.isEmpty,
+                       "the map exposes no labelled elements — VoiceOver sees one blob")
+
+        // Each dot says its name and its state, in the legend's own words, so
+        // a reader who cannot see the colour is told what it meant.
+        let states = Set(["New", "Learning", "Known"])
+        let spoken = dots.filter { dot in states.contains(where: { dot.label.contains($0) }) }
+        XCTAssertFalse(spoken.isEmpty,
+                       "no element carries a mastery state; labels were: "
+                       + dots.prefix(8).map(\.label).joined(separator: " | "))
+    }
+
     func testTabsAndTargets() throws {
         // Onboarding covered by the core journey; the wipe keeps "every tab
         // reachable" a statement about a known install rather than about

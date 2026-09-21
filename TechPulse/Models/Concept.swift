@@ -29,6 +29,21 @@ extension Concept {
     /// gray = new, blue = learning, green = known.
     enum MasteryState {
         case new, learning, known
+
+        /// The one place the three states are put into words.
+        ///
+        /// The map's legend and VoiceOver both read from here for the reason
+        /// `ForceGraphView.edgeColor` is shared with the legend: a key that can
+        /// drift from what it describes is worse than no key. A sighted reader
+        /// sees "Learning" under a blue dot; a VoiceOver reader hears the same
+        /// word for the same dot.
+        var label: String {
+            switch self {
+            case .new: "New"
+            case .learning: "Learning"
+            case .known: "Known"
+            }
+        }
     }
 
     var masteryState: MasteryState {

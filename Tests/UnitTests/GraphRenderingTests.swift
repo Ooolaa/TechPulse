@@ -243,4 +243,38 @@ struct GraphRenderingTests {
         #expect(sim.edges.isEmpty)
         #expect(sim.nodes.count == 1)
     }
+
+    // MARK: - VoiceOver
+
+    /// #65: the Canvas is one drawing, so everything a dot says visually has to
+    /// be said again in words, or a VoiceOver reader gets an unlabelled blob.
+    @Test("a dot tells VoiceOver its name and its state")
+    func dotSaysNameAndState() {
+        let concept = Concept(name: "RAG", category: "Foundations", definition: "d")
+        concept.masteryLevel = 0.5
+        let label = ForceGraphView.dotLabel(for: concept, frontier: [], recent: [])
+        #expect(label == "RAG, Learning")
+    }
+
+    /// The dashed ring and the ripple are the two things a dot says by drawing
+    /// rather than by naming, so they are the two easiest to leave out.
+    @Test("the ring and the ripple are spoken, not just drawn")
+    func dotSaysFrontierAndRecent() {
+        let concept = Concept(name: "Benchmarks", category: "Foundations", definition: "d")
+        concept.isMarkedKnown = true
+        let label = ForceGraphView.dotLabel(for: concept,
+                                            frontier: ["Benchmarks"],
+                                            recent: ["Benchmarks"])
+        #expect(label == "Benchmarks, Known, ready to learn, grown by today's reading")
+    }
+
+    /// `MasteryState.label` exists so the legend and VoiceOver cannot drift
+    /// apart. Every state needs a word: a state added later with none would
+    /// reach a reader as silence.
+    @Test("every state has a word for the reader who cannot see the colour")
+    func everyStateIsSpeakable() {
+        #expect(Concept.MasteryState.new.label == "New")
+        #expect(Concept.MasteryState.learning.label == "Learning")
+        #expect(Concept.MasteryState.known.label == "Known")
+    }
 }

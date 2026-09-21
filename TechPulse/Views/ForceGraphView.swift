@@ -282,6 +282,34 @@ struct ForceGraphView: View {
         }
     }
 
+    /// What one dot says when VoiceOver reaches it.
+    ///
+    /// The dot carries four things visually — its name, its colour, a dashed
+    /// ring if it is on the frontier, a ripple if today's reading grew it — and
+    /// a reader who cannot see it is owed all four, in that order. Static and
+    /// free of SwiftUI so it can be tested without a screen, the same bargain
+    /// `GraphSimulation` makes.
+    static func dotLabel(for concept: Concept,
+                         frontier: Set<String>,
+                         recent: Set<String>) -> String {
+        var parts = [concept.name, concept.masteryState.label]
+        if frontier.contains(concept.name) { parts.append("ready to learn") }
+        if recent.contains(concept.name) { parts.append("grown by today's reading") }
+        return parts.joined(separator: ", ")
+    }
+
+    /// The dots, grouped the way the map groups them.
+    ///
+    /// Cluster by cluster rather than by settled position: the layout is seeded
+    /// with up to 60pt of jitter, so a traversal that followed it would come out
+    /// in a different order on every launch. The clusters are the structure the
+    /// map is actually claiming, and they are what "walk a cluster" means.
+    private var dotsByCluster: [(cluster: String, concepts: [Concept])] {
+        Dictionary(grouping: concepts, by: \.category)
+            .map { (cluster: $0.key, concepts: $0.value.sorted { $0.name < $1.name }) }
+            .sorted { $0.cluster < $1.cluster }
+    }
+
     /// What the drawn edges actually depend on.
     ///
     /// Counting links is not enough: Co-read Links are rebuilt by deleting and
@@ -466,5 +494,32 @@ struct ForceGraphView: View {
             }
         }
         .accessibilityIdentifier("knowledgeGraph")
+        // A Canvas is one drawing, so VoiceOver saw a single unlabelled blob
+        // where a sighted reader sees a map (#65). These children give it the
+        // dots back — they draw nothing and change no layout, they exist only
+        // to be walked.
+        .accessibilityChildren {
+            ForEach(dotsByCluster, id: \.cluster) { group in
+                VStack {
+                    ForEach(group.concepts, id: \.name) { concept in
+                        Rectangle()
+                            // A shape is not an element on its own, so without
+                            // this the labels below attach to nothing and the
+                            // tree is as empty as it was before.
+                            .accessibilityElement()
+                            .accessibilityLabel(
+                                ForceGraphView.dotLabel(for: concept,
+                                                        frontier: frontier,
+                                                        recent: recent))
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction {
+                                onSelect(concept.name)
+                            }
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(group.cluster)
+            }
+        }
     }
 }
